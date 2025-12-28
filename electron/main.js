@@ -1,8 +1,9 @@
-
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { autoUpdater } from 'electron-updater';
+import pkg from 'electron-updater';
+const { autoUpdater } = pkg;
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,7 +22,8 @@ function createWindow() {
       contextIsolation: false, // Allows window.require in React
       enableRemoteModule: true
     },
-    icon: path.join(__dirname, '../public/vite.svg')
+    // ZMENA: Tu používame tvoje logo.png z hlavného priečinka
+    icon: path.join(__dirname, '../logo.png')
   });
 
   mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));

@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Modal, Input, Badge, ConfirmModal, AlertModal } from '../components/UI';
-import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote, Trash2, Archive, CheckCircle2, Users, Pencil, RefreshCcw, Link, Copy, ChevronDown, ChevronRight, Clock } from 'lucide-react';
-import { formatMoney, formatDate } from '../lib/utils';
+import { Card, Button, Modal, Input, Badge, ConfirmModal, AlertModal, Select } from '../components/UI';
+import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote, Trash2, Archive, CheckCircle2, Users, Pencil, RefreshCcw, Link, Copy, ChevronDown, ChevronRight, Clock, MapPin, Send, Zap, Info, Smartphone, Monitor, Wallet, Loader2, Filter, FileText, Search } from 'lucide-react';
+import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 
 export const TeamScreen = ({ profile }: any) => {
   const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
@@ -31,12 +32,6 @@ const TeamList = ({ profile, onSelect }: any) => {
   };
 
   useEffect(() => { load(); }, []);
-
-  const handleCreate = () => {
-      setEditingWorker(null);
-      setFormData({ email: '', fullName: '', rate: 0, phone: '', is_active: true });
-      setShowModal(true);
-  }
 
   const handleEdit = (worker: any, e: any) => {
       e.stopPropagation();
@@ -115,72 +110,78 @@ const TeamList = ({ profile, onSelect }: any) => {
       setConfirm({ open: true, action: 'delete', id });
   }
 
-  const copyInviteLink = () => {
-      const link = `${window.location.origin}/?action=register-emp&companyId=${profile.organization_id}`;
-      navigator.clipboard.writeText(link);
+  const copyOrgId = () => {
+      navigator.clipboard.writeText(profile.organization_id);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+  };
+
+  const sendInviteViaEmail = () => {
+      const subject = encodeURIComponent("Pozvánka do tímu - MojaStavba");
+      const body = encodeURIComponent(
+          `Dobrý deň,\n\nPozývam vás do nášho firemného systému MojaStavba na správu prác a dochádzky.\n\nPostup pre registráciu:\n1. Stiahnite si aplikáciu pre váš systém (Android / Windows).\n2. Pri registrácii zvoľte "Zamestnanecký účet".\n3. Zadajte toto ID firmy: ${profile.organization_id}\n\nPo registrácii si budete môcť hneď zapisovať svoje odpracované hodiny.\n\nS pozdravom,\nAdministrátor`
+      );
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
   const filteredWorkers = workers.filter(w => showArchived ? !w.is_active : w.is_active);
 
   return (
     <div className="space-y-6">
-      {/* UNIFIED HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
            <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
               <Users className="text-orange-600" size={32} />
               Tím a Zamestnanci
            </h2>
-           <p className="text-sm text-slate-500 mt-1 font-medium">Správa pracovníkov, sadzieb a výplat</p>
+           <p className="text-sm text-slate-500 mt-1 font-medium">Správa pracovníkov a prehľad výkonov</p>
         </div>
-        <div className="flex flex-wrap gap-2 justify-end">
-            <Button variant="secondary" onClick={() => setShowArchived(!showArchived)}>
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            <Button variant="secondary" onClick={() => setShowArchived(!showArchived)} fullWidth className="sm:w-auto justify-center order-2 sm:order-1">
                 {showArchived ? 'Späť na aktívnych' : 'Zobraziť Archív'}
             </Button>
-            <Button variant="secondary" onClick={() => setShowInviteModal(true)}><Link size={18}/> Pozvať člena</Button>
-            <Button onClick={handleCreate}><UserPlus size={18}/> Vytvoriť člena</Button>
+            <Button onClick={() => setShowInviteModal(true)} fullWidth className="sm:w-auto justify-center order-1 sm:order-2 shadow-lg shadow-orange-100">
+                <UserPlus size={18}/> Pozvať zamestnancov
+            </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredWorkers.map(w => (
-          <Card key={w.id} onClick={() => onSelect(w.id)} className={`relative group hover:shadow-md transition cursor-pointer border border-slate-200 ${!w.is_active ? 'opacity-70 bg-slate-50' : ''}`}>
+          <Card key={w.id} onClick={() => onSelect(w.id)} className={`relative group hover:shadow-md transition cursor-pointer border border-slate-200 flex flex-col h-full ${!w.is_active ? 'opacity-70 bg-slate-50' : ''}`}>
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xl text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition border border-slate-200">
+              <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xl text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition border border-slate-200 shrink-0">
                 {w.full_name?.charAt(0)}
               </div>
-              <div>
-                <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition">{w.full_name}</h3>
+              <div className="min-w-0">
+                <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition truncate pr-8">{w.full_name}</h3>
                 <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1 ${w.is_active ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-slate-200 text-slate-500 border border-slate-300'}`}>
                     {w.is_active ? (w.role === 'admin' ? 'Administrátor' : 'Pracovník') : 'Archivovaný'}
                 </span>
               </div>
             </div>
-            <div className="mt-6 space-y-3 pt-4 border-t border-slate-100">
-              <div className="flex items-center gap-3 text-sm text-slate-600">
-                <Mail size={16} className="text-slate-400"/> {w.email}
+            <div className="mt-auto space-y-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center gap-3 text-sm text-slate-600 truncate">
+                <Mail size={16} className="text-slate-400 shrink-0"/> <span className="truncate">{w.email}</span>
               </div>
               <div className="flex items-center gap-3 text-sm text-slate-600">
-                <Phone size={16} className="text-slate-400"/> {w.phone || '-'}
+                <Phone size={16} className="text-slate-400 shrink-0"/> {w.phone || '-'}
               </div>
               <div className="flex items-center gap-3 text-sm text-slate-600">
-                <Coins size={16} className="text-orange-400"/> 
+                <Coins size={16} className="text-orange-400 shrink-0"/> 
                 <span className="font-bold">{formatMoney(w.hourly_rate || 0)} / hod</span>
               </div>
             </div>
             
-            {/* ACTION BUTTONS ON CARD */}
-            <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition duration-200">
-                <button onClick={(e) => handleEdit(w, e)} className="bg-white p-2 rounded-full text-slate-400 hover:text-blue-600 shadow-sm border border-slate-200 hover:border-blue-200" title="Upraviť">
+            <div className="absolute top-4 right-4 flex gap-1">
+                <button onClick={(e) => handleEdit(w, e)} className="bg-white p-2 rounded-full text-blue-500 shadow-sm border border-slate-200 hover:border-blue-200 active:scale-90 transition sm:opacity-0 sm:group-hover:opacity-100" title="Upraviť">
                     <Pencil size={14}/>
                 </button>
-                <button onClick={(e) => toggleArchive(w, e)} className="bg-white p-2 rounded-full text-slate-400 hover:text-orange-600 shadow-sm border border-slate-200 hover:border-orange-200" title={w.is_active ? "Archivovať" : "Obnoviť"}>
+                <button onClick={(e) => toggleArchive(w, e)} className="bg-white p-2 rounded-full text-orange-500 shadow-sm border border-slate-200 hover:border-orange-200 active:scale-90 transition sm:opacity-0 sm:group-hover:opacity-100" title={w.is_active ? "Archivovať" : "Obnoviť"}>
                     {w.is_active ? <Archive size={14}/> : <RefreshCcw size={14}/>}
                 </button>
                 {!w.is_active && (
-                    <button onClick={(e) => handleDelete(w.id, e)} className="bg-white p-2 rounded-full text-slate-400 hover:text-red-600 shadow-sm border border-slate-200 hover:border-red-200" title="Zmazať">
+                    <button onClick={(e) => handleDelete(w.id, e)} className="bg-white p-2 rounded-full text-red-500 shadow-sm border border-slate-200 hover:border-red-200 active:scale-90 transition" title="Zmazať">
                         <Trash2 size={14}/>
                     </button>
                 )}
@@ -216,57 +217,73 @@ const TeamList = ({ profile, onSelect }: any) => {
       />
 
       {showModal && (
-        <Modal title={editingWorker ? "Upraviť Zamestnanca" : "Nový Zamestnanec"} onClose={() => setShowModal(false)}>
-          <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 text-sm text-blue-800">
-            <strong>Tip:</strong> Môžete tiež použiť tlačidlo "Pozvať člena" a poslať zamestnancovi odkaz, aby sa zaregistroval sám.
-          </div>
+        <Modal title="Upraviť Zamestnanca" onClose={() => setShowModal(false)}>
           <form onSubmit={handleSave}>
             <Input label="Meno a Priezvisko" value={formData.fullName} onChange={(e: any) => setFormData({...formData, fullName: e.target.value})} required placeholder="Ján Novák" />
             <div className="grid grid-cols-2 gap-4">
                 <Input label="Hodinová sadzba €" type="number" step="0.5" value={formData.rate} onChange={(e: any) => setFormData({...formData, rate: parseFloat(e.target.value)})} required />
                 <Input label="Telefón" value={formData.phone} onChange={(e: any) => setFormData({...formData, phone: e.target.value})} />
             </div>
-            <Input label="Email (Voliteľné)" type="email" value={formData.email} onChange={(e: any) => setFormData({...formData, email: e.target.value})} />
+            <Input label="Email" type="email" value={formData.email} onChange={(e: any) => setFormData({...formData, email: e.target.value})} readOnly />
             
-            {editingWorker && (
-                <div className="flex items-center gap-2 mb-4 pt-2 border-t border-slate-100">
-                    <input type="checkbox" id="isActive" checked={formData.is_active} onChange={(e) => setFormData({...formData, is_active: e.target.checked})} className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500" />
-                    <label htmlFor="isActive" className="text-sm font-bold text-slate-700">Aktívny zamestnanec</label>
-                </div>
-            )}
+            <div className="flex items-center gap-2 mb-4 pt-2 border-t border-slate-100">
+                <input type="checkbox" id="isActive" checked={formData.is_active} onChange={(e) => setFormData({...formData, is_active: e.target.checked})} className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500" />
+                <label htmlFor="isActive" className="text-sm font-bold text-slate-700">Aktívny zamestnanec</label>
+            </div>
 
-            <Button type="submit" fullWidth className="mt-4">{editingWorker ? 'Uložiť Zmeny' : 'Vytvoriť Pracovníka'}</Button>
+            <Button type="submit" fullWidth className="mt-4">Uložiť Zmeny</Button>
           </form>
         </Modal>
       )}
 
-      {/* INVITE MODAL */}
       {showInviteModal && (
-          <Modal title="Pozvať Zamestnanca" onClose={() => setShowInviteModal(false)}>
+          <Modal title="Pozvať do tímu" onClose={() => setShowInviteModal(false)}>
               <div className="space-y-6">
                   <div className="text-center">
-                      <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Link size={32}/>
+                      <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-orange-100 shadow-sm">
+                          <Users size={32} className="fill-orange-100"/>
                       </div>
-                      <h3 className="text-lg font-bold text-slate-900 mb-2">Registračný Odkaz</h3>
-                      <p className="text-sm text-slate-500">
-                          Pošlite tento odkaz zamestnancovi. Po kliknutí sa mu otvorí registračný formulár s automaticky predvyplneným ID vašej firmy.
+                      <h3 className="text-lg font-bold text-slate-900 mb-1">Ako pozvať ľudí?</h3>
+                      <p className="text-xs text-slate-500 max-w-[280px] mx-auto leading-relaxed">
+                          Keďže aplikáciu používate ako nainštalovaný program, zamestnanci si ju musia najprv stiahnuť a pri registrácii zadať vaše <strong>ID firmy</strong>.
                       </p>
                   </div>
 
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3">
-                      <div className="flex-1 font-mono text-xs text-slate-600 break-all">
-                          {`${window.location.origin}/?action=register-emp&companyId=${profile.organization_id}`}
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID vašej firmy</label>
+                          {copied && <span className="text-[10px] font-bold text-green-600 flex items-center gap-1 animate-bounce">✓ Skopírované</span>}
                       </div>
-                      <button 
-                          onClick={copyInviteLink} 
-                          className={`p-2 rounded-lg transition shrink-0 ${copied ? 'bg-green-100 text-green-700' : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-600'}`}
-                      >
-                          {copied ? <CheckCircle2 size={20}/> : <Copy size={20}/>}
-                      </button>
+                      <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+                          <div className="flex-1 font-mono text-sm font-bold text-slate-700 truncate text-center">
+                              {profile.organization_id}
+                          </div>
+                          <button 
+                              onClick={copyOrgId} 
+                              className={`p-2 rounded-lg transition shrink-0 ${copied ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-orange-600 hover:text-white'}`}
+                          >
+                              <Copy size={18}/>
+                          </button>
+                      </div>
                   </div>
 
-                  <Button fullWidth onClick={() => setShowInviteModal(false)}>Zatvoriť</Button>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3 p-3 bg-white border border-slate-100 rounded-xl">
+                        <Smartphone size={20} className="text-blue-500 shrink-0 mt-1"/>
+                        <div>
+                            <div className="text-xs font-bold text-slate-800">Mobilná aplikácia</div>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Pošlite im ID firmy cez WhatsApp a navigujte ich na Google Play Store.</p>
+                        </div>
+                    </div>
+                    
+                    <Button fullWidth onClick={sendInviteViaEmail} variant="secondary" className="bg-white border-slate-200 text-slate-700 h-12">
+                        <Mail size={18} className="text-blue-500"/> Odoslať inštrukcie e-mailom
+                    </Button>
+                  </div>
+
+                  <div className="pt-2">
+                    <Button fullWidth onClick={() => setShowInviteModal(false)} variant="ghost" className="text-slate-400 hover:text-slate-600">Zatvoriť</Button>
+                  </div>
               </div>
           </Modal>
       )}
@@ -275,216 +292,210 @@ const TeamList = ({ profile, onSelect }: any) => {
 };
 
 const EmployeeDetail = ({ empId, profile, onBack }: any) => {
+    const [loading, setLoading] = useState(true);
     const [emp, setEmp] = useState<any>(null);
-    const [stats, setStats] = useState<any>({ earned: 0, paid: 0, balance: 0, hours: 0 });
-    const [groupedLogs, setGroupedLogs] = useState<any>({});
-    const [showPayroll, setShowPayroll] = useState(false);
-    const [payrollData, setPayrollData] = useState({ amount: 0, date: new Date().toISOString().split('T')[0], note: '' });
-    const [expandedSites, setExpandedSites] = useState<Record<string, boolean>>({});
+    const [allLogs, setAllLogs] = useState<any[]>([]);
+    const [sites, setSites] = useState<any[]>([]);
     
-    const [confirm, setConfirm] = useState<{open: boolean, action: string}>({ open: false, action: '' });
+    // Filters
+    const [filterSite, setFilterSite] = useState('');
+    const [searchSiteQuery, setSearchSiteQuery] = useState('');
+    const [filterMonth, setFilterMonth] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+    });
 
     const loadData = async () => {
-        const [e, l, t] = await Promise.all([
+        setLoading(true);
+        const [e, l, s] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', empId).single(),
             supabase.from('attendance_logs').select('*, sites(name)').eq('user_id', empId).order('date', {ascending: false}),
-            supabase.from('transactions').select('*').eq('category', 'Mzda').ilike('description', `%#EMP:${empId}%`)
+            supabase.from('sites').select('id, name').eq('organization_id', profile.organization_id)
         ]);
 
-        if (e.data) {
-            setEmp(e.data);
-            
-            // Process Logs Grouping
-            const logs = l.data || [];
-            const earned = logs.reduce((acc, log) => acc + (Number(log.hours) * Number(log.hourly_rate_snapshot)), 0);
-            const totalHours = logs.reduce((acc, log) => acc + Number(log.hours), 0);
-            const paid = (t.data || []).reduce((acc,yb) => acc + Number(yb.amount), 0);
-            
-            setStats({ earned, paid, balance: earned - paid, hours: totalHours });
-            setPayrollData(p => ({ ...p, amount: earned - paid > 0 ? earned - paid : 0 }));
-
-            // Grouping Logic: Site -> Month -> Logs
-            const grouped = logs.reduce((acc: any, log: any) => {
-                const siteName = log.sites?.name || 'Zmazaná / Neznáma stavba';
-                const date = new Date(log.date);
-                const monthKey = date.toLocaleString('sk-SK', { month: 'long', year: 'numeric' }); // e.g., "máj 2024"
-
-                if (!acc[siteName]) acc[siteName] = { totalHours: 0, totalCost: 0, months: {} };
-                if (!acc[siteName].months[monthKey]) acc[siteName].months[monthKey] = { hours: 0, cost: 0, logs: [] };
-
-                const cost = Number(log.hours) * Number(log.hourly_rate_snapshot);
-                
-                acc[siteName].totalHours += Number(log.hours);
-                acc[siteName].totalCost += cost;
-                
-                acc[siteName].months[monthKey].hours += Number(log.hours);
-                acc[siteName].months[monthKey].cost += cost;
-                acc[siteName].months[monthKey].logs.push(log);
-
-                return acc;
-            }, {});
-
-            setGroupedLogs(grouped);
-            // Auto expand all sites initially
-            const initialExpanded = Object.keys(grouped).reduce((acc:any, key) => ({...acc, [key]: true}), {});
-            setExpandedSites(initialExpanded);
-        }
+        if (e.data) setEmp(e.data);
+        if (l.data) setAllLogs(l.data);
+        if (s.data) setSites(s.data);
+        setLoading(false);
     };
 
     useEffect(() => { loadData(); }, [empId]);
 
-    const handlePayroll = async (e: React.FormEvent) => {
-        e.preventDefault();
-        // Create expense transaction
-        await supabase.from('transactions').insert([{
-            organization_id: profile.organization_id,
-            type: 'expense',
-            category: 'Mzda',
-            amount: payrollData.amount,
-            date: payrollData.date,
-            description: `Výplata mzdy: ${emp.full_name} #EMP:${emp.id}. ${payrollData.note}`,
-            is_paid: true
-        }]);
-        setShowPayroll(false);
-        loadData();
-    };
+    // Filter sites for the dropdown search
+    const filteredSitesList = sites.filter(s => 
+        s.name.toLowerCase().includes(searchSiteQuery.toLowerCase())
+    );
 
-    const toggleActiveAction = async () => {
-        await supabase.from('profiles').update({ is_active: !emp.is_active }).eq('id', emp.id);
-        loadData();
-    };
+    // Apply local filtering to logs
+    const filteredLogs = allLogs.filter(log => {
+        const matchesSite = filterSite === '' || log.site_id === filterSite;
+        const logMonth = log.date.substring(0, 7); // YYYY-MM
+        const matchesMonth = filterMonth === '' || logMonth === filterMonth;
+        return matchesSite && matchesMonth;
+    });
 
-    const toggleSite = (siteName: string) => {
-        setExpandedSites(prev => ({...prev, [siteName]: !prev[siteName]}));
-    };
+    const stats = filteredLogs.reduce((acc, log) => {
+        const hours = Number(log.hours);
+        const cost = hours * Number(log.hourly_rate_snapshot);
+        acc.hours += hours;
+        acc.earned += cost;
+        return acc;
+    }, { hours: 0, earned: 0 });
 
-    if(!emp) return <div>Načítavam...</div>;
+    if(loading) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-orange-600" size={40}/></div>;
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                 <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-wider flex items-center gap-1"><ArrowLeft size={14}/> Späť na tím</button>
-                 <div className="flex gap-2">
-                    <Button variant={emp.is_active ? 'secondary' : 'primary'} size="sm" onClick={() => setConfirm({ open: true, action: emp.is_active ? 'deactivate' : 'activate' })}>
-                        {emp.is_active ? <><Archive size={16}/> Archivovať</> : <><CheckCircle2 size={16}/> Aktivovať</>}
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={() => setShowPayroll(true)} disabled={stats.balance <= 0}>
-                        <Banknote size={16}/> Vyplatiť Mzdu
-                    </Button>
-                 </div>
+        <div className="space-y-6 pb-20 animate-in fade-in duration-300">
+            {/* Header with back button */}
+            <div className="flex justify-between items-center">
+                 <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition">
+                    <ArrowLeft size={16}/> Späť na tím
+                 </button>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-8 items-start">
-                <div className="flex items-center gap-6">
-                    <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center font-bold text-3xl text-slate-400 border border-slate-200">
-                        {emp.full_name.charAt(0)}
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-900">{emp.full_name}</h1>
-                        <p className="text-slate-500 font-medium">{emp.role === 'admin' ? 'Administrátor' : 'Pracovník'} • {emp.email}</p>
-                        <div className="flex gap-4 mt-2 text-sm">
-                             <span className="flex items-center gap-1 text-slate-600 bg-slate-50 px-2 py-0.5 rounded"><Phone size={14}/> {emp.phone || '-'}</span>
-                             <span className="flex items-center gap-1 text-orange-600 bg-orange-50 px-2 py-0.5 rounded font-bold"><Coins size={14}/> {formatMoney(emp.hourly_rate)} / hod</span>
-                        </div>
+            {/* Profile Info Card */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-6 items-center md:items-start">
+                <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center font-bold text-3xl text-slate-400 border border-slate-200 shrink-0">
+                    {emp.full_name?.charAt(0)}
+                </div>
+                <div className="text-center md:text-left flex-1">
+                    <h1 className="text-3xl font-black text-slate-900 leading-tight">{emp.full_name}</h1>
+                    <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-2 text-sm">
+                         <span className="flex items-center gap-1 text-slate-500 font-medium"><Mail size={14}/> {emp.email}</span>
+                         {emp.phone && <span className="flex items-center gap-1 text-slate-500 font-medium"><Phone size={14}/> {emp.phone}</span>}
                     </div>
                 </div>
-                <div className="flex-1 w-full grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <div className="text-center">
-                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Odpracované</div>
-                        <div className="text-xl font-bold text-slate-900">{stats.hours.toFixed(1)} h</div>
-                    </div>
-                    <div className="text-center border-l border-slate-200">
-                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Zarobené</div>
-                        <div className="text-xl font-bold text-slate-900">{formatMoney(stats.earned)}</div>
-                    </div>
-                    <div className="text-center border-l border-slate-200">
-                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">K Úhrade</div>
-                        <div className={`text-xl font-bold ${stats.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatMoney(stats.balance)}</div>
-                    </div>
+                <div className="bg-white px-6 py-4 rounded-2xl border border-slate-200 text-center min-w-[160px] shadow-sm">
+                    <div className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Mzdová sadzba</div>
+                    <div className="text-2xl font-black text-slate-800">{formatMoney(emp.hourly_rate)} <span className="text-xs font-bold opacity-60">/ h</span></div>
                 </div>
             </div>
 
-            <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2"><Calendar className="text-orange-500" size={20}/> História Prác podľa Stavieb</h3>
-            
-            <div className="space-y-4">
-                {Object.keys(groupedLogs).length === 0 && <div className="text-center py-10 text-slate-400 italic">Žiadne záznamy.</div>}
-                
-                {Object.entries(groupedLogs).map(([siteName, siteData]: any) => (
-                    <div key={siteName} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                        <div 
-                            onClick={() => toggleSite(siteName)}
-                            className="bg-slate-50/50 p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition border-b border-slate-100"
-                        >
-                            <div className="flex items-center gap-3">
-                                {expandedSites[siteName] ? <ChevronDown size={20} className="text-slate-400"/> : <ChevronRight size={20} className="text-slate-400"/>}
-                                <div>
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2"><Building2 size={16} className="text-orange-500"/> {siteName}</h4>
+            {/* Filters Row with Integrated Stats */}
+            <Card className="bg-slate-50 border-slate-200 p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div className="lg:col-span-1">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <Search size={12}/> Hľadať stavbu
+                        </label>
+                        <div className="relative group">
+                            <input 
+                                type="text"
+                                placeholder="Všetky stavby..."
+                                value={searchSiteQuery}
+                                onChange={(e) => setSearchSiteQuery(e.target.value)}
+                                className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-orange-500 transition shadow-sm"
+                            />
+                            {searchSiteQuery && (
+                                <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                                    <button 
+                                        onClick={() => { setFilterSite(''); setSearchSiteQuery(''); }}
+                                        className="w-full text-left p-3 text-sm hover:bg-slate-50 font-bold border-b border-slate-50"
+                                    >
+                                        Zrušiť filter stavby
+                                    </button>
+                                    {filteredSitesList.map(s => (
+                                        <button 
+                                            key={s.id}
+                                            onClick={() => { setFilterSite(s.id); setSearchSiteQuery(s.name); }}
+                                            className={`w-full text-left p-3 text-sm hover:bg-orange-50 transition font-bold flex items-center gap-2 ${filterSite === s.id ? 'bg-orange-50 text-orange-600' : 'text-slate-700'}`}
+                                        >
+                                            <Building2 size={14} className="opacity-40"/> {s.name}
+                                        </button>
+                                    ))}
+                                    {filteredSitesList.length === 0 && <div className="p-3 text-xs text-slate-400 italic">Nenašla sa žiadna stavba.</div>}
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-6 text-sm">
-                                <div className="text-slate-500 font-medium"><span className="font-bold text-slate-900">{siteData.totalHours.toFixed(1)}</span> hod</div>
-                                <div className="font-bold text-slate-900 bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-100">{formatMoney(siteData.totalCost)}</div>
-                            </div>
+                            )}
                         </div>
-                        
-                        {expandedSites[siteName] && (
-                            <div className="p-4 bg-white space-y-4 animate-in slide-in-from-top-2 duration-200">
-                                {Object.entries(siteData.months).map(([month, monthData]: any) => (
-                                    <div key={month} className="border border-slate-100 rounded-xl overflow-hidden">
-                                        <div className="bg-slate-50 px-4 py-2 flex justify-between items-center text-xs uppercase font-bold tracking-wider text-slate-500">
-                                            <span>{month}</span>
-                                            <span className="text-slate-700">{monthData.hours.toFixed(1)}h • {formatMoney(monthData.cost)}</span>
+                    </div>
+                    <div className="lg:col-span-1">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <Calendar size={12}/> Mesiac
+                        </label>
+                        <input 
+                            type="month"
+                            value={filterMonth}
+                            onChange={(e) => setFilterMonth(e.target.value)}
+                            className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-orange-500 transition shadow-sm"
+                        />
+                    </div>
+                    
+                    {/* Integrated Statistics - Worked Hours */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm h-[46px] flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-blue-50 text-blue-600 p-1.5 rounded-lg"><Clock size={14}/></div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">HODINY</span>
+                            </div>
+                            <span className="font-black text-slate-800 text-lg">{formatDuration(stats.hours)}</span>
+                        </div>
+                    </div>
+
+                    {/* Integrated Statistics - Earned */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm h-[46px] flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-50 text-green-600 p-1.5 rounded-lg"><Wallet size={14}/></div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ZÁROBOK</span>
+                            </div>
+                            <span className="font-black text-green-600 text-lg">{formatMoney(stats.earned)}</span>
+                        </div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* Detailed Logs List */}
+            <div className="space-y-4">
+                <h3 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
+                    <FileText className="text-orange-500" size={22}/> 
+                    Detailný výkaz prác
+                    <span className="ml-2 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-400 text-xs font-bold">{filteredLogs.length} záznamov</span>
+                </h3>
+
+                <div className="grid grid-cols-1 gap-3">
+                    {filteredLogs.map((log: any) => (
+                        <div key={log.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-orange-200 transition group">
+                            <div className="flex flex-col md:flex-row justify-between gap-4">
+                                <div className="flex-1 space-y-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-slate-50 text-slate-700 px-3 py-1 rounded-full text-xs font-bold border border-slate-100 flex items-center gap-2">
+                                            <Calendar size={14} className="text-orange-500"/>
+                                            {formatDate(log.date)}
                                         </div>
-                                        <div className="divide-y divide-slate-50">
-                                            {monthData.logs.map((log: any) => (
-                                                <div key={log.id} className="px-4 py-3 flex justify-between items-center hover:bg-slate-50/50 transition">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="bg-slate-100 p-1.5 rounded text-slate-500"><Clock size={14}/></div>
-                                                        <div>
-                                                            <div className="text-sm font-bold text-slate-700">{formatDate(log.date)}</div>
-                                                            {log.description && <div className="text-xs text-slate-500 italic">{log.description}</div>}
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <div className="font-bold text-sm">{Number(log.hours).toFixed(1)}h</div>
-                                                        <div className="text-xs text-slate-400">{formatMoney(log.hourly_rate_snapshot)}/h</div>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                        <div className="text-slate-900 font-bold flex items-center gap-1.5">
+                                            <Building2 size={16} className="text-blue-500"/>
+                                            {log.sites?.name || 'Všeobecné'}
                                         </div>
                                     </div>
-                                ))}
+                                    <div className="text-sm text-slate-700 font-medium leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-100 italic">
+                                        {log.description || <span className="text-slate-300">Bez popisu práce...</span>}
+                                    </div>
+                                    <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                        <span className="flex items-center gap-1"><Clock size={12}/> {log.start_time || '--:--'} - {log.end_time || '--:--'}</span>
+                                        <span className="flex items-center gap-1"><Wallet size={12}/> {formatMoney(log.hourly_rate_snapshot)} / hod</span>
+                                    </div>
+                                </div>
+                                <div className="flex md:flex-col justify-between items-end gap-2 shrink-0">
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Dĺžka práce</div>
+                                        <div className="text-2xl font-black text-slate-900">{formatDuration(Number(log.hours))}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Suma za deň</div>
+                                        <div className="text-xl font-black text-green-600">{formatMoney(Number(log.hours) * Number(log.hourly_rate_snapshot))}</div>
+                                    </div>
+                                </div>
                             </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-
-            <ConfirmModal 
-                isOpen={confirm.open}
-                onClose={() => setConfirm({ ...confirm, open: false })}
-                onConfirm={toggleActiveAction}
-                title={confirm.action === 'deactivate' ? 'Deaktivovať?' : 'Aktivovať?'}
-                message={confirm.action === 'deactivate' 
-                    ? "Zamestnanec bude archivovaný a nebude môcť zapisovať hodiny." 
-                    : "Obnoviť zamestnanca pre zápis hodín?"}
-                type="primary"
-            />
-
-            {showPayroll && (
-                <Modal title="Vyplatiť Mzdu" onClose={() => setShowPayroll(false)}>
-                    <form onSubmit={handlePayroll}>
-                        <div className="bg-green-50 p-4 rounded-xl border border-green-100 mb-4 text-center">
-                            <div className="text-xs font-bold uppercase text-green-700">Aktuálny dlh voči zamestnancovi</div>
-                            <div className="text-3xl font-bold text-green-800">{formatMoney(stats.balance)}</div>
                         </div>
-                        <Input label="Suma k úhrade (€)" type="number" step="0.01" value={payrollData.amount} onChange={(e: any) => setPayrollData({...payrollData, amount: parseFloat(e.target.value)})} required />
-                        <Input label="Dátum úhrady" type="date" value={payrollData.date} onChange={(e: any) => setPayrollData({...payrollData, date: e.target.value})} required />
-                        <Input label="Poznámka" value={payrollData.note} onChange={(e: any) => setPayrollData({...payrollData, note: e.target.value})} placeholder="Napr. Doplatok za Marec" />
-                        <Button type="submit" fullWidth className="mt-4">Potvrdiť Vyplatenie</Button>
-                    </form>
-                </Modal>
-            )}
+                    ))}
+
+                    {filteredLogs.length === 0 && (
+                        <div className="py-20 text-center text-slate-400 italic bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                            Žiadne záznamy prác pre tento výber.
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };

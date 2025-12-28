@@ -1,24 +1,43 @@
 {
-  "name": "stavba-app-finale",
+  "name": "mojastavba",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.6",
+  "description": "Aplikácia pre stavebný manažment",
+  "author": {
+    "name": "MojaStavba",
+    "email": "info@mojastavba.app"
+  },
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/javorcikivan1-ux/mojastavba-app"
+  },
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"electron .\"",
-    "electron:build": "vite build && electron-builder -p always"
+    "electron:build": "vite build && electron-builder",
+    "dist": "npm run build && electron-builder",
+    "assets:generate": "npx @capacitor/assets generate --android",
+    "mobile:full-sync": "npm run build && npx cap sync android && npm run assets:generate && npx cap copy android"
   },
   "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/ios": "^6.0.0",
+    "@capgo/capacitor-updater": "^6.0.0",
     "@supabase/supabase-js": "^2.39.0",
     "electron-updater": "^6.1.7",
+    "html2pdf.js": "^0.10.3",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.0.0",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^4.2.0",
@@ -37,15 +56,33 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "VaseMenoNaGithube",
-        "repo": "NazovRepozitara"
+        "owner": "javorcikivan1-ux",
+        "repo": "mojastavba-app"
       }
     ],
     "directories": {
-      "output": "dist_electron"
+      "output": "dist_electron",
+      "buildResources": "build"
     },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "logo.png"
+    ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MojaStavba"
     }
   }
 }

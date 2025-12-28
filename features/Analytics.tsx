@@ -1,273 +1,543 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, Button } from '../components/UI';
-import { formatMoney } from '../lib/utils';
-import { TrendingUp, Wallet, ArrowUpRight, ArrowDownLeft, PieChart, BarChart3, Building2, Users, Download, Target, Briefcase } from 'lucide-react';
+import { Card } from '../components/UI';
+import { formatMoney, formatDuration } from '../lib/utils';
+import { 
+    TrendingUp, Wallet, BarChart3, 
+    Users, Clock, HardHat, Package, Loader2, 
+    Search, ArrowRight, Sparkles, TrendingDown, Calendar, Target,
+    LineChart, Activity
+} from 'lucide-react';
+
+const LAST_ANALYTICS_SITE_KEY = 'mojastavba_last_analytics_site';
+
+type ChartMode = 'monthly' | 'cumulative';
 
 export const AnalyticsScreen = ({ profile }: any) => {
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('year'); // 'year', 'all'
+  const [dataLoading, setDataLoading] = useState(true);
+  const [viewType, setViewType] = useState<'global' | 'project'>('global');
+  const [chartMode, setChartMode] = useState<ChartMode>('cumulative');
+  const [sites, setSites] = useState<any[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
+  const [searchSiteQuery, setSearchSiteQuery] = useState('');
   
-  const [projectStats, setProjectStats] = useState<any[]>([]);
-  const [employeeStats, setEmployeeStats] = useState<any[]>([]);
-  const [globalStats, setGlobalStats] = useState({ 
-      totalRevenue: 0, 
-      totalCost: 0, 
-      margin: 0, 
-      materialRatio: 0,
-      laborRatio: 0 
-  });
+  // Data States
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [laborBreakdown, setLaborBreakdown] = useState<any[]>([]);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      
-      // 1. Load Projects
-      const { data: sites } = await supabase.from('sites').select('id, name, budget, status').eq('organization_id', profile.organization_id);
-      
-      // 2. Load Transactions
-      const { data: transactions } = await supabase.from('transactions').select('*').eq('organization_id', profile.organization_id);
-      
-      // 3. Load Labor Logs (to calculate labor cost per project)
-      const { data: logs } = await supabase.from('attendance_logs').select('*, profiles(full_name, hourly_rate)').eq('organization_id', profile.organization_id);
+    loadSites();
+  }, [profile]);
 
-      if (sites && transactions && logs) {
-          processData(sites, transactions, logs);
+  const loadSites = async () => {
+    const { data: sitesRes } = await supabase.from('sites')
+      .select('id, name, budget, status, created_at')
+      .eq('organization_id', profile.organization_id)
+      .order('status', { ascending: true });
+    
+    if (sitesRes) {
+      setSites(sitesRes);
+      const savedId = localStorage.getItem(LAST_ANALYTICS_SITE_KEY);
+      const exists = sitesRes.find(s => s.id === savedId);
+      const defaultId = exists ? exists.id : (sitesRes[0]?.id || '');
+      setSelectedSiteId(defaultId);
+      setSearchSiteQuery(sitesRes.find(s => s.id === defaultId)?.name || '');
+    }
+  };
+
+  useEffect(() => {
+    if (viewType === 'global') loadGlobalAnalytics();
+    else if (selectedSiteId) {
+        localStorage.setItem(LAST_ANALYTICS_SITE_KEY, selectedSiteId);
+        loadProjectAnalytics(selectedSiteId);
+    }
+  }, [viewType, selectedSiteId, chartMode]);
+
+  const loadGlobalAnalytics = async () => {
+      setDataLoading(true);
+      const [transRes, logsRes, materialsRes] = await Promise.all([
+          supabase.from('transactions').select('*').eq('organization_id', profile.organization_id),
+          supabase.from('attendance_logs').select('*, profiles(hourly_rate)').eq('organization_id', profile.organization_id),
+          supabase.from('materials').select('*').eq('organization_id', profile.organization_id)
+      ]);
+
+      const transactions = transRes.data || [];
+      const logs = logsRes.data || [];
+      const materials = materialsRes.data || [];
+
+      // Financials
+      const income = transactions.filter(t => t.type === 'invoice' && t.is_paid).reduce((s, t) => s + Number(t.amount), 0);
+      const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+      const matCost = materials.reduce((s, m) => s + Number(m.total_price), 0);
+      const laborCost = logs.reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+      const totalCost = expenses + matCost + laborCost;
+
+      // Global Trend (Last 6 months fixed for global overview)
+      const months = [];
+      for (let i = 5; i >= 0; i--) {
+          const d = new Date();
+          d.setMonth(d.getMonth() - i);
+          const monthKey = d.toISOString().substring(0, 7);
+          const mInc = transactions.filter(t => t.date.startsWith(monthKey) && t.type === 'invoice' && t.is_paid).reduce((s,t) => s + Number(t.amount), 0);
+          const mExp = transactions.filter(t => t.date.startsWith(monthKey) && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
+          const mMat = materials.filter(m => m.purchase_date && m.purchase_date.startsWith(monthKey)).reduce((s,m) => s + Number(m.total_price), 0);
+          const mLabor = logs.filter(l => l.date.startsWith(monthKey)).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+
+          months.push({ 
+            label: d.toLocaleDateString('sk-SK', { month: 'short' }), 
+            income: mInc, 
+            cost: mExp + mMat + mLabor 
+          });
       }
-      setLoading(false);
-    };
-    load();
-  }, [profile, period]);
+      setChartData(months);
 
-  const processData = (sites: any[], transactions: any[], logs: any[]) => {
-      // --- GLOBAL STATS ---
-      const revenue = transactions.filter(t => t.type === 'invoice').reduce((sum, t) => sum + Number(t.amount), 0);
-      
-      // Calculate Real Expenses (Material/Overhead transactions + Labor Cost from logs)
-      const expenseTrans = transactions.filter(t => t.type === 'expense');
-      const materialCost = expenseTrans.reduce((sum, t) => sum + Number(t.amount), 0);
-      
-      const laborCost = logs.reduce((sum, log) => {
-          const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
-          return sum + (Number(log.hours) * rate);
-      }, 0);
+      setAnalyticsData({
+          income, totalCost, laborCost, matCost, otherCost: expenses,
+          profit: income - totalCost,
+          margin: income > 0 ? ((income - totalCost) / income) * 100 : 0,
+          totalHours: logs.reduce((s, l) => s + Number(l.hours), 0)
+      });
+      setDataLoading(false);
+  };
 
-      const totalCost = materialCost + laborCost;
-      const profit = revenue - totalCost;
-      const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+  const loadProjectAnalytics = async (siteId: string) => {
+      setDataLoading(true);
+      const [transRes, logsRes, materialsRes] = await Promise.all([
+          supabase.from('transactions').select('*').eq('site_id', siteId),
+          supabase.from('attendance_logs').select('*, profiles(full_name, hourly_rate)').eq('site_id', siteId),
+          supabase.from('materials').select('*').eq('site_id', siteId)
+      ]);
 
-      setGlobalStats({
-          totalRevenue: revenue,
-          totalCost: totalCost,
-          margin: margin,
-          materialRatio: totalCost > 0 ? (materialCost / totalCost) * 100 : 0,
-          laborRatio: totalCost > 0 ? (laborCost / totalCost) * 100 : 0
+      const transactions = transRes.data || [];
+      const logs = logsRes.data || [];
+      const materials = materialsRes.data || [];
+      const site = sites.find(s => s.id === siteId);
+
+      const income = transactions.filter(t => t.type === 'invoice' && t.is_paid).reduce((s, t) => s + Number(t.amount), 0);
+      const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+      const matCost = materials.reduce((s, m) => s + Number(m.total_price), 0);
+      const laborCost = logs.reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+      const totalCost = expenses + matCost + laborCost;
+
+      // PRO LOGIC: Generate granular data
+      const dataPoints: any[] = [];
+      const startDate = site?.created_at ? new Date(site.created_at) : new Date();
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date();
+      endDate.setHours(23, 59, 59, 999);
+
+      if (chartMode === 'cumulative') {
+          // Daily cumulative from start to today
+          let current = new Date(startDate);
+          let runningIncome = 0;
+          let runningCost = 0;
+
+          while (current <= endDate) {
+              const dayStr = current.toISOString().split('T')[0];
+              
+              const dayInc = transactions.filter(t => t.date === dayStr && t.type === 'invoice' && t.is_paid).reduce((s,t) => s + Number(t.amount), 0);
+              const dayExp = transactions.filter(t => t.date === dayStr && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
+              const dayMat = materials.filter(m => m.purchase_date === dayStr).reduce((s,m) => s + Number(m.total_price), 0);
+              const dayLabor = logs.filter(l => l.date === dayStr).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+
+              runningIncome += dayInc;
+              runningCost += (dayExp + dayMat + dayLabor);
+
+              dataPoints.push({
+                  label: current.getDate() + '.' + (current.getMonth() + 1) + '.',
+                  income: runningIncome,
+                  cost: runningCost,
+                  isDaily: true
+              });
+              current.setDate(current.getDate() + 1);
+          }
+          // Downsample if too many days to keep it "PRO" look
+          const maxPoints = 20;
+          if (dataPoints.length > maxPoints) {
+              const step = Math.ceil(dataPoints.length / maxPoints);
+              setChartData(dataPoints.filter((_, i) => i % step === 0 || i === dataPoints.length - 1));
+          } else {
+              setChartData(dataPoints);
+          }
+      } else {
+          // Monthly discrete view
+          let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+          while (current <= endDate) {
+              const monthKey = current.toISOString().substring(0, 7);
+              const mInc = transactions.filter(t => t.date.startsWith(monthKey) && t.type === 'invoice' && t.is_paid).reduce((s,t) => s + Number(t.amount), 0);
+              const mExp = transactions.filter(t => t.date.startsWith(monthKey) && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
+              const mMat = materials.filter(m => m.purchase_date && m.purchase_date.startsWith(monthKey)).reduce((s,m) => s + Number(m.total_price), 0);
+              const mLabor = logs.filter(l => l.date.startsWith(monthKey)).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+              
+              dataPoints.push({ 
+                label: current.toLocaleDateString('sk-SK', { month: 'short' }), 
+                income: mInc, 
+                cost: mExp + mMat + mLabor 
+              });
+              current.setMonth(current.getMonth() + 1);
+          }
+          setChartData(dataPoints);
+      }
+
+      setAnalyticsData({
+          site, income, totalCost, laborCost, matCost, otherCost: expenses,
+          profit: income - totalCost,
+          margin: income > 0 ? ((income - totalCost) / income) * 100 : 0,
+          totalHours: logs.reduce((s, l) => s + Number(l.hours), 0)
       });
 
-      // --- PROJECT PROFITABILITY ---
-      const siteMap = sites.map(site => {
-          const siteTrans = transactions.filter(t => t.site_id === site.id);
-          const siteLogs = logs.filter(l => l.site_id === site.id);
-
-          const income = siteTrans.filter(t => t.type === 'invoice').reduce((s, t) => s + Number(t.amount), 0);
-          
-          const matExpense = siteTrans.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
-          const labExpense = siteLogs.reduce((s, l) => s + (Number(l.hours) * (l.hourly_rate_snapshot || 0)), 0);
-          const totalExp = matExpense + labExpense;
-
-          return {
-              id: site.id,
-              name: site.name,
-              income,
-              expense: totalExp,
-              profit: income - totalExp,
-              margin: income > 0 ? ((income - totalExp) / income) * 100 : 0,
-              laborHours: siteLogs.reduce((s, l) => s + Number(l.hours), 0)
-          };
-      });
-
-      // Sort by Profit (High to Low)
-      setProjectStats(siteMap.sort((a, b) => b.profit - a.profit));
-
-      // --- EMPLOYEE PERFORMANCE ---
-      const empMap = logs.reduce((acc: any, log: any) => {
+      const workerMap = logs.reduce((acc: any, log: any) => {
           const name = log.profiles?.full_name || 'Neznámy';
-          if(!acc[name]) acc[name] = { hours: 0, cost: 0, count: 0 };
+          if (!acc[name]) acc[name] = { hours: 0, cost: 0 };
+          const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
           acc[name].hours += Number(log.hours);
-          acc[name].cost += (Number(log.hours) * (log.hourly_rate_snapshot || 0));
-          acc[name].count += 1;
+          acc[name].cost += (Number(log.hours) * rate);
           return acc;
       }, {});
 
-      setEmployeeStats(Object.entries(empMap).map(([name, data]: any) => ({ name, ...data })).sort((a, b) => b.hours - a.hours));
+      setLaborBreakdown(Object.entries(workerMap).map(([name, data]: any) => ({ name, ...data })).sort((a, b) => b.hours - a.hours));
+      setDataLoading(false);
   };
 
-  const handleExport = () => {
-      alert("Generujem CSV report pre účtovníctvo...");
-      // Implementation placeholder
-  };
+  const currentSite = useMemo(() => sites.find(s => s.id === selectedSiteId), [sites, selectedSiteId]);
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-           <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              <Target className="text-orange-600" size={32} />
-              Strategická Analytika
-           </h2>
-           <p className="text-sm text-slate-500 mt-1 font-medium">Ziskovosť projektov a efektivita firmy</p>
-        </div>
-        <div className="flex gap-2">
-            <Button variant="secondary" onClick={handleExport}><Download size={18}/> Export pre účtovníka</Button>
-        </div>
+    <div className="space-y-6 pb-20 max-w-7xl mx-auto px-1 md:px-0">
+      {/* HEADER SECTION - Static */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+         <div>
+            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+                <BarChart3 className="text-orange-600" size={28} />
+                Analytika
+            </h2>
+            <p className="text-sm text-slate-500 mt-1 font-medium">Finančné zdravie zákaziek</p>
+         </div>
+
+         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+             <div className="bg-slate-100 p-1 rounded-xl flex shadow-inner border border-slate-200 w-fit">
+                 <button 
+                    onClick={() => setViewType('global')}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'global' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                 >
+                     Globálne
+                 </button>
+                 <button 
+                    onClick={() => setViewType('project')}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'project' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                 >
+                     Projektové
+                 </button>
+             </div>
+
+             {viewType === 'project' && (
+                 <div className="relative w-full sm:w-64">
+                    <input 
+                        type="text" 
+                        placeholder="Hľadať projekt..."
+                        value={searchSiteQuery}
+                        onChange={(e) => setSearchSiteQuery(e.target.value)}
+                        onFocus={() => { if(searchSiteQuery === currentSite?.name) setSearchSiteQuery(''); }}
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm text-slate-800 outline-none focus:border-orange-500 shadow-sm pr-10 transition-all"
+                    />
+                    <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300"/>
+                    
+                    {searchSiteQuery !== (currentSite?.name || '') && searchSiteQuery.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto custom-scrollbar">
+                            {sites.filter(s => s.name.toLowerCase().includes(searchSiteQuery.toLowerCase())).map(s => (
+                                <button 
+                                    key={s.id} 
+                                    onClick={() => { setSelectedSiteId(s.id); setSearchSiteQuery(s.name); }}
+                                    className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-50 flex items-center justify-between group transition"
+                                >
+                                    <div>
+                                        <div className="font-bold text-slate-800 group-hover:text-orange-600 text-sm">{s.name}</div>
+                                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{s.status === 'completed' ? 'Archív' : 'Aktívny'}</div>
+                                    </div>
+                                    <ArrowRight size={14} className="text-slate-200 group-hover:text-orange-500 transition"/>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                 </div>
+             )}
+         </div>
       </div>
 
-      {/* MARGIN KPI CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-              <div className="relative z-10">
-                  <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Čistá Marža Firmy</div>
-                  <div className="text-4xl font-extrabold flex items-center gap-2">
-                      {globalStats.margin.toFixed(1)}%
-                      {globalStats.margin > 20 ? <TrendingUp className="text-green-400"/> : <TrendingUp className="text-yellow-400"/>}
-                  </div>
-                  <p className="text-slate-400 text-xs mt-2 opacity-80">Pomer zisku k celkovým tržbám</p>
-              </div>
-              <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-1/4 translate-y-1/4">
-                  <PieChart size={150}/>
-              </div>
-          </div>
-
-          <Card className="flex flex-col justify-center">
-              <div className="text-xs font-bold uppercase text-slate-400 mb-4">Štruktúra Nákladov</div>
-              <div className="space-y-4">
-                  <div>
-                      <div className="flex justify-between text-sm mb-1">
-                          <span className="font-bold text-slate-700">Materiál a Réžia</span>
-                          <span className="font-bold text-slate-900">{globalStats.materialRatio.toFixed(0)}%</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                          <div className="bg-blue-500 h-full" style={{width: `${globalStats.materialRatio}%`}}></div>
-                      </div>
-                  </div>
-                  <div>
-                      <div className="flex justify-between text-sm mb-1">
-                          <span className="font-bold text-slate-700">Mzdy (Práca)</span>
-                          <span className="font-bold text-slate-900">{globalStats.laborRatio.toFixed(0)}%</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                          <div className="bg-orange-500 h-full" style={{width: `${globalStats.laborRatio}%`}}></div>
-                      </div>
+      <div className="relative">
+          {dataLoading && (
+              <div className="absolute inset-0 z-10 bg-white/40 backdrop-blur-[1px] flex items-center justify-center rounded-2xl">
+                  <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100 flex items-center gap-3">
+                      <Loader2 className="animate-spin text-orange-500" size={20}/>
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Prepočítavam...</span>
                   </div>
               </div>
-          </Card>
+          )}
 
-          <Card className="flex flex-col justify-center">
-               <div className="text-xs font-bold uppercase text-slate-400 mb-2">Celkový Zisk</div>
-               <div className={`text-3xl font-extrabold ${globalStats.totalRevenue - globalStats.totalCost >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                   {formatMoney(globalStats.totalRevenue - globalStats.totalCost)}
-               </div>
-               <div className="mt-4 flex gap-4 text-sm">
-                   <div>
-                       <span className="block text-[10px] uppercase text-slate-400">Tržby</span>
-                       <span className="font-bold text-slate-700">{formatMoney(globalStats.totalRevenue)}</span>
-                   </div>
-                   <div className="w-px bg-slate-200 h-8"></div>
-                   <div>
-                       <span className="block text-[10px] uppercase text-slate-400">Náklady</span>
-                       <span className="font-bold text-slate-700">{formatMoney(globalStats.totalCost)}</span>
-                   </div>
-               </div>
-          </Card>
-      </div>
-
-      {/* PROJECT PROFITABILITY LEADERBOARD */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="min-h-[400px]">
-              <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2">
-                  <Building2 className="text-orange-600"/> Ziskovosť Projektov
-              </h3>
-              <div className="space-y-5">
-                  {projectStats.map((site) => (
-                      <div key={site.id} className="group">
-                          <div className="flex justify-between items-center mb-1">
-                              <div className="font-bold text-slate-800">{site.name}</div>
-                              <div className={`font-mono font-bold ${site.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {formatMoney(site.profit)}
+          <div className={`transition-all duration-300 ${dataLoading ? 'opacity-40 grayscale-[0.3]' : 'opacity-100'}`}>
+              {analyticsData ? (
+                  <div className="space-y-6">
+                      {/* TOP KPIS GRID */}
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                          <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
+                              <div>
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <TrendingUp size={10} className="text-green-500"/> Bilancia
+                                </div>
+                                <div className={`text-xl md:text-2xl font-black tracking-tight ${analyticsData.profit >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
+                                    {formatMoney(analyticsData.profit)}
+                                </div>
                               </div>
-                          </div>
+                              <div className="mt-3">
+                                  <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold ${analyticsData.profit >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                       MARŽA {analyticsData.margin.toFixed(1)}%
+                                  </span>
+                              </div>
+                          </Card>
+
+                          <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
+                              <div>
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <TrendingDown size={10} className="text-red-500"/> Náklady Spolu
+                                </div>
+                                <div className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">{formatMoney(analyticsData.totalCost)}</div>
+                              </div>
+                              <div className="mt-3 text-[9px] font-bold text-slate-400">
+                                  PRIEM. {formatMoney(analyticsData.totalCost / (analyticsData.totalHours || 1))}/h
+                              </div>
+                          </Card>
+
+                          <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
+                              <div>
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <Clock size={10} className="text-blue-500"/> Odpracované
+                                </div>
+                                <div className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">{analyticsData.totalHours.toFixed(1)} <span className="text-sm font-medium text-slate-300">h</span></div>
+                              </div>
+                              <div className="mt-3">
+                                <div className="w-full bg-slate-50 h-1.5 rounded-full overflow-hidden">
+                                    <div className="bg-orange-400 h-full w-[72%] rounded-full shadow-[0_0_8px_rgba(251,146,60,0.3)]"></div>
+                                </div>
+                              </div>
+                          </Card>
+
+                          <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
+                              <div>
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <Wallet size={10} className="text-indigo-500"/> Mzdový náklad
+                                </div>
+                                <div className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">{formatMoney(analyticsData.laborCost)}</div>
+                              </div>
+                              <div className="mt-3 text-[9px] text-slate-400 font-bold">
+                                  {((analyticsData.laborCost / (analyticsData.totalCost || 1)) * 100).toFixed(0)}% Z NÁKLADOV
+                              </div>
+                          </Card>
+                      </div>
+
+                      {/* PRO CHART VIEW */}
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                           
-                          <div className="w-full bg-slate-100 h-8 rounded-lg relative overflow-hidden flex">
-                              {/* Income Bar (Background Reference) */}
-                              <div className="absolute top-0 left-0 bottom-0 bg-slate-200" style={{width: '100%'}}></div>
-                              
-                              {/* Expense Bar */}
-                              {site.income > 0 && (
-                                  <div 
-                                    className={`h-full relative z-10 transition-all duration-500 ${site.expense > site.income ? 'bg-red-400' : 'bg-orange-400'}`} 
-                                    style={{width: `${Math.min(100, (site.expense / site.income) * 100)}%`}}
-                                  >
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-white uppercase tracking-wider">Náklady</span>
+                          <Card className="lg:col-span-2 border-slate-100 p-5 md:p-6 shadow-sm">
+                              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
+                                  <div>
+                                      <h3 className="font-bold text-sm text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                         {chartMode === 'cumulative' ? <LineChart className="text-orange-500" size={16}/> : <BarChart3 className="text-orange-500" size={16}/>}
+                                         {viewType === 'global' ? 'Vývoj Firmy' : 'Analýza Projektu'}
+                                      </h3>
+                                      <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5 flex items-center gap-1 tracking-tight">
+                                          {chartMode === 'cumulative' ? 'Kumulatívny priebeh nákladov a príjmov' : 'Mesačné sumáre transakcií'}
+                                      </p>
                                   </div>
-                              )}
-                              
-                              {/* Profit Marker */}
-                              <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 text-xs font-bold text-slate-500">
-                                  {site.margin.toFixed(0)}% Marža
+                                  
+                                  <div className="flex items-center gap-3">
+                                      {viewType === 'project' && (
+                                          <div className="bg-slate-50 p-1 rounded-lg flex border border-slate-200">
+                                              <button 
+                                                onClick={() => setChartMode('cumulative')}
+                                                className={`px-3 py-1 rounded-md text-[9px] font-black uppercase transition ${chartMode === 'cumulative' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400'}`}
+                                              >Kumulatívny</button>
+                                              <button 
+                                                onClick={() => setChartMode('monthly')}
+                                                className={`px-3 py-1 rounded-md text-[9px] font-black uppercase transition ${chartMode === 'monthly' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400'}`}
+                                              >Mesačný</button>
+                                          </div>
+                                      )}
+                                      <div className="hidden sm:flex gap-4">
+                                          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-slate-800 rounded-sm"></div><span className="text-[9px] font-bold text-slate-400 uppercase">Príjmy</span></div>
+                                          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-orange-400 rounded-sm"></div><span className="text-[9px] font-bold text-slate-400 uppercase">Náklady</span></div>
+                                      </div>
+                                  </div>
                               </div>
-                          </div>
-                          
-                          <div className="flex justify-between mt-1 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                              <span>Príjem: {formatMoney(site.income)}</span>
-                              <span>Výdaj: {formatMoney(site.expense)}</span>
+                              
+                              <div className="h-64 md:h-72 flex items-end justify-between gap-1.5 md:gap-3 px-1">
+                                  {chartData.length === 0 ? (
+                                      <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px] font-bold uppercase italic">Zatiaľ žiadne dáta pre graf.</div>
+                                  ) : chartData.map((m, i) => {
+                                      const max = Math.max(...chartData.map(x => Math.max(x.income, x.cost)), 100);
+                                      return (
+                                          <div key={i} className="flex-1 flex flex-col justify-end gap-2 h-full group relative">
+                                              <div className="flex gap-0.5 md:gap-1 items-end justify-center h-full">
+                                                  {/* Príjmy Bar */}
+                                                  <div 
+                                                      className={`w-full max-w-[14px] md:max-w-[20px] bg-slate-800 rounded-t-sm transition-all duration-1000 group-hover:bg-slate-700 relative shadow-sm ${chartMode === 'cumulative' ? 'opacity-80' : ''}`} 
+                                                      style={{ height: `${Math.max(2, (m.income / max) * 100)}%` }}
+                                                  >
+                                                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] px-2 py-1 rounded shadow-xl opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-20 pointer-events-none border border-slate-700">
+                                                          {formatMoney(m.income)}
+                                                      </div>
+                                                  </div>
+                                                  {/* Náklady Bar */}
+                                                  <div 
+                                                      className="w-full max-w-[14px] md:max-w-[20px] bg-orange-400 rounded-t-sm transition-all duration-1000 group-hover:bg-orange-300 relative shadow-sm" 
+                                                      style={{ height: `${Math.max(2, (m.cost / max) * 100)}%` }}
+                                                  >
+                                                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[9px] px-2 py-1 rounded shadow-xl opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-20 pointer-events-none border border-orange-400">
+                                                          {formatMoney(m.cost)}
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                              <div className="text-[8px] md:text-[9px] font-black text-slate-400 text-center mt-1 uppercase tracking-tighter truncate w-full group-hover:text-orange-500 transition-colors">{m.label}</div>
+                                          </div>
+                                      )
+                                  })}
+                              </div>
+                          </Card>
+
+                          <div className="space-y-6">
+                              {viewType === 'project' && analyticsData.site?.budget > 0 && (
+                                  <Card className="border-slate-100 p-5 bg-white shadow-sm">
+                                      <h3 className="font-bold text-[10px] text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Target size={12} className="text-orange-500"/> Stav k rozpočtu</h3>
+                                      <div className="space-y-4">
+                                          <div className="flex justify-between items-end">
+                                              <div className="text-2xl font-black text-slate-800">{((analyticsData.totalCost / analyticsData.site.budget) * 100).toFixed(1)}%</div>
+                                              <div className="text-right">
+                                                  <div className="text-[9px] font-bold text-slate-400 uppercase">Rozpočet</div>
+                                                  <div className="text-xs font-black text-slate-600">{formatMoney(analyticsData.site.budget)}</div>
+                                              </div>
+                                          </div>
+                                          <div className="w-full bg-slate-50 h-2.5 rounded-full overflow-hidden border border-slate-100 p-0.5 shadow-inner">
+                                              <div 
+                                                className={`h-full rounded-full transition-all duration-[1500ms] ${analyticsData.totalCost > analyticsData.site.budget ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.3)]' : 'bg-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.2)]'}`} 
+                                                style={{ width: `${Math.min(100, (analyticsData.totalCost / analyticsData.site.budget) * 100)}%` }}
+                                              ></div>
+                                          </div>
+                                          <p className="text-[10px] text-slate-400 font-medium italic leading-tight">
+                                              {analyticsData.totalCost > analyticsData.site.budget ? 'Pozor: Náklady prekročili plán!' : 'Ostáva ' + formatMoney(analyticsData.site.budget - analyticsData.totalCost) + ' do limitu.'}
+                                          </p>
+                                      </div>
+                                  </Card>
+                              )}
+
+                              <Card className="border-slate-100 p-5 shadow-sm bg-white">
+                                  <h3 className="font-bold text-[10px] text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2"><Activity size={12} className="text-indigo-500"/> Skladba Nákladov</h3>
+                                  <div className="space-y-5">
+                                      {[
+                                          { label: 'Mzdy a Práca', val: analyticsData.laborCost, color: 'bg-indigo-500', icon: Users },
+                                          { label: 'Materiál', val: analyticsData.matCost, color: 'bg-orange-500', icon: Package },
+                                          { label: 'Ostatné', val: analyticsData.otherCost, color: 'bg-slate-300', icon: Wallet }
+                                      ].map(item => (
+                                          <div key={item.label} className="group">
+                                              <div className="flex justify-between items-end mb-1.5">
+                                                  <div className="flex items-center gap-2">
+                                                      <div className={`p-1 rounded-md ${item.color} text-white shadow-sm`}><item.icon size={10}/></div>
+                                                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">{item.label}</span>
+                                                  </div>
+                                                  <span className="text-[10px] font-black text-slate-400">{((item.val / (analyticsData.totalCost || 1)) * 100).toFixed(1)}%</span>
+                                              </div>
+                                              <div className="w-full bg-slate-50 h-1.5 rounded-full overflow-hidden">
+                                                  <div className={`${item.color} h-full transition-all duration-1000`} style={{ width: `${(item.val / (analyticsData.totalCost || 1)) * 100}%` }}></div>
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </Card>
                           </div>
                       </div>
-                  ))}
-                  {projectStats.length === 0 && <div className="text-center text-slate-400 py-10">Žiadne dáta o projektoch.</div>}
-              </div>
-          </Card>
 
-          {/* EMPLOYEE EFFICIENCY */}
-          <Card className="min-h-[400px]">
-              <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2">
-                  <Users className="text-blue-600"/> Výkonnosť Tímu
-              </h3>
-              <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                      <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
-                          <tr>
-                              <th className="p-3">Meno</th>
-                              <th className="p-3 text-right">Hodiny</th>
-                              <th className="p-3 text-right">Náklad</th>
-                              <th className="p-3 text-right">Ø Cena/hod</th>
-                          </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                          {employeeStats.map((emp: any) => (
-                              <tr key={emp.name} className="hover:bg-slate-50 transition">
-                                  <td className="p-3 font-bold text-slate-700">{emp.name}</td>
-                                  <td className="p-3 text-right font-mono">{emp.hours.toFixed(1)} h</td>
-                                  <td className="p-3 text-right font-bold text-slate-800">{formatMoney(emp.cost)}</td>
-                                  <td className="p-3 text-right text-xs text-slate-500">
-                                      {emp.hours > 0 ? formatMoney(emp.cost / emp.hours) : '-'}
-                                  </td>
-                              </tr>
-                          ))}
-                          {employeeStats.length === 0 && (
-                              <tr><td colSpan={4} className="p-8 text-center text-slate-400">Žiadne záznamy.</td></tr>
-                          )}
-                      </tbody>
-                  </table>
-              </div>
-              <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                  <h4 className="font-bold text-blue-800 text-sm mb-2 flex items-center gap-2"><Briefcase size={16}/> Manažérsky Tip</h4>
-                  <p className="text-xs text-blue-700 leading-relaxed">
-                      Sledujte nielen celkovú cenu práce, ale aj efektivitu. Ak má zamestnanec vysokú hodinovú sadzbu, mal by pracovať na projektoch s vyššou maržou.
-                  </p>
-              </div>
-          </Card>
+                      {/* WORKER PERFORMANCE TABLE - Redesigned */}
+                      {viewType === 'project' && (
+                          <Card className="p-0 overflow-hidden border-slate-100 shadow-sm bg-white">
+                            <div className="p-5 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/20">
+                                <div>
+                                    <h3 className="font-bold text-sm text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                        <HardHat className="text-indigo-500" size={18}/> Výkon Pracovníkov
+                                    </h3>
+                                </div>
+                                <div className="bg-white px-4 py-2 rounded-2xl border border-slate-200 text-[10px] font-black uppercase text-slate-500 shadow-sm flex items-center gap-2">
+                                    <Clock size={12} className="text-orange-500"/> SPOLU {analyticsData.totalHours.toFixed(1)} h
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full text-sm text-left min-w-[500px]">
+                                    <thead className="bg-white text-slate-400 font-bold text-[9px] uppercase border-b border-slate-50 tracking-[0.15em]">
+                                        <tr>
+                                            <th className="p-5">Meno</th>
+                                            <th className="p-5 text-center">Čas</th>
+                                            <th className="p-5 text-right">Mzdový náklad</th>
+                                            <th className="p-5 text-right">Podiel</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {laborBreakdown.map((worker) => (
+                                            <tr key={worker.name} className="hover:bg-slate-50/80 transition-colors group">
+                                                <td className="p-5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-xs border border-slate-200 shadow-inner group-hover:bg-white transition-colors">
+                                                            {worker.name.charAt(0)}
+                                                        </div>
+                                                        <span className="font-extrabold text-slate-700">{worker.name}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-5 text-center font-mono font-bold text-slate-500 text-xs">{formatDuration(worker.hours)}</td>
+                                                <td className="p-5 text-right font-black text-slate-800">{formatMoney(worker.cost)}</td>
+                                                <td className="p-5 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <span className="text-[10px] font-black text-slate-400">{((worker.cost / (analyticsData.laborCost || 1)) * 100).toFixed(0)}%</span>
+                                                        <div className="w-16 bg-slate-100 h-1 rounded-full overflow-hidden">
+                                                            <div className="bg-indigo-400 h-full" style={{ width: `${(worker.cost / (analyticsData.laborCost || 1)) * 100}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {laborBreakdown.length === 0 && (
+                                            <tr><td colSpan={4} className="p-16 text-center text-slate-300 font-bold uppercase tracking-widest text-[10px] italic">Žiadne záznamy prác.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                          </Card>
+                      )}
+
+                      {/* ADVISORY CARD */}
+                      <div className="bg-white rounded-3xl p-6 md:p-10 text-slate-800 relative overflow-hidden border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8 group">
+                          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-50 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 group-hover:bg-orange-100 transition-colors duration-1000"></div>
+                          <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
+                              <div className="w-20 h-20 bg-orange-100 rounded-[2rem] flex items-center justify-center text-orange-600 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-500">
+                                  <Sparkles size={40} className="fill-orange-600/10"/>
+                              </div>
+                              <div className="max-w-xl">
+                                  <h3 className="text-2xl font-black mb-2 text-slate-800 tracking-tight">
+                                      AI Analýza & Firemný Poradca
+                                  </h3>
+                                  <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                                      Poraďte sa s AI o ziskovosti vašich projektov. Analyzujte mzdové náklady alebo optimalizujte nákup materiálu na projekte <span className="font-bold text-slate-800 underline decoration-orange-200 underline-offset-4">{analyticsData.site?.name || 'celej vašej firmy'}</span>.
+                                  </p>
+                              </div>
+                          </div>
+                          <button className="relative z-10 bg-slate-900 text-white px-10 py-4 rounded-[1.5rem] font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-orange-600 hover:-translate-y-1 transition-all active:scale-95 whitespace-nowrap w-full md:w-auto border-b-4 border-black/20">
+                              Spustiť analýzu
+                          </button>
+                      </div>
+                  </div>
+              ) : !dataLoading && (
+                  <div className="h-64 flex flex-col items-center justify-center bg-white rounded-2xl border border-dashed border-slate-200">
+                      <BarChart3 className="text-slate-200 mb-4" size={48}/>
+                      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Vyberte projekt pre zobrazenie detailov</p>
+                  </div>
+              )}
+          </div>
       </div>
     </div>
   );
