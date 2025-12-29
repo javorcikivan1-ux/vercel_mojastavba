@@ -282,10 +282,10 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 px-4 md:px-0">
               <button onClick={onStart} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-orange-600 text-white rounded-2xl font-bold shadow-xl shadow-orange-200 hover:bg-orange-700 transition">
-                Vytvoriť Firemný Účet <ChevronRight size={20} />
+                Vytvoriť firemný účet <ChevronRight size={20} />
               </button>
                <button onClick={onWorker} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-white border border-slate-100 text-slate-700 rounded-2xl font-bold shadow-md hover:shadow-lg hover:border-orange-200 hover:text-orange-700 transition group">
-                <CustomLogo className="w-5 h-5 text-slate-400 group-hover:text-orange-600 transition-colors" color="text-slate-400"/> Vytvoriť Zamestnanecký Účet
+                <CustomLogo className="w-5 h-5 text-slate-400 group-hover:text-orange-600 transition-colors" color="text-slate-400"/> Vytvoriť účet zamestnanca
               </button>
             </div>
 
