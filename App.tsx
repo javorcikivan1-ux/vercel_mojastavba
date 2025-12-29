@@ -342,7 +342,7 @@ export const App = () => {
                  <div className="p-4 md:p-8 max-w-7xl mx-auto w-full mb-20 md:mb-0">
                       {activeScreen === 'dashboard' && <DashboardScreen profile={profile} organization={organization} onNavigate={handleNavigate} />}
                       {activeScreen === 'projects' && <ProjectsScreen profile={profile} organization={organization} onSelect={setSelectedSiteId} selectedSiteId={selectedSiteId} />}
-                      {activeScreen === 'diary' && <DiaryScreen profile={profile} />}
+                      {activeScreen === 'diary' && <DiaryScreen profile={profile} organization={organization} />}
                       {activeScreen === 'attendance' && <AttendanceScreen profile={profile} organization={organization} />}
                       {activeScreen === 'calendar' && <CalendarScreen profile={profile} onNavigate={handleNavigate} />}
                       {activeScreen === 'team' && <TeamScreen profile={profile} />}

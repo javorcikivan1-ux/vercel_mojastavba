@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Input, Select, AlertModal } from '../components/UI';
+import { Card, Button, Input, Select, AlertModal, CustomLogo } from '../components/UI';
 import { 
   BookOpen, Calendar, Cloud, Sun, CloudRain, Wind, Thermometer, Truck, 
   Users, Package, Save, FileDown, ArrowLeft, Plus, PenTool, ArrowRight, 
@@ -54,7 +54,7 @@ const compressImageToBlob = (file: File): Promise<Blob> => {
     });
 };
 
-export const DiaryScreen = ({ profile }: any) => {
+export const DiaryScreen = ({ profile, organization }: any) => {
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [searchSiteQuery, setSearchSiteQuery] = useState('');
@@ -398,7 +398,7 @@ export const DiaryScreen = ({ profile }: any) => {
               margin: [10, 10, 10, 10] as [number, number, number, number], 
               filename: `SD_${siteName}_${dateStr}.pdf`, 
               image: { type: 'jpeg' as const, quality: 0.98 }, 
-              html2canvas: { scale: 2, useCORS: true }, 
+              html2canvas: { scale: 2, useCORS: true, allowTaint: true }, 
               jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const } 
           };
           html2pdf().set(opt).from(printRef.current).save();
@@ -445,7 +445,7 @@ export const DiaryScreen = ({ profile }: any) => {
                   margin: [10, 10, 10, 10] as [number, number, number, number], 
                   filename: `Kompletny_Dennik_${siteName}.pdf`, 
                   image: { type: 'jpeg' as const, quality: 0.98 }, 
-                  html2canvas: { scale: 2, useCORS: true }, 
+                  html2canvas: { scale: 2, useCORS: true, allowTaint: true }, 
                   jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
                   pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
               };
@@ -726,7 +726,7 @@ export const DiaryScreen = ({ profile }: any) => {
 
                               {diaryEntry.photos?.map((photo: string, index: number) => (
                                   <div key={index} className="aspect-square relative rounded-xl overflow-hidden border border-slate-200 group bg-slate-100 shadow-sm">
-                                      <img src={photo} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                                      <img src={photo} alt={`Foto ${index + 1}`} crossOrigin="anonymous" className="w-full h-full object-cover" loading="lazy" />
                                       {!isLocked && (
                                           <button 
                                             onClick={() => removePhoto(index)}
@@ -855,7 +855,7 @@ export const DiaryScreen = ({ profile }: any) => {
                               <div className="grid grid-cols-3 gap-2">
                                   {diaryEntry.photos.slice(0, 6).map((p: string, i: number) => (
                                       <div key={i} className="aspect-video bg-slate-100 overflow-hidden border border-slate-300">
-                                          <img src={p} className="w-full h-full object-cover" />
+                                          <img src={p} crossOrigin="anonymous" className="w-full h-full object-cover" />
                                       </div>
                                   ))}
                               </div>
@@ -870,9 +870,18 @@ export const DiaryScreen = ({ profile }: any) => {
                               <div className="h-12 border-b border-dotted border-black mb-2"></div>
                               <div className="text-xs uppercase font-bold">Stavbyvedúci (Meno, Podpis)</div>
                           </div>
-                          <div className="text-center">
-                              <div className="h-12 border-b border-dotted border-black mb-2"></div>
-                              <div className="text-xs uppercase font-bold">Stavebný dozor (Meno, Podpis)</div>
+                          <div className="text-center relative">
+                                <div className="h-12 border-b border-dotted border-black mb-2 flex items-center justify-center">
+                                    {organization.stamp_url ? (
+                                        <img 
+                                          src={organization.stamp_url} 
+                                          alt="Pečiatka" 
+                                          crossOrigin="anonymous" 
+                                          className="h-24 absolute -top-10 rotate-3 opacity-90" 
+                                        />
+                                    ) : null}
+                                </div>
+                                <div className="text-xs uppercase font-bold">Pečiatka a Podpis Firmy</div>
                           </div>
                       </div>
                   </div>

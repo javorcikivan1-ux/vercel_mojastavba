@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, AlertModal, LegalModal } from '../components/UI';
-import { Lock, Save, Settings, Copy, CheckCircle2, Building2, KeyRound, Bell, Image as ImageIcon, Shield, Users, LogOut, Clock, RefreshCw, FileText, Tags, Trash2, Plus, Palette, Check, Camera, Loader2 } from 'lucide-react';
+import { Lock, Save, Settings, Copy, CheckCircle2, Building2, KeyRound, Bell, Image as ImageIcon, Shield, Users, LogOut, Clock, RefreshCw, FileText, Tags, Trash2, Plus, Palette, Check, Camera, Loader2, FileSignature } from 'lucide-react';
 import { UpdatesScreen } from './Updates';
 
 // Pastel palette for task categories
@@ -51,15 +51,45 @@ const compressLogo = (file: File): Promise<Blob> => {
     });
 };
 
+/**
+ * Kompresia pečiatky (väčšie rozlíšenie pre kvalitu tlače).
+ */
+const compressStamp = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 800;
+                const scale = Math.min(1, MAX_WIDTH / img.width);
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob((blob) => {
+                    if (blob) resolve(blob);
+                    else reject(new Error('Chyba pri kompresii pečiatky.'));
+                }, 'image/png', 0.9); // PNG pre prípadnú priehľadnosť
+            };
+        };
+        reader.onerror = (err) => reject(err);
+    });
+};
+
 export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdateProfile, initialTab = 'general' }: any) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingStamp, setUploadingStamp] = useState(false);
   const [alert, setAlert] = useState({ open: false, title: '', message: '', type: 'success' });
   const [copied, setCopied] = useState(false);
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const stampInputRef = useRef<HTMLInputElement>(null);
 
   // Sync activeTab if initialTab prop changes
   useEffect(() => {
@@ -69,6 +99,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   // --- GENERAL STATE ---
   const [orgName, setOrgName] = useState(organization?.name || '');
   const [logoUrl, setLogoUrl] = useState(organization?.logo_url || '');
+  const [stampUrl, setStampUrl] = useState(organization?.stamp_url || '');
   const [notifications, setNotifications] = useState({
       notify_tasks: profile.settings?.notify_tasks ?? true,
       notify_logs: profile.settings?.notify_logs ?? true
@@ -92,6 +123,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
       if(organization) {
           setOrgName(organization.name);
           setLogoUrl(organization.logo_url || '');
+          setStampUrl(organization.stamp_url || '');
       }
   }, [organization]);
 
@@ -117,7 +149,6 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                 .getPublicUrl(filePath);
 
             setLogoUrl(publicUrl);
-            // Hneď aktualizujeme v DB, aby používateľ nemusel klikať na Uložiť
             await supabase.from('organizations').update({ logo_url: publicUrl }).eq('id', profile.organization_id);
             onUpdateOrg({ ...organization, logo_url: publicUrl });
             
@@ -129,6 +160,38 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
     }
   };
 
+  const handleStampUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          setUploadingStamp(true);
+          try {
+              const blob = await compressStamp(file);
+              const fileName = `${profile.organization_id}/stamp-${Date.now()}.png`;
+              const filePath = `stamps/${fileName}`;
+
+              const { error: uploadError } = await supabase.storage
+                  .from('diary-photos')
+                  .upload(filePath, blob, { contentType: 'image/png', upsert: true });
+
+              if (uploadError) throw uploadError;
+
+              const { data: { publicUrl } } = supabase.storage
+                  .from('diary-photos')
+                  .getPublicUrl(filePath);
+
+              setStampUrl(publicUrl);
+              await supabase.from('organizations').update({ stamp_url: publicUrl }).eq('id', profile.organization_id);
+              onUpdateOrg({ ...organization, stamp_url: publicUrl });
+              
+              setAlert({ open: true, title: 'Úspech', message: 'Pečiatka a podpis boli nahraté.', type: 'success' });
+          } catch (err: any) {
+              setAlert({ open: true, title: 'Chyba', message: 'Nepodarilo sa nahrať pečiatku: ' + err.message, type: 'error' });
+          } finally {
+              setUploadingStamp(false);
+          }
+      }
+  };
+
   const saveGeneralSettings = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
@@ -136,7 +199,8 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
           // Update Organization
           const { error: orgError } = await supabase.from('organizations').update({
               name: orgName,
-              logo_url: logoUrl
+              logo_url: logoUrl,
+              stamp_url: stampUrl
           }).eq('id', profile.organization_id);
           if (orgError) throw orgError;
 
@@ -148,7 +212,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
           if (profError) throw profError;
 
           // Update Parent State
-          onUpdateOrg({ ...organization, name: orgName, logo_url: logoUrl });
+          onUpdateOrg({ ...organization, name: orgName, logo_url: logoUrl, stamp_url: stampUrl });
           if(onUpdateProfile) onUpdateProfile({ ...profile, settings: updatedSettings });
           
           setAlert({ open: true, title: 'Uložené', message: 'Nastavenia boli úspešne aktualizované.', type: 'success' });
@@ -264,38 +328,63 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                 {activeTab === 'general' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                         <Card>
-                            <div className="flex flex-col md:flex-row items-center gap-8 mb-10 pb-8 border-b border-slate-100">
-                                <div className="relative group">
-                                    <div 
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="w-32 h-32 rounded-full border-4 border-white shadow-2xl overflow-hidden bg-slate-100 flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform"
-                                    >
-                                        {uploading ? (
-                                            <Loader2 className="animate-spin text-orange-600" size={32}/>
-                                        ) : logoUrl ? (
-                                            <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <Building2 size={48} className="text-slate-300" />
-                                        )}
-                                        
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Camera className="text-white" size={24}/>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10 pb-8 border-b border-slate-100">
+                                {/* Logo Section */}
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="relative group">
+                                        <div 
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="w-32 h-32 rounded-full border-4 border-white shadow-2xl overflow-hidden bg-slate-100 flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform"
+                                        >
+                                            {uploading ? (
+                                                <Loader2 className="animate-spin text-orange-600" size={32}/>
+                                            ) : logoUrl ? (
+                                                <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <Building2 size={48} className="text-slate-300" />
+                                            )}
+                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Camera className="text-white" size={24}/>
+                                            </div>
+                                        </div>
+                                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                                        <div className="absolute -bottom-2 -right-2 bg-orange-600 text-white p-2 rounded-full shadow-lg border-2 border-white">
+                                            <ImageIcon size={16}/>
                                         </div>
                                     </div>
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef} 
-                                        className="hidden" 
-                                        accept="image/*" 
-                                        onChange={handleLogoUpload} 
-                                    />
-                                    <div className="absolute -bottom-2 -right-2 bg-orange-600 text-white p-2 rounded-full shadow-lg border-2 border-white">
-                                        <ImageIcon size={16}/>
+                                    <div className="text-center">
+                                        <h3 className="font-black text-slate-900">Logo Firmy</h3>
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-0.5">Avatar aplikácie</p>
                                     </div>
                                 </div>
-                                <div className="text-center md:text-left">
-                                    <h3 className="text-xl font-black text-slate-900">Logo vašej firmy</h3>
-                                    <p className="text-sm text-slate-500 mt-1">Kliknite na kruh pre nahratie nového loga.</p>
+
+                                {/* Stamp Section */}
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="relative group">
+                                        <div 
+                                            onClick={() => stampInputRef.current?.click()}
+                                            className="w-32 h-32 rounded-2xl border-4 border-white shadow-2xl overflow-hidden bg-slate-100 flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform"
+                                        >
+                                            {uploadingStamp ? (
+                                                <Loader2 className="animate-spin text-orange-600" size={32}/>
+                                            ) : stampUrl ? (
+                                                <img src={stampUrl} alt="Stamp" className="w-full h-full object-contain p-2" />
+                                            ) : (
+                                                <FileSignature size={48} className="text-slate-300" />
+                                            )}
+                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Camera className="text-white" size={24}/>
+                                            </div>
+                                        </div>
+                                        <input type="file" ref={stampInputRef} className="hidden" accept="image/*" onChange={handleStampUpload} />
+                                        <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2 rounded-full shadow-lg border-2 border-white">
+                                            <FileSignature size={16}/>
+                                        </div>
+                                    </div>
+                                    <div className="text-center">
+                                        <h3 className="font-black text-slate-900">Pečiatka a Podpis</h3>
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-0.5">Pre PDF exporty</p>
+                                    </div>
                                 </div>
                             </div>
 

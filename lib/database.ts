@@ -21,6 +21,7 @@ create table organizations (
   name text not null,
   pin_code text default '0000',
   logo_url text,
+  stamp_url text,
   subscription_plan text default 'free_trial', 
   subscription_status text default 'trialing',
   trial_ends_at timestamp with time zone default (now() + interval '14 days'),

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card } from '../components/UI';
@@ -14,6 +13,20 @@ const LAST_ANALYTICS_SITE_KEY = 'mojastavba_last_analytics_site';
 
 type ChartMode = 'monthly' | 'cumulative';
 
+// Pomocná funkcia na bezpečné formátovanie dátumu bez posunu časového pásma
+const getLocalDateString = (date: Date) => {
+    const y = date.getFullYear();
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+const getLocalMonthString = (date: Date) => {
+    const y = date.getFullYear();
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    return `${y}-${m}`;
+};
+
 export const AnalyticsScreen = ({ profile }: any) => {
   const [dataLoading, setDataLoading] = useState(true);
   const [viewType, setViewType] = useState<'global' | 'project'>('global');
@@ -22,41 +35,52 @@ export const AnalyticsScreen = ({ profile }: any) => {
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [searchSiteQuery, setSearchSiteQuery] = useState('');
   
-  // Data States
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [laborBreakdown, setLaborBreakdown] = useState<any[]>([]);
+  const [organization, setOrganization] = useState<any>(null);
 
   useEffect(() => {
-    loadSites();
+    loadSitesAndOrg();
   }, [profile]);
 
-  const loadSites = async () => {
-    const { data: sitesRes } = await supabase.from('sites')
-      .select('id, name, budget, status, created_at')
-      .eq('organization_id', profile.organization_id)
-      .order('status', { ascending: true });
+  const loadSitesAndOrg = async () => {
+    const [sitesRes, orgRes] = await Promise.all([
+      supabase.from('sites')
+        .select('id, name, budget, status, created_at')
+        .eq('organization_id', profile.organization_id)
+        .order('status', { ascending: true }),
+      supabase.from('organizations')
+        .select('created_at')
+        .eq('id', profile.organization_id)
+        .single()
+    ]);
     
-    if (sitesRes) {
-      setSites(sitesRes);
+    if (orgRes.data) setOrganization(orgRes.data);
+
+    if (sitesRes.data) {
+      setSites(sitesRes.data);
       const savedId = localStorage.getItem(LAST_ANALYTICS_SITE_KEY);
-      const exists = sitesRes.find(s => s.id === savedId);
-      const defaultId = exists ? exists.id : (sitesRes[0]?.id || '');
+      const exists = sitesRes.data.find(s => s.id === savedId);
+      const defaultId = exists ? exists.id : (sitesRes.data[0]?.id || '');
       setSelectedSiteId(defaultId);
-      setSearchSiteQuery(sitesRes.find(s => s.id === defaultId)?.name || '');
+      setSearchSiteQuery(sitesRes.data.find(s => s.id === defaultId)?.name || '');
     }
   };
 
   useEffect(() => {
-    if (viewType === 'global') loadGlobalAnalytics();
-    else if (selectedSiteId) {
+    if (viewType === 'global') {
+        setChartMode('monthly');
+        loadGlobalAnalytics();
+    } else if (selectedSiteId) {
         localStorage.setItem(LAST_ANALYTICS_SITE_KEY, selectedSiteId);
         loadProjectAnalytics(selectedSiteId);
     }
-  }, [viewType, selectedSiteId, chartMode]);
+  }, [viewType, selectedSiteId, chartMode, organization]);
 
   const loadGlobalAnalytics = async () => {
       setDataLoading(true);
+      
       const [transRes, logsRes, materialsRes] = await Promise.all([
           supabase.from('transactions').select('*').eq('organization_id', profile.organization_id),
           supabase.from('attendance_logs').select('*, profiles(hourly_rate)').eq('organization_id', profile.organization_id),
@@ -67,32 +91,51 @@ export const AnalyticsScreen = ({ profile }: any) => {
       const logs = logsRes.data || [];
       const materials = materialsRes.data || [];
 
-      // Financials
-      const income = transactions.filter(t => t.type === 'invoice' && t.is_paid).reduce((s, t) => s + Number(t.amount), 0);
+      const income = transactions.filter(t => t.type === 'invoice').reduce((s, t) => s + Number(t.amount), 0);
       const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
       const matCost = materials.reduce((s, m) => s + Number(m.total_price), 0);
       const laborCost = logs.reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
       const totalCost = expenses + matCost + laborCost;
 
-      // Global Trend (Last 6 months fixed for global overview)
-      const months = [];
-      for (let i = 5; i >= 0; i--) {
-          const d = new Date();
-          d.setMonth(d.getMonth() - i);
-          const monthKey = d.toISOString().substring(0, 7);
-          const mInc = transactions.filter(t => t.date.startsWith(monthKey) && t.type === 'invoice' && t.is_paid).reduce((s,t) => s + Number(t.amount), 0);
-          const mExp = transactions.filter(t => t.date.startsWith(monthKey) && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
-          const mMat = materials.filter(m => m.purchase_date && m.purchase_date.startsWith(monthKey)).reduce((s,m) => s + Number(m.total_price), 0);
-          const mLabor = logs.filter(l => l.date.startsWith(monthKey)).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+      // Zistenie štartu (najstarší záznam alebo vznik firmy)
+      const allDates = [
+          ...transactions.map(t => t.date),
+          ...logs.map(l => l.date),
+          ...materials.map(m => m.purchase_date)
+      ].filter(Boolean).sort();
 
-          months.push({ 
-            label: d.toLocaleDateString('sk-SK', { month: 'short' }), 
-            income: mInc, 
-            cost: mExp + mMat + mLabor 
-          });
+      let startOfHistory: Date;
+      if (allDates.length > 0) {
+          startOfHistory = new Date(allDates[0]);
+      } else {
+          startOfHistory = organization?.created_at ? new Date(organization.created_at) : new Date();
       }
-      setChartData(months);
+      
+      const months = [];
+      const now = new Date();
+      let current = new Date(startOfHistory.getFullYear(), startOfHistory.getMonth(), 1);
 
+      if (allDates.length === 0) {
+          months.push({ label: now.toLocaleDateString('sk-SK', { month: 'short' }), income: 0, cost: 0 });
+      } else {
+          while (current <= now) {
+              const monthKey = getLocalMonthString(current);
+              
+              const mInc = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'invoice').reduce((s,t) => s + Number(t.amount), 0);
+              const mExp = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
+              const mMat = materials.filter(m => m.purchase_date && m.purchase_date.substring(0, 7) === monthKey).reduce((s,m) => s + Number(m.total_price), 0);
+              const mLabor = logs.filter(l => l.date.substring(0, 7) === monthKey).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+
+              months.push({
+                  label: current.toLocaleDateString('sk-SK', { month: 'short' }),
+                  income: mInc,
+                  cost: mExp + mMat + mLabor
+              });
+              current.setMonth(current.getMonth() + 1);
+          }
+      }
+
+      setChartData(months);
       setAnalyticsData({
           income, totalCost, laborCost, matCost, otherCost: expenses,
           profit: income - totalCost,
@@ -104,6 +147,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
 
   const loadProjectAnalytics = async (siteId: string) => {
       setDataLoading(true);
+      
       const [transRes, logsRes, materialsRes] = await Promise.all([
           supabase.from('transactions').select('*').eq('site_id', siteId),
           supabase.from('attendance_logs').select('*, profiles(full_name, hourly_rate)').eq('site_id', siteId),
@@ -115,29 +159,31 @@ export const AnalyticsScreen = ({ profile }: any) => {
       const materials = materialsRes.data || [];
       const site = sites.find(s => s.id === siteId);
 
-      const income = transactions.filter(t => t.type === 'invoice' && t.is_paid).reduce((s, t) => s + Number(t.amount), 0);
+      const income = transactions.filter(t => t.type === 'invoice').reduce((s, t) => s + Number(t.amount), 0);
       const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
       const matCost = materials.reduce((s, m) => s + Number(m.total_price), 0);
       const laborCost = logs.reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
       const totalCost = expenses + matCost + laborCost;
 
-      // PRO LOGIC: Generate granular data
       const dataPoints: any[] = [];
-      const startDate = site?.created_at ? new Date(site.created_at) : new Date();
+      
+      const siteStartStr = transactions.length > 0 || logs.length > 0 ? 
+            [...transactions.map(t=>t.date), ...logs.map(l=>l.date)].filter(Boolean).sort()[0] : 
+            site?.created_at;
+            
+      const startDate = siteStartStr ? new Date(siteStartStr) : new Date();
       startDate.setHours(0, 0, 0, 0);
       const endDate = new Date();
       endDate.setHours(23, 59, 59, 999);
 
       if (chartMode === 'cumulative') {
-          // Daily cumulative from start to today
           let current = new Date(startDate);
           let runningIncome = 0;
           let runningCost = 0;
 
           while (current <= endDate) {
-              const dayStr = current.toISOString().split('T')[0];
-              
-              const dayInc = transactions.filter(t => t.date === dayStr && t.type === 'invoice' && t.is_paid).reduce((s,t) => s + Number(t.amount), 0);
+              const dayStr = getLocalDateString(current);
+              const dayInc = transactions.filter(t => t.date === dayStr && t.type === 'invoice').reduce((s,t) => s + Number(t.amount), 0);
               const dayExp = transactions.filter(t => t.date === dayStr && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
               const dayMat = materials.filter(m => m.purchase_date === dayStr).reduce((s,m) => s + Number(m.total_price), 0);
               const dayLabor = logs.filter(l => l.date === dayStr).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
@@ -153,8 +199,8 @@ export const AnalyticsScreen = ({ profile }: any) => {
               });
               current.setDate(current.getDate() + 1);
           }
-          // Downsample if too many days to keep it "PRO" look
-          const maxPoints = 20;
+          
+          const maxPoints = 25;
           if (dataPoints.length > maxPoints) {
               const step = Math.ceil(dataPoints.length / maxPoints);
               setChartData(dataPoints.filter((_, i) => i % step === 0 || i === dataPoints.length - 1));
@@ -162,14 +208,13 @@ export const AnalyticsScreen = ({ profile }: any) => {
               setChartData(dataPoints);
           }
       } else {
-          // Monthly discrete view
           let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
           while (current <= endDate) {
-              const monthKey = current.toISOString().substring(0, 7);
-              const mInc = transactions.filter(t => t.date.startsWith(monthKey) && t.type === 'invoice' && t.is_paid).reduce((s,t) => s + Number(t.amount), 0);
-              const mExp = transactions.filter(t => t.date.startsWith(monthKey) && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
-              const mMat = materials.filter(m => m.purchase_date && m.purchase_date.startsWith(monthKey)).reduce((s,m) => s + Number(m.total_price), 0);
-              const mLabor = logs.filter(l => l.date.startsWith(monthKey)).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+              const monthKey = getLocalMonthString(current);
+              const mInc = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'invoice').reduce((s,t) => s + Number(t.amount), 0);
+              const mExp = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
+              const mMat = materials.filter(m => m.purchase_date && m.purchase_date.substring(0, 7) === monthKey).reduce((s,m) => s + Number(m.total_price), 0);
+              const mLabor = logs.filter(l => l.date.substring(0, 7) === monthKey).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
               
               dataPoints.push({ 
                 label: current.toLocaleDateString('sk-SK', { month: 'short' }), 
@@ -205,7 +250,6 @@ export const AnalyticsScreen = ({ profile }: any) => {
 
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto px-1 md:px-0">
-      {/* HEADER SECTION - Static */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
          <div>
             <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
@@ -246,11 +290,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
                     {searchSiteQuery !== (currentSite?.name || '') && searchSiteQuery.length > 0 && (
                         <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto custom-scrollbar">
                             {sites.filter(s => s.name.toLowerCase().includes(searchSiteQuery.toLowerCase())).map(s => (
-                                <button 
-                                    key={s.id} 
-                                    onClick={() => { setSelectedSiteId(s.id); setSearchSiteQuery(s.name); }}
-                                    className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-50 flex items-center justify-between group transition"
-                                >
+                                <button key={s.id} onClick={() => { setSelectedSiteId(s.id); setSearchSiteQuery(s.name); }} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-50 flex items-center justify-between group transition">
                                     <div>
                                         <div className="font-bold text-slate-800 group-hover:text-orange-600 text-sm">{s.name}</div>
                                         <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{s.status === 'completed' ? 'Archív' : 'Aktívny'}</div>
@@ -278,7 +318,6 @@ export const AnalyticsScreen = ({ profile }: any) => {
           <div className={`transition-all duration-300 ${dataLoading ? 'opacity-40 grayscale-[0.3]' : 'opacity-100'}`}>
               {analyticsData ? (
                   <div className="space-y-6">
-                      {/* TOP KPIS GRID */}
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                           <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
                               <div>
@@ -298,9 +337,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
 
                           <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
                               <div>
-                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                                    <TrendingDown size={10} className="text-red-500"/> Náklady Spolu
-                                </div>
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><TrendingDown size={10} className="text-red-500"/> Náklady Spolu</div>
                                 <div className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">{formatMoney(analyticsData.totalCost)}</div>
                               </div>
                               <div className="mt-3 text-[9px] font-bold text-slate-400">
@@ -310,9 +347,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
 
                           <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
                               <div>
-                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                                    <Clock size={10} className="text-blue-500"/> Odpracované
-                                </div>
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Clock size={10} className="text-blue-500"/> Odpracované</div>
                                 <div className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">{analyticsData.totalHours.toFixed(1)} <span className="text-sm font-medium text-slate-300">h</span></div>
                               </div>
                               <div className="mt-3">
@@ -324,9 +359,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
 
                           <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
                               <div>
-                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                                    <Wallet size={10} className="text-indigo-500"/> Mzdový náklad
-                                </div>
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Wallet size={10} className="text-indigo-500"/> Mzdový náklad</div>
                                 <div className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">{formatMoney(analyticsData.laborCost)}</div>
                               </div>
                               <div className="mt-3 text-[9px] text-slate-400 font-bold">
@@ -335,9 +368,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
                           </Card>
                       </div>
 
-                      {/* PRO CHART VIEW */}
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                          
                           <Card className="lg:col-span-2 border-slate-100 p-5 md:p-6 shadow-sm">
                               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
                                   <div>
@@ -378,7 +409,6 @@ export const AnalyticsScreen = ({ profile }: any) => {
                                       return (
                                           <div key={i} className="flex-1 flex flex-col justify-end gap-2 h-full group relative">
                                               <div className="flex gap-0.5 md:gap-1 items-end justify-center h-full">
-                                                  {/* Príjmy Bar */}
                                                   <div 
                                                       className={`w-full max-w-[14px] md:max-w-[20px] bg-slate-800 rounded-t-sm transition-all duration-1000 group-hover:bg-slate-700 relative shadow-sm ${chartMode === 'cumulative' ? 'opacity-80' : ''}`} 
                                                       style={{ height: `${Math.max(2, (m.income / max) * 100)}%` }}
@@ -387,7 +417,6 @@ export const AnalyticsScreen = ({ profile }: any) => {
                                                           {formatMoney(m.income)}
                                                       </div>
                                                   </div>
-                                                  {/* Náklady Bar */}
                                                   <div 
                                                       className="w-full max-w-[14px] md:max-w-[20px] bg-orange-400 rounded-t-sm transition-all duration-1000 group-hover:bg-orange-300 relative shadow-sm" 
                                                       style={{ height: `${Math.max(2, (m.cost / max) * 100)}%` }}
@@ -455,7 +484,6 @@ export const AnalyticsScreen = ({ profile }: any) => {
                           </div>
                       </div>
 
-                      {/* WORKER PERFORMANCE TABLE - Redesigned */}
                       {viewType === 'project' && (
                           <Card className="p-0 overflow-hidden border-slate-100 shadow-sm bg-white">
                             <div className="p-5 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/20">
@@ -510,7 +538,6 @@ export const AnalyticsScreen = ({ profile }: any) => {
                           </Card>
                       )}
 
-                      {/* ADVISORY CARD */}
                       <div className="bg-white rounded-3xl p-6 md:p-10 text-slate-800 relative overflow-hidden border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8 group">
                           <div className="absolute top-0 right-0 w-64 h-64 bg-orange-50 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 group-hover:bg-orange-100 transition-colors duration-1000"></div>
                           <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 text-center md:text-left">

@@ -1,9 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Modal, Input, Badge, ConfirmModal, AlertModal, Select } from '../components/UI';
 import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote, Trash2, Archive, CheckCircle2, Users, Pencil, RefreshCcw, Link, Copy, ChevronDown, ChevronRight, Clock, MapPin, Send, Zap, Info, Smartphone, Monitor, Wallet, Loader2, Filter, FileText, Search } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
+
+const TEAM_PAGE_SIZE = 15;
 
 export const TeamScreen = ({ profile }: any) => {
   const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
@@ -16,9 +17,17 @@ export const TeamScreen = ({ profile }: any) => {
 
 const TeamList = ({ profile, onSelect }: any) => {
   const [workers, setWorkers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
+  // Pagination & Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
+
   const [showModal, setShowModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
   const [editingWorker, setEditingWorker] = useState<any>(null);
   const [formData, setFormData] = useState<any>({ email: '', fullName: '', rate: 0, phone: '', is_active: true });
   
@@ -26,12 +35,57 @@ const TeamList = ({ profile, onSelect }: any) => {
   const [alert, setAlert] = useState<{open: boolean, message: string}>({ open: false, message: '' });
   const [copied, setCopied] = useState(false);
 
-  const load = async () => {
-    const { data } = await supabase.from('profiles').select('*').eq('organization_id', profile.organization_id).order('full_name', { ascending: true });
-    if(data) setWorkers(data);
-  };
+  // Debounced search / reset on tab toggle
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        setPage(0);
+        load(true);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, showArchived]);
 
-  useEffect(() => { load(); }, []);
+  // Load more trigger
+  useEffect(() => {
+    if (page > 0) load(false);
+  }, [page]);
+
+  const load = async (reset = false) => {
+    if (reset) {
+        setLoading(true);
+        setWorkers([]);
+    } else {
+        setLoadingMore(true);
+    }
+
+    try {
+        let query = supabase.from('profiles')
+            .select('*')
+            .eq('organization_id', profile.organization_id)
+            .eq('is_active', !showArchived);
+
+        if (searchQuery) {
+            query = query.ilike('full_name', `%${searchQuery}%`);
+        }
+
+        const from = reset ? 0 : page * TEAM_PAGE_SIZE;
+        const to = from + TEAM_PAGE_SIZE - 1;
+
+        const { data, error } = await query
+            .order('full_name', { ascending: true })
+            .range(from, to);
+
+        if (error) throw error;
+        if (data) {
+            setWorkers(prev => reset ? data : [...prev, ...data]);
+            setHasMore(data.length === TEAM_PAGE_SIZE);
+        }
+    } catch (e: any) {
+        console.error(e);
+    } finally {
+        setLoading(false);
+        setLoadingMore(false);
+    }
+  };
 
   const handleEdit = (worker: any, e: any) => {
       e.stopPropagation();
@@ -50,7 +104,6 @@ const TeamList = ({ profile, onSelect }: any) => {
     e.preventDefault();
     try {
         let error;
-        
         if (editingWorker) {
              const { error: err } = await supabase.from('profiles').update({
                 full_name: formData.fullName,
@@ -78,7 +131,8 @@ const TeamList = ({ profile, onSelect }: any) => {
         if (error) throw error;
         
         setShowModal(false);
-        load();
+        setPage(0);
+        load(true);
     } catch(err: any) {
         setAlert({ open: true, message: "Chyba: " + err.message });
     }
@@ -92,7 +146,9 @@ const TeamList = ({ profile, onSelect }: any) => {
       } else if (confirm.action === 'delete') {
           await supabase.from('profiles').delete().eq('id', confirm.id);
       }
-      load();
+      setConfirm({ ...confirm, open: false });
+      setPage(0);
+      load(true);
   };
 
   const toggleArchive = (worker: any, e: any) => {
@@ -124,7 +180,9 @@ const TeamList = ({ profile, onSelect }: any) => {
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
-  const filteredWorkers = workers.filter(w => showArchived ? !w.is_active : w.is_active);
+  const handleLoadMore = () => {
+      setPage(p => p + 1);
+  };
 
   return (
     <div className="space-y-6">
@@ -146,54 +204,79 @@ const TeamList = ({ profile, onSelect }: any) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredWorkers.map(w => (
-          <Card key={w.id} onClick={() => onSelect(w.id)} className={`relative group hover:shadow-md transition cursor-pointer border border-slate-200 flex flex-col h-full ${!w.is_active ? 'opacity-70 bg-slate-50' : ''}`}>
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xl text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition border border-slate-200 shrink-0">
-                {w.full_name?.charAt(0)}
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition truncate pr-8">{w.full_name}</h3>
-                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1 ${w.is_active ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-slate-200 text-slate-500 border border-slate-300'}`}>
-                    {w.is_active ? (w.role === 'admin' ? 'Administrátor' : 'Pracovník') : 'Archivovaný'}
-                </span>
-              </div>
-            </div>
-            <div className="mt-auto space-y-3 pt-4 border-t border-slate-100">
-              <div className="flex items-center gap-3 text-sm text-slate-600 truncate">
-                <Mail size={16} className="text-slate-400 shrink-0"/> <span className="truncate">{w.email}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-slate-600">
-                <Phone size={16} className="text-slate-400 shrink-0"/> {w.phone || '-'}
-              </div>
-              <div className="flex items-center gap-3 text-sm text-slate-600">
-                <Coins size={16} className="text-orange-400 shrink-0"/> 
-                <span className="font-bold">{formatMoney(w.hourly_rate || 0)} / hod</span>
-              </div>
-            </div>
-            
-            <div className="absolute top-4 right-4 flex gap-1">
-                <button onClick={(e) => handleEdit(w, e)} className="bg-white p-2 rounded-full text-blue-500 shadow-sm border border-slate-200 hover:border-blue-200 active:scale-90 transition sm:opacity-0 sm:group-hover:opacity-100" title="Upraviť">
-                    <Pencil size={14}/>
-                </button>
-                <button onClick={(e) => toggleArchive(w, e)} className="bg-white p-2 rounded-full text-orange-500 shadow-sm border border-slate-200 hover:border-orange-200 active:scale-90 transition sm:opacity-0 sm:group-hover:opacity-100" title={w.is_active ? "Archivovať" : "Obnoviť"}>
-                    {w.is_active ? <Archive size={14}/> : <RefreshCcw size={14}/>}
-                </button>
-                {!w.is_active && (
-                    <button onClick={(e) => handleDelete(w.id, e)} className="bg-white p-2 rounded-full text-red-500 shadow-sm border border-slate-200 hover:border-red-200 active:scale-90 transition" title="Zmazať">
-                        <Trash2 size={14}/>
-                    </button>
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+                type="text" 
+                placeholder="Hľadať zamestnanca podľa mena..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500/20 transition"
+            />
+          </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative min-h-[200px]">
+        {loading && workers.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-orange-600" size={40}/></div>
+        ) : (
+            <>
+                {workers.map(w => (
+                  <Card key={w.id} onClick={() => onSelect(w.id)} className={`relative group hover:shadow-md transition cursor-pointer border border-slate-200 flex flex-col h-full ${!w.is_active ? 'opacity-70 bg-slate-50' : ''}`}>
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xl text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition border border-slate-200 shrink-0">
+                        {w.full_name?.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition truncate pr-8">{w.full_name}</h3>
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1 ${w.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-200 text-slate-500 border border-slate-300'}`}>
+                            {w.is_active ? (w.role === 'admin' ? 'Administrátor' : 'Pracovník') : 'Archivovaný'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-auto space-y-3 pt-4 border-t border-slate-100">
+                      <div className="flex items-center gap-3 text-sm text-slate-600 truncate">
+                        <Mail size={16} className="text-slate-400 shrink-0"/> <span className="truncate">{w.email}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-slate-600">
+                        <Phone size={16} className="text-slate-400 shrink-0"/> {w.phone || '-'}
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-slate-600">
+                        <Coins size={16} className="text-orange-400 shrink-0"/> 
+                        <span className="font-bold">{formatMoney(w.hourly_rate || 0)} / hod</span>
+                      </div>
+                    </div>
+                    
+                    <div className="absolute top-4 right-4 flex gap-1">
+                        <button onClick={(e) => handleEdit(w, e)} className="bg-white p-2 rounded-full text-blue-500 shadow-sm border border-slate-200 hover:border-blue-200 active:scale-90 transition sm:opacity-0 sm:group-hover:opacity-100" title="Upraviť">
+                            <Pencil size={14}/>
+                        </button>
+                        <button onClick={(e) => toggleArchive(w, e)} className="bg-white p-2 rounded-full text-orange-500 shadow-sm border border-slate-200 hover:border-orange-200 active:scale-90 transition sm:opacity-0 sm:group-hover:opacity-100" title={w.is_active ? "Archivovať" : "Obnoviť"}>
+                            {w.is_active ? <Archive size={14}/> : <RefreshCcw size={14}/>}
+                        </button>
+                        {!w.is_active && (
+                            <button onClick={(e) => handleDelete(w.id, e)} className="bg-white p-2 rounded-full text-red-500 shadow-sm border border-slate-200 hover:border-red-200 active:scale-90 transition" title="Zmazať">
+                                <Trash2 size={14}/>
+                            </button>
+                        )}
+                    </div>
+                  </Card>
+                ))}
+                {workers.length === 0 && (
+                    <div className="col-span-full py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
+                        Nenašli sa žiadni zamestnanci.
+                    </div>
                 )}
-            </div>
-          </Card>
-        ))}
-        {filteredWorkers.length === 0 && (
-            <div className="col-span-full py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
-                {showArchived ? "Archív je prázdny." : "Zatiaľ žiadni zamestnanci."}
-            </div>
+            </>
         )}
       </div>
+
+      {hasMore && !loading && (
+          <div className="flex justify-center pt-8 pb-12">
+              <Button variant="secondary" onClick={handleLoadMore} loading={loadingMore} className="bg-white min-w-[200px]">Načítať ďalších zamestnancov...</Button>
+          </div>
+      )}
 
       <ConfirmModal
         isOpen={confirm.open}
@@ -222,9 +305,9 @@ const TeamList = ({ profile, onSelect }: any) => {
             <Input label="Meno a Priezvisko" value={formData.fullName} onChange={(e: any) => setFormData({...formData, fullName: e.target.value})} required placeholder="Ján Novák" />
             <div className="grid grid-cols-2 gap-4">
                 <Input label="Hodinová sadzba €" type="number" step="0.5" value={formData.rate} onChange={(e: any) => setFormData({...formData, rate: parseFloat(e.target.value)})} required />
-                <Input label="Telefón" value={formData.phone} onChange={(e: any) => setFormData({...formData, phone: e.target.value})} />
+                <Input label="Telefón" value={formData.phone} onChange={(e: any) => setFormData({...formData, phone: e.target.value})} placeholder="+421..." />
             </div>
-            <Input label="Email" type="email" value={formData.email} onChange={(e: any) => setFormData({...formData, email: e.target.value})} readOnly />
+            <Input label="Email" type="email" value={formData.email} onChange={(e: any) => setFormData({...formData, email: e.target.value})} readOnly className="bg-slate-50" />
             
             <div className="flex items-center gap-2 mb-4 pt-2 border-t border-slate-100">
                 <input type="checkbox" id="isActive" checked={formData.is_active} onChange={(e) => setFormData({...formData, is_active: e.target.checked})} className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500" />
@@ -272,7 +355,7 @@ const TeamList = ({ profile, onSelect }: any) => {
                         <Smartphone size={20} className="text-blue-500 shrink-0 mt-1"/>
                         <div>
                             <div className="text-xs font-bold text-slate-800">Mobilná aplikácia</div>
-                            <p className="text-[10px] text-slate-400 mt-0.5">Pošlite im ID firmy cez WhatsApp a navigujte ich na Google Play Store.</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Pošlite im ID firmy cez WhatsApp a navigujte ich na stiahnutie.</p>
                         </div>
                     </div>
                     
@@ -336,7 +419,7 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
 
     const stats = filteredLogs.reduce((acc, log) => {
         const hours = Number(log.hours);
-        const cost = hours * Number(log.hourly_rate_snapshot);
+        const cost = hours * Number(log.hourly_rate_snapshot || emp?.hourly_rate || 0);
         acc.hours += hours;
         acc.earned += cost;
         return acc;

@@ -1,29 +1,31 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
-import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal } from '../components/UI';
-// Add missing 'Info' icon to the imports
-import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info } from 'lucide-react';
+import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, CustomLogo } from '../components/UI';
+import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
+const PAGE_SIZE = 12;
 const PRIORITY_FLAG = "#PRIORITY";
 
-// Helper pre PRESNÝ výpočet hodín (na minútu presne)
+const EmptyState = ({ message }: { message: string }) => (
+    <div className="col-span-full py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white shadow-sm w-full">
+        <FolderOpen size={48} className="mx-auto mb-4 opacity-20" />
+        <p className="font-bold uppercase tracking-widest text-xs">{message}</p>
+    </div>
+);
+
 const calculateSmartHours = (start: string, end: string): number => {
     if (!start || !end) return 0;
     const [sH, sM] = start.split(':').map(Number);
     const [eH, eM] = end.split(':').map(Number);
-
     let totalMinutes = (eH * 60 + eM) - (sH * 60 + sM);
-    if (totalMinutes < 0) totalMinutes += 24 * 60; // Cez polnoc
-
-    // Presný výpočet bez zaokrúhľovania pre databázu
+    if (totalMinutes < 0) totalMinutes += 24 * 60; 
     return totalMinutes / 60;
 };
 
-// PROJECT SCREEN CONTAINER
 export const ProjectsScreen = ({ profile, onSelect, selectedSiteId, organization }: { profile: UserProfile, onSelect: (id: string | null) => void, selectedSiteId: string | null, organization: any }) => {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
@@ -32,7 +34,7 @@ export const ProjectsScreen = ({ profile, onSelect, selectedSiteId, organization
   };
 
   if (selectedSiteId) {
-    return <ProjectDetail siteId={selectedSiteId} profile={profile} onBack={() => onBackInternal()} />;
+    return <ProjectDetail siteId={selectedSiteId} profile={profile} onBack={() => onBackInternal()} organization={organization} />;
   }
 
   if (selectedLeadId) {
@@ -42,65 +44,102 @@ export const ProjectsScreen = ({ profile, onSelect, selectedSiteId, organization
   return <ProjectManager profile={profile} onSelect={onSelect} onSelectLead={setSelectedLeadId} organization={organization} />;
 };
 
-// --- MAIN PROJECT MANAGER (List View) ---
 const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) => {
   const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'archive'>('active');
   const [sites, setSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   
-  // Search and Pagination
   const [searchQuery, setSearchQuery] = useState('');
-  const [visibleArchiveCount, setVisibleArchiveCount] = useState(12);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   
-  // MODALS
   const [showModal, setShowModal] = useState(false);
   const [editingSite, setEditingSite] = useState<any>(null);
-  
-  // Forms
   const [formData, setFormData] = useState({ name: '', address: '', client_name: '', budget: 0, status: 'lead', lead_stage: 'new', notes: '' });
   
   const [alert, setAlert] = useState<{open: boolean, title: string, message: string, type: string}>({ open: false, title: '', message: '', type: 'success' });
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string | null}>({ open: false, action: '', id: null });
 
-  const load = async () => {
-    setLoading(true);
-    // Poznámka: Pri 400+ projektoch je sťahovanie všetkých logov a transakcií na klientovi riziko.
-    // V budúcnosti odporúčame použiť SQL View alebo RPC na výpočet profitu priamo v Supabase.
-    const [sitesRes, transRes, logsRes] = await Promise.all([
-      supabase.from('sites').select('*').eq('organization_id', profile.organization_id).order('created_at', { ascending: false }),
-      supabase.from('transactions').select('*').eq('organization_id', profile.organization_id),
-      supabase.from('attendance_logs').select('*, profiles(hourly_rate)').eq('organization_id', profile.organization_id)
-    ]);
-
-    if (sitesRes.data) {
-        const enrichedSites = sitesRes.data.map(site => {
-            const siteTrans = transRes.data?.filter(t => t.site_id === site.id) || [];
-            const siteLogs = logsRes.data?.filter(l => l.site_id === site.id) || [];
-
-            const income = siteTrans.filter(t => t.type === 'invoice' && t.is_paid).reduce((sum, t) => sum + Number(t.amount), 0);
-            const directExpenses = siteTrans.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
-            
-            const laborCost = siteLogs.reduce((sum, log: any) => {
-                const hours = Number(log.hours) || 0;
-                const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
-                return sum + (hours * rate);
-            }, 0);
-
-            const totalCost = directExpenses + laborCost;
-            return { 
-                ...site, 
-                profit: income - totalCost, 
-                income, 
-                totalCost,
-                costPercent: site.budget > 0 ? (totalCost / site.budget) * 100 : 0
-            };
-        });
-        setSites(enrichedSites);
-    }
-    setLoading(false);
+  const handleTabChange = (newTab: 'leads' | 'active' | 'archive') => {
+      setSites([]);
+      setLoading(true);
+      setPage(0);
+      setActiveTab(newTab);
   };
 
-  useEffect(() => { load(); }, [profile]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        load(true);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [activeTab, searchQuery]);
+
+  useEffect(() => {
+    if (page > 0) load(false);
+  }, [page]);
+
+  const load = async (reset = false) => {
+    if (reset) {
+        setLoading(true);
+    } else {
+        setLoadingMore(true);
+    }
+
+    try {
+        let query = supabase.from('sites').select('*').eq('organization_id', profile.organization_id);
+
+        if (activeTab === 'leads') {
+            query = query.eq('status', 'lead');
+        } else if (activeTab === 'active') {
+            query = query.in('status', ['active', 'planning']);
+        } else {
+            query = query.in('status', ['completed', 'paused']);
+        }
+
+        if (searchQuery) {
+            query = query.or(`name.ilike.%${searchQuery}%,address.ilike.%${searchQuery}%,client_name.ilike.%${searchQuery}%`);
+        }
+
+        const from = reset ? 0 : page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: sitesData, error } = await query
+            .order('created_at', { ascending: false })
+            .range(from, to);
+
+        if (error) throw error;
+
+        if (sitesData) {
+            const siteIds = sitesData.map(s => s.id);
+            const { data: statsRes } = await supabase
+                .from('v_site_financials')
+                .select('*')
+                .in('site_id', siteIds);
+
+            const enriched = sitesData.map(site => {
+                const s = statsRes?.find(st => st.site_id === site.id);
+                const income = Number(s?.total_income || 0);
+                const totalCost = Number(s?.total_direct_expenses || 0) + Number(s?.total_material_cost || 0) + Number(s?.total_labor_cost || 0);
+                return {
+                    ...site,
+                    profit: income - totalCost,
+                    income,
+                    totalCost,
+                    costPercent: site.budget > 0 ? (totalCost / site.budget) * 100 : 0
+                };
+            });
+
+            setSites(prev => reset ? enriched : [...prev, ...enriched]);
+            setHasMore(sitesData.length === PAGE_SIZE);
+        }
+    } catch (e: any) {
+        console.error(e);
+    } finally {
+        setLoading(false);
+        setLoadingMore(false);
+    }
+  };
 
   const handleCreateSite = (status: string = 'lead') => {
       setEditingSite(null);
@@ -127,7 +166,8 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
         if(result.error) throw result.error;
 
         setShowModal(false);
-        load();
+        setPage(0);
+        load(true);
         
         if (!editingSite && payload.status === 'lead' && result.data) {
              onSelectLead(result.data[0].id);
@@ -142,56 +182,32 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
       if(!confirm.id) return;
       await supabase.from('sites').delete().eq('id', confirm.id);
       setConfirm({ ...confirm, open: false });
-      load();
+      setPage(0);
+      load(true);
   };
 
   const updateLeadStage = async (siteId: string, stage: string) => {
       await supabase.from('sites').update({ lead_stage: stage }).eq('id', siteId);
-      load();
+      setSites(prev => prev.map(s => s.id === siteId ? { ...s, lead_stage: stage } : s));
   };
-
-  const filteredSites = sites.filter(s => 
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (s.address && s.address.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (s.client_name && s.client_name.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  const leads = filteredSites.filter(s => s.status === 'lead');
-  const activeSites = filteredSites.filter(s => ['active', 'planning'].includes(s.status));
-  const archivedSites = filteredSites.filter(s => ['completed', 'paused'].includes(s.status));
 
   const getLeadNameColor = (stage: string) => {
       switch(stage) {
           case 'contacted': return 'text-yellow-600';
           case 'meeting': return 'text-purple-700';
           case 'pricing': return 'text-orange-600';
-          case 'new': 
           default: return 'text-blue-700';
       }
   };
 
   const getStatusButtonClass = (isActive: boolean, stage: string) => {
       const base = "px-3 py-1.5 rounded-md transition text-xs font-bold border";
-      
       const colors: any = {
-          new: {
-              active: "bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-200",
-              inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50"
-          },
-          contacted: {
-              active: "bg-yellow-50 text-yellow-700 border-yellow-200 ring-1 ring-yellow-200",
-              inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50"
-          },
-          meeting: {
-              active: "bg-purple-50 text-purple-700 border-purple-200 ring-1 ring-purple-200",
-              inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50"
-          },
-          pricing: {
-              active: "bg-orange-50 text-orange-700 border-orange-200 ring-1 ring-orange-200",
-              inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50"
-          }
+          new: { active: "bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-200", inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50" },
+          contacted: { active: "bg-yellow-50 text-yellow-700 border-yellow-200 ring-1 ring-yellow-200", inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50" },
+          meeting: { active: "bg-purple-50 text-purple-700 border-purple-200 ring-1 ring-purple-200", inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50" },
+          pricing: { active: "bg-orange-50 text-orange-700 border-orange-200 ring-1 ring-orange-200", inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50" }
       };
-
       const style = colors[stage] || colors['new'];
       return `${base} ${isActive ? style.active : style.inactive}`;
   };
@@ -214,13 +230,13 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
         <div className="bg-slate-100 p-1 rounded-xl flex gap-1 shadow-inner border border-slate-200 overflow-x-auto w-full lg:w-auto">
             {[
-                { id: 'active', label: 'Realizácia', icon: HardHat, count: activeSites.length },
-                { id: 'leads', label: 'Obchod', icon: Briefcase, count: leads.length },
-                { id: 'archive', label: 'Archív', icon: Archive, count: archivedSites.length },
+                { id: 'active', label: 'Realizácia', icon: HardHat },
+                { id: 'leads', label: 'Obchod', icon: Briefcase },
+                { id: 'archive', label: 'Archív', icon: Archive },
             ].map(tab => (
                 <button 
                     key={tab.id}
-                    onClick={() => { setActiveTab(tab.id as any); setVisibleArchiveCount(12); }}
+                    onClick={() => handleTabChange(tab.id as any)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 whitespace-nowrap flex-1 lg:flex-none justify-center ${
                         activeTab === tab.id 
                         ? 'bg-white text-orange-600 shadow-sm ring-1 ring-black/5' 
@@ -229,7 +245,6 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
                 >
                     <tab.icon size={16} className={activeTab === tab.id ? "text-orange-600" : "text-slate-400"}/> 
                     {tab.label}
-                    {tab.count > 0 && <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === tab.id ? 'bg-orange-100 text-orange-700' : 'bg-slate-200 text-slate-500'}`}>{tab.count}</span>}
                 </button>
             ))}
         </div>
@@ -246,139 +261,94 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
         </div>
       </div>
 
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {activeTab === 'leads' && (
-              <div className="space-y-6">
-                  {leads.length === 0 ? <EmptyState message={searchQuery ? "Nenašli sa žiadne dopyty." : "Žiadne nové dopyty."} /> : (
-                      <div className="grid grid-cols-1 gap-4">
-                          {leads.map(lead => {
-                              const stage = lead.lead_stage || 'new';
-                              return (
-                                  <div key={lead.id} onClick={() => onSelectLead(lead.id)} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col md:flex-row gap-4 items-start md:items-center group">
-                                      <div className={`w-2 h-16 rounded-full self-stretch ${stage === 'new' ? 'bg-blue-500' : stage === 'contacted' ? 'bg-yellow-500' : stage === 'meeting' ? 'bg-purple-500' : 'bg-orange-500'}`}></div>
-                                      <div className="flex-1">
-                                          <div className="flex items-center gap-2 mb-1">
-                                              <h3 className={`font-bold text-lg transition ${getLeadNameColor(stage)}`}>{lead.name}</h3>
-                                              <Badge status={stage} />
-                                          </div>
-                                          <div className="flex gap-4 text-sm text-slate-500">
-                                              <span className="flex items-center gap-1"><User size={14}/> {lead.client_name || 'Neznámy'}</span>
-                                              <span className="flex items-center gap-1"><MapPin size={14}/> {lead.address || '-'}</span>
-                                          </div>
-                                      </div>
-                                      <div className="bg-slate-50 p-1 rounded-lg flex text-xs font-medium border border-slate-100 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
-                                          {[
-                                              { id: 'new', label: 'Nový' },
-                                              { id: 'contacted', label: 'Kontakt' },
-                                              { id: 'meeting', label: 'Obhliadka' },
-                                              { id: 'pricing', label: 'Ponuka' }
-                                          ].map(s => (
-                                              <button 
-                                                  key={s.id}
-                                                  onClick={() => updateLeadStage(lead.id, s.id)}
-                                                  className={getStatusButtonClass(stage === s.id, s.id)}
-                                              >
-                                                  {s.label}
-                                              </button>
-                                          ))}
-                                      </div>
-                                      <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
-                                          <button onClick={() => setConfirm({ open: true, action: 'delete', id: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
-                                          <ChevronDown className="text-slate-300 -rotate-90 group-hover:text-slate-500 transition" />
-                                      </div>
-                                  </div>
-                              );
-                          })}
-                      </div>
-                  )}
-              </div>
-          )}
-
-          {activeTab === 'active' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activeSites.map(site => (
-                  <Card key={site.id} onClick={() => onSelect(site.id)} className="cursor-pointer group hover:shadow-xl hover:-translate-y-1 transition duration-300 relative overflow-hidden flex flex-col h-full border border-slate-200 bg-white">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="min-w-0">
-                        <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition truncate pr-2">{site.name}</h3>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium mt-0.5">
-                           <MapPin size={12} /> {site.address || 'Bez adresy'}
-                        </div>
-                      </div>
-                      <Badge status={site.status} />
-                    </div>
-
-                    <div className="space-y-3 mb-6 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                        <div className="flex justify-between items-center text-xs">
-                           <span className="text-slate-500 font-bold uppercase tracking-wider">Aktuálna Bilancia</span>
-                           <div className={`flex items-center gap-1 font-extrabold ${site.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {site.profit >= 0 ? <TrendingUp size={12}/> : <TrendingDown size={12}/>}
-                              {formatMoney(site.profit)}
-                           </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <div className="flex justify-between text-[10px] font-bold">
-                                <span className="text-slate-400 uppercase">Náklady / Rozpočet</span>
-                                <span className="text-slate-700">{formatMoney(site.totalCost)} / {formatMoney(site.budget)}</span>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                <div 
-                                    className={`h-full rounded-full transition-all duration-500 ${site.totalCost > site.budget ? 'bg-red-500' : 'bg-orange-500'}`} 
-                                    style={{ width: `${Math.min(100, site.costPercent)}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center bg-white -mx-6 -mb-6 p-6">
-                      <div className="flex items-center gap-2">
-                        <div className="bg-blue-50 text-blue-600 p-2 rounded-lg">
-                           <Euro size={16}/>
-                        </div>
-                        <div>
-                          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider leading-none mb-1">Prijaté platby</div>
-                          <div className="font-bold text-slate-700 leading-none">{formatMoney(site.income)}</div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                          <button onClick={(e) => { e.stopPropagation(); handleCreateSite(); setEditingSite(site); setFormData({name: site.name, address: site.address, client_name: site.client_name, budget: site.budget, status: site.status, lead_stage: 'new', notes: site.notes}); setShowModal(true); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition border border-transparent hover:border-slate-200"><Pencil size={16}/></button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-                {activeSites.length === 0 && <EmptyState message={searchQuery ? "Nenašli sa žiadne aktívne projekty." : "Žiadne aktívne projekty."} />}
-              </div>
-          )}
-
-          {activeTab === 'archive' && (
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[400px] relative">
+          {loading && sites.length === 0 ? (
+              <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-orange-600" size={40}/></div>
+          ) : (
               <div className="space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {archivedSites.slice(0, visibleArchiveCount).map(site => (
-                          <Card key={site.id} onClick={() => onSelect(site.id)} className="opacity-85 hover:opacity-100 transition cursor-pointer border border-slate-200 bg-white hover:shadow-lg">
-                              <div className="flex justify-between items-start mb-4">
-                                  <h3 className="font-bold text-slate-900 truncate pr-2">{site.name}</h3>
-                                  <Badge status={site.status}/>
-                              </div>
-                              <div className="flex justify-between items-center text-sm mb-4">
-                                  <span className="text-slate-500 font-medium">Konečný zisk</span>
-                                  <span className={`font-bold ${site.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(site.profit)}</span>
-                              </div>
-                              <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest pt-2 border-t border-slate-50">
-                                  <span>{site.address || 'Adresa chýba'}</span>
-                                  <span>{formatDate(site.created_at)}</span>
-                              </div>
-                          </Card>
-                      ))}
-                      {archivedSites.length === 0 && <EmptyState message={searchQuery ? "Nenašli sa žiadne dokončené projekty." : "Archív je prázvny."} />}
-                  </div>
-                  
-                  {archivedSites.length > visibleArchiveCount && (
-                      <div className="flex justify-center pt-4">
-                          <Button variant="secondary" size="lg" onClick={() => setVisibleArchiveCount(prev => prev + 12)} className="bg-white px-8">
-                              Zobraziť ďalšie dokončené stavby ({archivedSites.length - visibleArchiveCount})
-                          </Button>
-                      </div>
-                  )}
+                {activeTab === 'leads' && (
+                    <div className="space-y-4">
+                        {sites.length === 0 ? <EmptyState message={searchQuery ? "Nenašli sa žiadne dopyty." : "Žiadne nové dopyty."} /> : (
+                            <div className="grid grid-cols-1 gap-4">
+                                {sites.map(lead => {
+                                    const stage = lead.lead_stage || 'new';
+                                    return (
+                                        <div key={lead.id} onClick={() => onSelectLead(lead.id)} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col md:flex-row gap-4 items-start md:items-center group">
+                                            <div className={`w-2 h-16 rounded-full self-stretch ${stage === 'new' ? 'bg-blue-500' : stage === 'contacted' ? 'bg-yellow-500' : stage === 'meeting' ? 'bg-purple-500' : 'bg-orange-500'}`}></div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className={`font-bold text-lg transition ${getLeadNameColor(stage)}`}>{lead.name}</h3>
+                                                    <Badge status={stage} />
+                                                </div>
+                                                <div className="flex gap-4 text-sm text-slate-500">
+                                                    <span className="flex items-center gap-1"><User size={14}/> {lead.client_name || 'Neznámy'}</span>
+                                                    <span className="flex items-center gap-1"><MapPin size={14}/> {lead.address || '-'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 p-1 rounded-lg flex text-xs font-medium border border-slate-100 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
+                                                {[ { id: 'new', label: 'Nový' }, { id: 'contacted', label: 'Kontakt' }, { id: 'meeting', label: 'Obhliadka' }, { id: 'pricing', label: 'Ponuka' } ].map(s => (
+                                                    <button key={s.id} onClick={() => updateLeadStage(lead.id, s.id)} className={getStatusButtonClass(stage === s.id, s.id)}>{s.label}</button>
+                                                ))}
+                                            </div>
+                                            <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+                                                <button onClick={() => setConfirm({ open: true, action: 'delete', id: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {(activeTab === 'active' || activeTab === 'archive') && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {sites.map(site => (
+                            <Card key={site.id} onClick={() => onSelect(site.id)} className="cursor-pointer group hover:shadow-xl hover:-translate-y-1 transition duration-300 relative overflow-hidden flex flex-col h-full border border-slate-200 bg-white">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="min-w-0 flex-1">
+                                        <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition truncate pr-2" title={site.name}>{site.name}</h3>
+                                        <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium mt-0.5">
+                                            <MapPin size={12} /> {site.address || 'Bez adresy'}
+                                        </div>
+                                    </div>
+                                    <Badge status={site.status} />
+                                </div>
+                                <div className="space-y-3 mb-6 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-slate-500 font-bold uppercase tracking-wider">Bilancia</span>
+                                        <div className={`flex items-center gap-1 font-extrabold ${site.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {formatMoney(site.profit)}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between text-[10px] font-bold">
+                                            <span className="text-slate-400 uppercase">Náklady / Rozpočet</span>
+                                            <span className="text-slate-700">{formatMoney(site.totalCost)} / {formatMoney(site.budget)}</span>
+                                        </div>
+                                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                            <div className={`h-full rounded-full transition-all duration-500 ${site.totalCost > site.budget ? 'bg-red-500' : 'bg-orange-500'}`} style={{ width: `${Math.min(100, site.costPercent)}%` }}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center bg-white -mx-6 -mb-6 p-6">
+                                    <div className="flex items-center gap-2">
+                                        <div className="bg-blue-50 text-blue-600 p-2 rounded-lg"><Euro size={16}/></div>
+                                        <div className="font-bold text-slate-700 leading-none">{formatMoney(site.income)}</div>
+                                    </div>
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingSite(site); setFormData({name: site.name, address: site.address, client_name: site.client_name, budget: site.budget, status: site.status, lead_stage: 'new', notes: site.notes}); setShowModal(true); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition border border-transparent hover:border-slate-200"><Pencil size={16}/></button>
+                                </div>
+                            </Card>
+                        ))}
+                        {sites.length === 0 && <EmptyState message={searchQuery ? "Nenašli sa žiadne projekty." : "Zoznam je prázvny."} />}
+                    </div>
+                )}
+                
+                {hasMore && !loading && (
+                    <div className="flex justify-center pt-8 pb-12">
+                        <Button variant="secondary" onClick={() => setPage(p => p + 1)} loading={loadingMore} className="bg-white min-w-[220px]">Načítať ďalšie zákazky...</Button>
+                    </div>
+                )}
               </div>
           )}
       </div>
@@ -418,7 +388,6 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
   );
 };
 
-// --- ADVANCED CALCULATOR ---
 interface CalcRow {
     id: string;
     description: string;
@@ -452,7 +421,7 @@ const IntegratedCalculator = () => {
         }
     };
 
-    const btnClass = "h-12 rounded-lg font-bold text-lg shadow-sm transition active:scale-95 flex items-center justify-center";
+    const btnClass = "h-12 rounded-lg font-bold text-lg shadow-sm transition active:scale-[0.95] flex items-center justify-center";
     const numBtn = `${btnClass} bg-white hover:bg-slate-50 text-slate-800 border border-slate-200`;
     const opBtn = `${btnClass} bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-200`;
     const eqBtn = `${btnClass} bg-orange-600 text-white hover:bg-orange-700 shadow-orange-200`;
@@ -469,22 +438,18 @@ const IntegratedCalculator = () => {
                 <button onClick={() => handlePress('8')} className={numBtn}>8</button>
                 <button onClick={() => handlePress('9')} className={numBtn}>9</button>
                 <button onClick={() => handlePress('/')} className={opBtn}>÷</button>
-
                 <button onClick={() => handlePress('4')} className={numBtn}>4</button>
                 <button onClick={() => handlePress('5')} className={numBtn}>5</button>
                 <button onClick={() => handlePress('6')} className={numBtn}>6</button>
                 <button onClick={() => handlePress('*')} className={opBtn}>×</button>
-
                 <button onClick={() => handlePress('1')} className={numBtn}>1</button>
                 <button onClick={() => handlePress('2')} className={numBtn}>2</button>
                 <button onClick={() => handlePress('3')} className={numBtn}>3</button>
                 <button onClick={() => handlePress('-')} className={opBtn}>-</button>
-
                 <button onClick={() => handlePress('C')} className={`${btnClass} bg-red-100 text-red-600 border border-red-200`}>C</button>
                 <button onClick={() => handlePress('0')} className={numBtn}>0</button>
                 <button onClick={() => handlePress('.')} className={numBtn}>.</button>
                 <button onClick={() => handlePress('+')} className={opBtn}>+</button>
-                
                 <button onClick={() => handlePress('=')} className={`${eqBtn} col-span-4 mt-1`}>=</button>
             </div>
         </Card>
@@ -715,7 +680,6 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     );
 };
 
-// --- QUOTE BUILDER ---
 const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSiteId }: any) => {
     const [header, setHeader] = useState({ client_name: '', client_address: '', site_id: initialSiteId || '', issue_date: new Date().toISOString().split('T')[0], valid_until: '', has_vat: false, vat_rate: 23 });
     const [items, setTableItems] = useState([{ description: '', quantity: 1, unit: 'ks', unit_price: 0 }]);
@@ -792,7 +756,6 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                     <div className="space-y-4">
                         <Input label="Dátum vystavenia" type="date" value={header.issue_date} onChange={(e: any) => setHeader({...header, issue_date: e.target.value})} />
                         <Input label="Platnosť do" type="date" value={header.valid_until} onChange={(e: any) => setHeader({...header, valid_until: e.target.value})} />
-                        
                         <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                             <div className="flex items-center gap-2 mb-2">
                                 <input type="checkbox" id="vat" className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" checked={header.has_vat} onChange={(e) => setHeader({...header, has_vat: e.target.checked})} />
@@ -805,14 +768,12 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                                 </div>
                             )}
                         </div>
-
                         <div className="pt-2 text-right">
                             <div className="text-xs uppercase font-bold text-slate-400">Celková suma {header.has_vat && '(s DPH)'}</div>
                             <div className="text-3xl font-bold text-slate-900 tracking-tighter">{formatMoney(total)}</div>
                         </div>
                     </div>
                 </div>
-
                 <div>
                     <h4 className="font-bold text-slate-800 mb-2 flex justify-between items-center px-1">
                         Položky rozpočtu
@@ -847,7 +808,6 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                         </div>
                     </div>
                 </div>
-
                 <div className="flex justify-end pt-4 border-t border-slate-100">
                     <Button onClick={handleSave} loading={saving} size="lg" className="shadow-orange-200"><CheckCircle2 size={18}/> Vystaviť Cenovú Ponuku</Button>
                 </div>
@@ -867,9 +827,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
         setSelectedQuote(quote);
     };
 
-    // Explicitly type variables and reduce accumulator to avoid 'unknown' errors
     const quoteSubtotal: number = selectedQuote ? (items.reduce((s: number, i: any) => s + (Number(i.quantity) * Number(i.unit_price)), 0)) : 0;
-    // Cast total_amount to number to avoid 'unknown' type errors
     const totalStored: number = Number(selectedQuote?.total_amount || 0);
     const diff: number = Math.max(0, totalStored - quoteSubtotal);
     const hasVat: boolean = diff > 1; 
@@ -977,14 +935,13 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                                     )}
                                     <div className="flex justify-between items-center text-xl font-extrabold text-slate-900 border-t border-slate-200 pt-2 mt-2">
                                         <span>SPOLU</span>
-                                        {/* Use pre-casted totalStored to avoid TS errors */}
                                         <span>{formatMoney(totalStored)}</span>
                                     </div>
                                 </div>
                             </div>
                             <div className="absolute bottom-12 left-12 right-12 text-center text-slate-400 text-xs border-t border-slate-100 pt-4 leading-relaxed">
                                 Ďakujeme za záujem o naše služby. Tešíme sa na spoluprácu.<br/>
-                                Vygenerované aplikáciou MojaStavba.app
+                                Vygenerované aplikáciou MojaStavba
                             </div>
                         </div>
                     </div>
@@ -1001,7 +958,6 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                             <div className="text-sm text-slate-500 mb-4 truncate">{q.sites?.name || 'Bez priradeného projektu'}</div>
                             <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
                                 <span className="text-xs font-bold text-slate-400 uppercase">Suma k úhrade</span>
-                                {/* Cast total_amount to number for formatMoney safety */}
                                 <span className="font-bold text-slate-900 text-lg tracking-tight">{formatMoney(Number(q.total_amount))}</span>
                             </div>
                         </Card>
@@ -1013,14 +969,6 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
     );
 };
 
-const EmptyState = ({ message }: { message: string }) => (
-    <div className="col-span-full py-16 text-center text-slate-400 italic border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center gap-4 bg-slate-50/50">
-        <FolderOpen size={40} className="opacity-10"/>
-        <p className="font-medium">{message}</p>
-    </div>
-);
-
-// --- LABOR SUMMARY (REWORKED FOR MOBILE) ---
 const LaborSummary = ({ logs }: { logs: any[] }) => {
     const summary = logs.reduce((acc: any, log: any) => {
         const name = log.profiles?.full_name || 'Neznámy';
@@ -1032,7 +980,6 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
         return acc;
     }, {});
 
-    // Explicitly define return type as number for the reduce function
     const totalHours = Object.values(summary).reduce<number>((acc, item: any) => acc + Number(item.hours), 0);
     const totalCost = Object.values(summary).reduce<number>((acc, item: any) => acc + Number(item.cost), 0);
 
@@ -1071,7 +1018,6 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
     );
 };
 
-// --- LOG MODAL ---
 const LogDetailModal = ({ log, onClose }: { log: any, onClose: () => void }) => {
     if (!log) return null;
     return (
@@ -1102,19 +1048,22 @@ const LogDetailModal = ({ log, onClose }: { log: any, onClose: () => void }) => 
     );
 };
 
-// --- PROJECT DETAIL ---
-const ProjectDetail = ({ siteId, profile, onBack }: any) => {
+const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [site, setSite] = useState<any>(null);
   const [data, setData] = useState<any>({ tasks: [], transactions: [], materials: [], logs: [] });
   const [employees, setEmployees] = useState<any[]>([]); 
   const [stats, setStats] = useState<any>({ paid: 0, totalCost: 0, profit: 0, laborHours: 0, materialCost: 0 });
-  const [modals, setModals] = useState({ log: false, transaction: false }); 
+  const [modals, setModals] = useState({ log: false, transaction: false, export: false }); 
+  const [exportSettings, setExportSettings] = useState({ type: 'client' as 'client' | 'owner', includeFinancials: false });
   const [formState, setFormState] = useState<any>({});
   const [confirmAction, setConfirmAction] = useState<{open: boolean, table: string, id: string}>({ open: false, table: '', id: '' });
   const [alert, setAlert] = useState<{open: boolean, title: string, message: string, type?: string}>({ open: false, title: '', message: '' });
   const [statusModalOpen, setStatusModalOpen] = useState(false); 
   const [selectedLog, setSelectedLog] = useState<any>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const printRef = useRef<HTMLDivElement>(null);
 
   const loadData = async () => {
     const [s, t, tr, m, l, emps] = await Promise.all([
@@ -1161,20 +1110,26 @@ const ProjectDetail = ({ siteId, profile, onBack }: any) => {
   };
 
   const handleExportPDF = async () => {
-    const element = document.getElementById('project-content-pdf');
-    if(!element) return;
-    try {
-        const opt = { 
-            margin: 10, 
-            filename: `Vykaz_${site.name}.pdf`, 
-            image: { type: 'jpeg' as const, quality: 0.98 }, 
-            html2canvas: { scale: 2 }, 
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const } 
-        };
-        html2pdf().set(opt).from(element).save();
-    } catch(e) {
-        setAlert({ open: true, title: 'Chyba', message: "Chyba pri generovaní PDF.", type: 'error' });
-    }
+    setExporting(true);
+    setTimeout(async () => {
+        if(!printRef.current) return;
+        try {
+            const modeName = exportSettings.type === 'client' ? 'Export_Klient' : 'Export_Majitel';
+            const opt = { 
+                margin: 10, 
+                filename: `${modeName}_${site.name}.pdf`, 
+                image: { type: 'jpeg' as const, quality: 0.98 }, 
+                html2canvas: { scale: 2, useCORS: true }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const } 
+            };
+            await html2pdf().set(opt).from(printRef.current).save();
+            setModals({...modals, export: false});
+        } catch(e) {
+            setAlert({ open: true, title: 'Chyba', message: "Chyba pri generovaní PDF.", type: 'error' });
+        } finally {
+            setExporting(false);
+        }
+    }, 500);
   };
 
   const requestDelete = (table: string, id: string) => {
@@ -1292,7 +1247,7 @@ const ProjectDetail = ({ siteId, profile, onBack }: any) => {
       <div className="flex flex-col md:flex-row justify-between gap-4">
         <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-wider flex items-center gap-1 transition"><ArrowLeft size={14}/> Späť</button>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={handleExportPDF}><FileDown size={16}/> Stiahnuť PDF</Button>
+          <Button variant="secondary" size="sm" onClick={() => setModals({...modals, export: true})}><FileDown size={16}/> Stiahnuť PDF</Button>
         </div>
       </div>
 
@@ -1308,9 +1263,21 @@ const ProjectDetail = ({ siteId, profile, onBack }: any) => {
             </button>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-5 rounded-2xl shadow-xl min-w-[200px] text-white">
-          <div className="text-[10px] uppercase text-slate-400 font-black tracking-widest mb-1">Priebežný Zisk</div>
-          <div className={`text-2xl font-black ${stats.profit >= 0 ? 'text-green-400' : 'text-red-400'} tracking-tighter`}>{formatMoney(stats.profit)}</div>
+        
+        <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-slate-100 min-w-[220px] relative overflow-hidden group">
+          <div className={`absolute left-0 top-0 bottom-0 w-2 ${stats.profit >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <div className="pl-2">
+              <div className="text-[10px] uppercase text-slate-400 font-black tracking-widest mb-1 flex items-center gap-2">
+                <Activity size={12} className={stats.profit >= 0 ? 'text-green-500' : 'text-red-500'}/>
+                Priebežný Zisk
+              </div>
+              <div className={`text-2xl font-black ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'} tracking-tighter`}>
+                {formatMoney(stats.profit)}
+              </div>
+          </div>
+          <div className={`absolute right-[-20px] bottom-[-20px] opacity-[0.03] group-hover:scale-110 transition-transform duration-700 ${stats.profit >= 0 ? 'text-green-900' : 'text-red-900'}`}>
+             <TrendingUp size={100} />
+          </div>
         </div>
       </div>
 
@@ -1333,7 +1300,7 @@ const ProjectDetail = ({ siteId, profile, onBack }: any) => {
           ))}
         </div>
 
-        <div className="p-4 md:p-8 flex-1" id="project-content-pdf">
+        <div className="p-4 md:p-8 flex-1">
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in">
               <Card className="bg-white border-slate-200 shadow-sm">
@@ -1439,7 +1406,7 @@ const ProjectDetail = ({ siteId, profile, onBack }: any) => {
                               )}
                             </td>
                             <td className="p-4 text-right">
-                                <button onClick={() => requestDelete(t.itemType === 'material' ? 'materials' : 'transactions', t.id)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition active:scale-90"><Trash2 size={16}/></button>
+                                <button onClick={() => requestDelete(t.itemType === 'material' ? 'materials' : 'transactions', t.id)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition active:scale-[0.90]"><Trash2 size={16}/></button>
                             </td>
                           </tr>
                         ))}
@@ -1456,7 +1423,12 @@ const ProjectDetail = ({ siteId, profile, onBack }: any) => {
               <LaborSummary logs={data.logs} />
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-extrabold text-xl text-slate-900">Denník prác (História)</h3>
-                <Button size="sm" onClick={() => { setFormState({ date: new Date().toISOString().split('T')[0], start_time: '07:00', end_time: '15:30' }); setModals({...modals, log: true}); }}><Clock size={16}/> Zapísať dochádzku</Button>
+                <button 
+                  onClick={() => { setFormState({ date: new Date().toISOString().split('T')[0], start_time: '07:00', end_time: '15:30' }); setModals({...modals, log: true}); }}
+                  className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-xl hover:bg-slate-900 transition font-bold text-sm shadow-sm"
+                >
+                  <Clock size={16}/> Zapísať dochádzku
+                </button>
               </div>
               <div className="space-y-4">
                   {data.logs.map((l: any) => (
@@ -1482,8 +1454,8 @@ const ProjectDetail = ({ siteId, profile, onBack }: any) => {
                           <div className="text-right flex items-center gap-4 ml-6">
                               <div className="font-black text-slate-900 text-2xl tracking-tighter">{formatDuration(Number(l.hours))}</div>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={(e) => { e.stopPropagation(); handleEditLog(l); }} className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-90"><Pencil size={18}/></button>
-                                <button onClick={(e) => { e.stopPropagation(); requestDelete('attendance_logs', l.id); }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition active:scale-90"><Trash2 size={18}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); handleEditLog(l); }} className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-[0.90]"><Pencil size={18}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); requestDelete('attendance_logs', l.id); }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition active:scale-[0.90]"><Trash2 size={18}/></button>
                               </div>
                           </div>
                       </div>
@@ -1622,6 +1594,270 @@ const ProjectDetail = ({ siteId, profile, onBack }: any) => {
           </form>
         </Modal>
       )}
+
+      {modals.export && (
+          <Modal title="Export do PDF" onClose={() => setModals({...modals, export: false})} maxWidth="max-w-md">
+              <div className="space-y-6">
+                  <div className="space-y-3">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Vyberte typ exportu</label>
+                      <div className="grid grid-cols-1 gap-2">
+                          <button 
+                            onClick={() => setExportSettings({...exportSettings, type: 'client'})}
+                            className={`p-4 rounded-xl border-2 flex items-center justify-between text-left transition ${exportSettings.type === 'client' ? 'border-orange-500 bg-orange-50' : 'border-slate-100 hover:border-slate-200'}`}
+                          >
+                              <div>
+                                  <div className="font-bold text-slate-900 flex items-center gap-2"><User size={16} className="text-blue-500"/> Pre klienta</div>
+                                  <div className="text-[10px] text-slate-500 font-medium">Prehľad prác a postupu (anonymný zoznam)</div>
+                              </div>
+                              {exportSettings.type === 'client' && <CheckCircle2 size={20} className="text-orange-500" />}
+                          </button>
+                          <button 
+                            onClick={() => setExportSettings({...exportSettings, type: 'owner'})}
+                            className={`p-4 rounded-xl border-2 flex items-center justify-between text-left transition ${exportSettings.type === 'owner' ? 'border-orange-500 bg-orange-50' : 'border-slate-100 hover:border-slate-200'}`}
+                          >
+                              <div>
+                                  <div className="font-bold text-slate-900 flex items-center gap-2"><ShieldCheck size={16} className="text-orange-600"/> Pre majiteľa</div>
+                                  <div className="text-[10px] text-slate-500 font-medium">Kompletný výkaz vrátane mzdových nákladov</div>
+                              </div>
+                              {exportSettings.type === 'owner' && <CheckCircle2 size={20} className="text-orange-500" />}
+                          </button>
+                      </div>
+                  </div>
+
+                  {exportSettings.type === 'client' && (
+                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 animate-in fade-in slide-in-from-top-2">
+                          <label className="flex items-center gap-3 cursor-pointer group">
+                              <input 
+                                type="checkbox" 
+                                checked={exportSettings.includeFinancials} 
+                                onChange={e => setExportSettings({...exportSettings, includeFinancials: e.target.checked})} 
+                                className="w-5 h-5 text-orange-600 rounded border-slate-300 focus:ring-orange-500"
+                              />
+                              <div className="flex-1">
+                                  <div className="text-sm font-bold text-slate-700">Zahrnúť finančné info</div>
+                                  <div className="text-[10px] text-slate-400 font-medium uppercase tracking-tighter">Náklady na materiál a celkový rozpočet</div>
+                              </div>
+                          </label>
+                      </div>
+                  )}
+
+                  <div className="pt-4 flex flex-col gap-2">
+                      <Button fullWidth size="lg" onClick={handleExportPDF} loading={exporting}>
+                          <Printer size={18}/> Generovať PDF
+                      </Button>
+                      <Button variant="outline" fullWidth onClick={() => setModals({...modals, export: false})}>Zrušiť</Button>
+                  </div>
+              </div>
+          </Modal>
+      )}
+
+      <div className="fixed left-[-9999px]">
+          <div ref={printRef} className="w-[190mm] bg-white p-12 text-slate-900 font-sans text-sm leading-normal relative box-border text-left">
+              <div className="absolute top-4 right-4 text-[10px] text-slate-400">Vygenerované cez MojaStavba • {new Date().toLocaleDateString('sk-SK')}</div>
+              
+              <div className="flex justify-between items-start mb-10 border-b-2 border-slate-200 pb-6">
+                <div>
+                    <h1 className="text-2xl font-black uppercase tracking-widest text-slate-800">{exportSettings.type === 'client' ? 'Výkaz prác pre klienta' : 'Kompletný projektový výkaz'}</h1>
+                    <div className="text-orange-600 mt-2 font-bold text-lg">{site.name}</div>
+                    <div className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-wider">{site.address}</div>
+                </div>
+                <div className="text-right">
+                    <div className="font-black text-xl text-slate-800">{organization.name}</div>
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Zhotoviteľ</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8 mb-10">
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Odberateľ / Klient</div>
+                      <div className="text-xl font-extrabold text-slate-800">{site.client_name || 'Nezadaný'}</div>
+                  </div>
+                  {(exportSettings.type === 'owner' || exportSettings.includeFinancials) && (
+                      <div className="bg-orange-50 p-5 rounded-2xl text-right border border-orange-100">
+                        <div className="text-[10px] font-black text-orange-800/50 uppercase tracking-widest mb-1">Aktuálna bilancia</div>
+                        <div className={`text-3xl font-black ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatMoney(stats.profit)}
+                        </div>
+                      </div>
+                  )}
+              </div>
+
+              <div className="mb-10">
+                  <div className="font-black uppercase text-xs border-b border-slate-200 mb-4 pb-2 flex items-center gap-2 text-slate-800">
+                      <ClipboardList size={14} className="text-orange-600"/> Denník realizovaných prác
+                  </div>
+                  <table className="w-full text-xs border-collapse">
+                      <thead>
+                          <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wider">
+                              <th className="border border-slate-200 p-2 text-left w-[30mm]">Dátum</th>
+                              <th className="border border-slate-200 p-2 text-left">Popis činnosti</th>
+                              <th className="border border-slate-200 p-2 text-right w-[20mm]">Rozsah</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {data.logs.map((log: any, idx: number) => (
+                              <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
+                                  <td className="border border-slate-200 p-2 align-top font-bold text-slate-700">{formatDate(log.date)}</td>
+                                  <td className="border border-slate-200 p-2 align-top italic text-slate-600">
+                                      {log.description || '(Bez popisu prác)'}
+                                  </td>
+                                  <td className="border border-slate-200 p-2 align-top text-right font-bold text-slate-800">{formatDuration(Number(log.hours))}</td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+
+              {(exportSettings.type === 'owner' || exportSettings.includeFinancials) && (
+                  <div className="mb-10">
+                      <div className="font-black uppercase text-xs border-b border-slate-200 mb-4 pb-2 flex items-center gap-2 text-slate-800">
+                          <Package size={14} className="text-orange-600"/> Súpis materiálu a nákupov
+                      </div>
+                      <table className="w-full text-xs border-collapse">
+                          <thead>
+                              <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wider">
+                                  <th className="border border-slate-200 p-2 text-left w-[30mm]">Dátum</th>
+                                  <th className="border border-slate-200 p-2 text-left">Položka</th>
+                                  <th className="border border-slate-200 p-2 text-right w-[20mm]">Množstvo</th>
+                                  <th className="border border-slate-200 p-2 text-right w-[30mm]">Suma</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {data.materials.map((m: any, idx: number) => (
+                                  <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
+                                      <td className="border border-slate-200 p-2 align-top">{formatDate(m.purchase_date)}</td>
+                                      <td className="border border-slate-200 p-2 align-top font-medium">{m.name}</td>
+                                      <td className="border border-slate-200 p-2 align-top text-right">{m.quantity} {m.unit}</td>
+                                      <td className="border border-slate-200 p-2 align-top text-right font-bold">{formatMoney(m.total_price)}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                          <tfoot>
+                              <tr className="bg-slate-50 font-black text-slate-800">
+                                  <td colSpan={3} className="border border-slate-200 p-2 text-right uppercase text-[9px]">Súčet materiálov</td>
+                                  <td className="border border-slate-200 p-2 text-right">{formatMoney(stats.materialCost)}</td>
+                              </tr>
+                          </tfoot>
+                      </table>
+                  </div>
+              )}
+
+              {exportSettings.type === 'owner' && (
+                  <div className="mb-10">
+                      <div className="font-black uppercase text-xs border-b border-slate-200 mb-4 pb-2 flex items-center gap-2 text-slate-800">
+                          <HardHat size={14} className="text-orange-600"/> Detail mzdových nákladov
+                      </div>
+                      <table className="w-full text-xs border-collapse">
+                          <thead>
+                              <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wider">
+                                  <th className="border border-slate-200 p-2 text-left">Pracovník</th>
+                                  <th className="border border-slate-200 p-2 text-right">Hodiny</th>
+                                  <th className="border border-slate-200 p-2 text-right">Mzda celkom</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {Object.entries(data.logs.reduce((acc: any, log: any) => {
+                                  const name = log.profiles?.full_name || 'Neznámy';
+                                  if (!acc[name]) acc[name] = { h: 0, c: 0 };
+                                  acc[name].h += Number(log.hours);
+                                  acc[name].c += Number(log.hours) * (log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0);
+                                  return acc;
+                              }, {})).map(([name, stats]: any, idx: number) => (
+                                  <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
+                                      <td className="border border-slate-200 p-2 align-top font-bold text-slate-800">{name}</td>
+                                      <td className="border border-slate-200 p-2 align-top text-right">{formatDuration(stats.h)}</td>
+                                      <td className="border border-slate-200 p-2 align-top text-right font-black text-slate-900">{formatMoney(stats.c)}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                          <tfoot>
+                              <tr className="bg-slate-100 font-black text-slate-800">
+                                  <td className="border border-slate-200 p-3 text-right uppercase text-[10px]">Celkové mzdy</td>
+                                  <td className="border border-slate-200 p-3 text-right">{formatDuration(stats.laborHours)}</td>
+                                  <td className="border border-slate-200 p-3 text-right">{formatMoney(stats.laborCost)}</td>
+                              </tr>
+                          </tfoot>
+                      </table>
+                  </div>
+              )}
+
+              {exportSettings.type === 'owner' && (
+                   <div className="mb-10">
+                      <div className="font-black uppercase text-xs border-b border-slate-200 mb-4 pb-2 flex items-center gap-2 text-slate-800">
+                          <Euro size={14} className="text-orange-600"/> Prehľad platieb a výdavkov
+                      </div>
+                      <table className="w-full text-[10px] border-collapse">
+                          <thead>
+                              <tr className="bg-slate-50 text-[9px] font-black uppercase tracking-wider">
+                                  <th className="border border-slate-200 p-2 text-left w-[25mm]">Dátum</th>
+                                  <th className="border border-slate-200 p-2 text-left">Kategória / Popis</th>
+                                  <th className="border border-slate-200 p-2 text-right w-[30mm]">Suma</th>
+                                  <th className="border border-slate-200 p-2 text-center w-[20mm]">Stav</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {data.transactions.map((t: any, idx: number) => (
+                                  <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
+                                      <td className="border border-slate-200 p-2">{formatDate(t.date)}</td>
+                                      <td className="border border-slate-200 p-2 font-medium">{t.category} <span className="text-slate-400 font-normal">({t.description})</span></td>
+                                      <td className={`border border-slate-200 p-2 text-right font-black ${t.type === 'invoice' ? 'text-green-600' : 'text-red-600'}`}>{t.type === 'invoice' ? '+' : '-'}{formatMoney(t.amount)}</td>
+                                      <td className="border border-slate-200 p-2 text-center text-[8px] uppercase font-bold">{t.is_paid ? 'Uhradené' : 'Čaká'}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+              )}
+
+              {(exportSettings.type === 'owner' || exportSettings.includeFinancials) && (
+                  <div className="bg-slate-50 p-6 rounded-2xl mb-10 border border-slate-200">
+                      <div className="text-[10px] font-black uppercase tracking-widest mb-4 border-b border-slate-200 pb-2 text-slate-400">Záverečná finančná rekapitulácia</div>
+                      <div className="grid grid-cols-3 gap-8">
+                          <div>
+                              <div className="text-[9px] text-slate-500 uppercase font-bold mb-1">Príjmy projektu</div>
+                              <div className="text-xl font-black text-green-600">{formatMoney(stats.paid)}</div>
+                          </div>
+                          <div>
+                              <div className="text-[9px] text-slate-500 uppercase font-bold mb-1">Náklady spolu</div>
+                              <div className="text-xl font-black text-red-600">-{formatMoney(stats.totalCost)}</div>
+                          </div>
+                          <div className="text-right">
+                              <div className="text-[9px] text-slate-500 uppercase font-bold mb-1">Celková bilancia</div>
+                              <div className={`text-2xl font-black ${stats.profit >= 0 ? 'text-slate-800' : 'text-red-700'}`}>{formatMoney(stats.profit)}</div>
+                          </div>
+                      </div>
+                  </div>
+              )}
+
+              <div className="mt-20 grid grid-cols-2 gap-20">
+                  <div className="text-center">
+                      <div className="h-16 border-b-2 border-slate-100 mb-2"></div>
+                      <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Podpis Preberajúceho</div>
+                  </div>
+                  <div className="text-center relative">
+                    <div className="h-16 border-b-2 border-slate-100 mb-2 flex items-center justify-center">
+                        {organization.stamp_url ? (
+                            <img 
+                                src={organization.stamp_url} 
+                                alt="Pečiatka" 
+                                crossOrigin="anonymous" 
+                                className="h-28 absolute -top-12 rotate-3 opacity-95" 
+                            />
+                        ) : (
+                            <div className="opacity-10 pointer-events-none transform -rotate-12 absolute -top-8">
+                                <CustomLogo className="w-16 h-16 text-slate-900"/>
+                            </div>
+                        )}
+                    </div>
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pečiatka a Podpis Firmy</div>
+                  </div>
+              </div>
+
+              <div className="mt-24 text-center text-[9px] text-slate-300 font-bold uppercase border-t border-slate-100 pt-4 tracking-[0.2em]">
+                  Tento dokument má informatívny charakter
+              </div>
+          </div>
+      </div>
 
       {selectedLog && <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />}
     </div>
