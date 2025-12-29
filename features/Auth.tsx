@@ -10,14 +10,14 @@ import { Capacitor } from '@capacitor/core';
 
 // --- DOWNLOAD MODAL COMPONENT ---
 const DownloadModal = ({ onClose }: { onClose: () => void }) => {
-  // Smeruje na tvoje GitHub Releases
-  const GITHUB_REPO = "https://github.com/javorcikivan1-ux/mojastavba-app/releases/latest/download";
+  // Smeruje na tvoj NOVÝ GitHub repo určený čisto pre inštalačky
+  const GITHUB_REPO = "https://github.com/javorcikivan1-ux/instalacky_mojastavba/releases/latest/download";
 
   return (
-    <Modal title="Stiahnuť MojaStavba" onClose={onClose} maxWidth="max-w-4xl">
+    <Modal title="Stiahnuť aplikáciu" onClose={onClose} maxWidth="max-w-4xl">
       <div className="space-y-6">
         <p className="text-sm text-slate-500 text-center mb-2">
-          Vyberte si platformu. Natívna aplikácia poskytuje rýchlejší prístup k vašim stavbám a lepšiu stabilitu.
+          Vyberte si platformu. Natívna aplikácia poskytuje rýchlejší prístup k vašim stavbám a lepšiu stabilitu systému.
         </p>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -73,7 +73,7 @@ const DownloadModal = ({ onClose }: { onClose: () => void }) => {
         <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
           <HelpCircle className="text-blue-400 shrink-0" size={18}/>
           <div className="text-[11px] text-blue-600 leading-relaxed font-medium">
-            <strong>Inštalácia na Android:</strong> Po stiahnutí APK súboru povoľte prehliadaču inštaláciu z neznámych zdrojov. Súbor otvorte a potvrďte inštaláciu.
+            <strong>Inštalácia na Android:</strong> Po stiahnutí APK súboru povoľte prehliadaču inštaláciu z neznámych zdrojov v nastaveniach telefónu. Potom súbor otvorte.
           </div>
         </div>
 
@@ -200,7 +200,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col">
       <nav className="border-b border-slate-200 sticky top-0 bg-white/95 backdrop-blur-md z-50 shrink-0">
         <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between gap-2">
-          {/* LOGO - truncate pre stabilitu layoutu na malom mobile */}
+          {/* LOGO */}
           <div className="flex items-center gap-1.5 md:gap-2.5 min-w-0 shrink">
             <img 
               src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
@@ -210,24 +210,10 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
             <span className="font-extrabold text-sm md:text-xl tracking-tight text-slate-900 truncate">Moja<span className="text-orange-600">Stavba</span></span>
           </div>
 
-          <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
-             {/* DOWNLOAD BUTTON */}
-             <button 
-                onClick={() => setShowDownloadModal(true)} 
-                className="flex items-center gap-1 px-2 md:px-4 py-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 hover:text-orange-600 transition-all border-r border-slate-100 pr-2 md:pr-6 mr-1 md:mr-3"
-             >
-                <Download size={14} className="md:size-4"/> <span className="hidden sm:inline">Stiahnuť</span>
-             </button>
-
-             <button 
-                onClick={onSubscriptionClick} 
-                className="hidden lg:block text-xs font-bold text-slate-500 hover:text-orange-600 px-4 py-2 rounded-xl border border-slate-200 hover:border-orange-200 transition-all"
-             >
-                Predplatné
-             </button>
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
              <button 
                 onClick={onTryFree} 
-                className="px-2.5 md:px-5 py-2 md:py-2.5 text-[10px] md:text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg md:rounded-xl shadow-lg shadow-orange-200 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
+                className="px-3 md:px-5 py-2 md:py-2.5 text-[10px] md:text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg md:rounded-xl shadow-lg shadow-orange-200 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
              >
                 Vyskúšať zadarmo
              </button>
@@ -243,10 +229,15 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
       <section className="flex-1 flex flex-col items-center justify-center px-6 py-12 md:py-24 bg-gradient-to-b from-orange-50/50 to-white text-center">
         <div className="max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 bg-white border border-orange-100 px-3 py-1 rounded-full text-[10px] md:text-xs font-bold text-orange-600 mb-6 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse"></span>
-            Verzia 3.1.6 Online
-          </div>
+          {/* DOWNLOAD CALL TO ACTION BADGE (Replaces version placeholder) */}
+          <button 
+            onClick={() => setShowDownloadModal(true)}
+            className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 px-4 py-2 rounded-full text-xs font-black text-orange-600 mb-8 shadow-sm hover:bg-orange-100 transition-all active:scale-95 group animate-in fade-in slide-in-from-top-4 duration-700"
+          >
+            <Download size={14} className="group-hover:animate-bounce"/>
+            Stiahnuť aplikáciu
+          </button>
+
           <h1 className="text-3xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
             Stavebný manažment<br/>
             <span className="text-orange-600">pre moderné firmy</span>
