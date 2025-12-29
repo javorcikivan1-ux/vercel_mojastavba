@@ -1,13 +1,87 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Button, Card, Input, CustomLogo, AlertModal, LegalModal } from '../components/UI';
+import { Button, Card, Input, CustomLogo, AlertModal, LegalModal, Modal } from '../components/UI';
 import { translateAuthError } from '../lib/utils';
 import { 
   Building2, Smartphone, TrendingUp, Users, ArrowRight, ChevronRight, 
-  Monitor, Briefcase, CheckCircle2, AlertCircle, ArrowLeft
+  Monitor, Briefcase, CheckCircle2, AlertCircle, ArrowLeft, Download, X, HelpCircle, Apple
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+
+// --- DOWNLOAD MODAL COMPONENT ---
+const DownloadModal = ({ onClose }: { onClose: () => void }) => {
+  // Smeruje na tvoje GitHub Releases
+  const GITHUB_REPO = "https://github.com/javorcikivan1-ux/mojastavba-app/releases/latest/download";
+
+  return (
+    <Modal title="Stiahnuť MojaStavba" onClose={onClose} maxWidth="max-w-4xl">
+      <div className="space-y-6">
+        <p className="text-sm text-slate-500 text-center mb-2">
+          Vyberte si platformu. Natívna aplikácia poskytuje rýchlejší prístup k vašim stavbám a lepšiu stabilitu.
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* WINDOWS */}
+          <a 
+            href={`${GITHUB_REPO}/MojaStavba.exe`}
+            className="group p-6 rounded-2xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all text-center flex flex-col items-center gap-4 shadow-sm"
+          >
+            <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Monitor size={28} />
+            </div>
+            <div>
+              <h3 className="font-black text-slate-900 uppercase tracking-tight text-xs">Windows</h3>
+              <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Pre počítač</p>
+            </div>
+            <div className="mt-2 px-3 py-1.5 bg-slate-900 text-white text-[10px] font-black rounded-lg flex items-center gap-1.5">
+              <Download size={12}/> .EXE
+            </div>
+          </a>
+
+          {/* ANDROID */}
+          <a 
+            href={`${GITHUB_REPO}/MojaStavba.apk`}
+            className="group p-6 rounded-2xl border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50 transition-all text-center flex flex-col items-center gap-4 shadow-sm"
+          >
+            <div className="w-14 h-14 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Smartphone size={28} />
+            </div>
+            <div>
+              <h3 className="font-black text-slate-900 uppercase tracking-tight text-xs">Android</h3>
+              <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Inštalačný balík</p>
+            </div>
+            <div className="mt-2 px-3 py-1.5 bg-orange-600 text-white text-[10px] font-black rounded-lg flex items-center gap-1.5">
+              <Download size={12}/> .APK
+            </div>
+          </a>
+
+          {/* iOS (Apple) */}
+          <div className="group p-6 rounded-2xl border-2 border-slate-50 bg-slate-50/50 grayscale opacity-60 text-center flex flex-col items-center gap-4 cursor-not-allowed">
+            <div className="w-14 h-14 bg-slate-200 text-slate-400 rounded-2xl flex items-center justify-center">
+              <Apple size={28} />
+            </div>
+            <div>
+              <h3 className="font-black text-slate-400 uppercase tracking-tight text-xs">iPhone / iPad</h3>
+              <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Pripravujeme</p>
+            </div>
+            <div className="mt-2 px-3 py-1.5 bg-slate-200 text-slate-400 text-[10px] font-black rounded-lg">
+              Coming Soon
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
+          <HelpCircle className="text-blue-400 shrink-0" size={18}/>
+          <div className="text-[11px] text-blue-600 leading-relaxed font-medium">
+            <strong>Inštalácia na Android:</strong> Po stiahnutí APK súboru povoľte prehliadaču inštaláciu z neznámych zdrojov. Súbor otvorte a potvrďte inštaláciu.
+          </div>
+        </div>
+
+        <Button fullWidth onClick={onClose} variant="secondary">Zavrieť</Button>
+      </div>
+    </Modal>
+  );
+};
 
 // --- ONBOARDING CAROUSEL ---
 export const OnboardingCarousel = ({ onFinish }: { onFinish: () => void }) => {
@@ -120,22 +194,31 @@ export const OnboardingCarousel = ({ onFinish }: { onFinish: () => void }) => {
 
 // --- LANDING SCREEN ---
 export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscriptionClick }: { onStart: () => void, onLogin: () => void, onWorker: () => void, onTryFree: () => void, onSubscriptionClick: () => void }) => {
-  const isNative = Capacitor.isNativePlatform();
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col">
       <nav className="border-b border-slate-200 sticky top-0 bg-white/95 backdrop-blur-md z-50 shrink-0">
         <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 md:gap-2.5 min-w-0 shrink">
+          {/* LOGO - truncate pre stabilitu layoutu na malom mobile */}
+          <div className="flex items-center gap-1.5 md:gap-2.5 min-w-0 shrink">
             <img 
               src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
               alt="Logo" 
-              className="w-8 h-8 md:w-9 md:h-9 object-contain shrink-0" 
+              className="w-7 h-7 md:w-9 md:h-9 object-contain shrink-0" 
             />
-            <span className="font-extrabold text-lg md:text-xl tracking-tight text-slate-900 truncate">Moja<span className="text-orange-600">Stavba</span></span>
+            <span className="font-extrabold text-sm md:text-xl tracking-tight text-slate-900 truncate">Moja<span className="text-orange-600">Stavba</span></span>
           </div>
 
           <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+             {/* DOWNLOAD BUTTON */}
+             <button 
+                onClick={() => setShowDownloadModal(true)} 
+                className="flex items-center gap-1 px-2 md:px-4 py-2 text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 hover:text-orange-600 transition-all border-r border-slate-100 pr-2 md:pr-6 mr-1 md:mr-3"
+             >
+                <Download size={14} className="md:size-4"/> <span className="hidden sm:inline">Stiahnuť</span>
+             </button>
+
              <button 
                 onClick={onSubscriptionClick} 
                 className="hidden lg:block text-xs font-bold text-slate-500 hover:text-orange-600 px-4 py-2 rounded-xl border border-slate-200 hover:border-orange-200 transition-all"
@@ -144,7 +227,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
              </button>
              <button 
                 onClick={onTryFree} 
-                className="px-3 md:px-5 py-2 md:py-2.5 text-[10px] md:text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg md:rounded-xl shadow-lg shadow-orange-200 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
+                className="px-2.5 md:px-5 py-2 md:py-2.5 text-[10px] md:text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg md:rounded-xl shadow-lg shadow-orange-200 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
              >
                 Vyskúšať zadarmo
              </button>
@@ -162,13 +245,13 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
         <div className="max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 bg-white border border-orange-100 px-3 py-1 rounded-full text-[10px] md:text-xs font-bold text-orange-600 mb-6 shadow-sm">
             <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse"></span>
-            Verzia 3.1.3 Online
+            Verzia 3.1.6 Online
           </div>
           <h1 className="text-3xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
             Stavebný manažment<br/>
             <span className="text-orange-600">pre moderné firmy</span>
           </h1>
-          <h2 className="text-base md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed">
+          <h2 className="text-base md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed px-2">
             Kompletná správa zákaziek, dochádzky či analytiky v jednej aplikácii.<br/>
             <span className="font-semibold text-slate-800">Vyskúšajte na 14 dní bez zadávania platobných údajov.</span>
           </h2>
@@ -182,15 +265,17 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
             </button>
           </div>
 
-          <div className="mt-16 flex flex-col items-center opacity-50">
+          <div className="mt-16 flex flex-col items-center opacity-40">
               <div className="flex gap-4 mb-2">
-                  <Monitor size={24} className="text-slate-400"/>
-                  <Smartphone size={24} className="text-slate-400"/>
+                  <Monitor size={20} className="text-slate-400"/>
+                  <Smartphone size={20} className="text-slate-400"/>
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dostupné na všetkých zariadeniach</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dostupné na Windows, Android a Web</span>
           </div>
         </div>
       </section>
+
+      {showDownloadModal && <DownloadModal onClose={() => setShowDownloadModal(false)} />}
     </div>
   );
 };

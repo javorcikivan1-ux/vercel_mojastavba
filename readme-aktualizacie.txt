@@ -1,3 +1,10 @@
+push na git pre web: 
+git add .
+git commit -m "moja zmena"
+git push
+
+
+
 robenie APK: „Keď zmením kód → vždy npm run build → vždy npx cap sync android → až potom Android build.“
 
 
