@@ -246,7 +246,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                     <div className="pt-2 border-t border-slate-200">
                         <label className="flex items-center gap-2 mb-3 cursor-pointer group">
                             <input type="checkbox" id="useTemplate" checked={exportOptions.useTemplate} onChange={e => setExportOptions({...exportOptions, useTemplate: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-slate-300" />
-                            <label htmlFor="useTemplate" className="text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Auto-výpočet Času</label>
+                            <label htmlFor="useTemplate" className="text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Upraviť rozvrhnutie času</label>
                         </label>
                         
                         {exportOptions.useTemplate && (

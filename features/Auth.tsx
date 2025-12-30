@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button, Card, Input, CustomLogo, AlertModal, LegalModal, Modal } from '../components/UI';
@@ -8,6 +9,22 @@ import {
   FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+
+// Pomocná funkcia pre získanie bezpečnej návratovej URL
+// Táto funkcia zabezpečí, že používateľ bude presmerovaný na platnú a povolenú URL v Supabase.
+const getRedirectURL = () => {
+  const origin = window.location.origin;
+  
+  // 1. Ak sme na webe (produkcia alebo lokálny vývoj), použijeme aktuálny origin
+  if (origin.includes('moja-stavba.sk') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    return origin;
+  }
+  
+  // 2. Ak sme v natívnej appke (Android/Windows), origin môže byť 'capacitor://' alebo 'file://'.
+  // Supabase nepovoľuje tieto schémy ako redirect URL v emaile priamo.
+  // Preto vrátime používateľa na webovú verziu, kde sa overenie dokončí.
+  return 'https://www.moja-stavba.sk';
+};
 
 // --- DOWNLOAD MODAL COMPONENT ---
 const DownloadModal = ({ onClose }: { onClose: () => void }) => {
@@ -92,8 +109,6 @@ const DownloadModal = ({ onClose }: { onClose: () => void }) => {
                 </div>
             </div>
         </div>
-
-      
 
         <Button fullWidth onClick={onClose} variant="secondary">Zavrieť</Button>
       </div>
@@ -253,7 +268,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
       <main className="flex-1">
         <section className="flex flex-col items-center justify-center px-6 pt-12 pb-6 md:pt-24 md:pb-10 bg-gradient-to-b from-orange-50/50 to-white text-center">
           <div className="max-w-4xl mx-auto">
-            {/* TLAČIDLO SŤAHOVANIA VRÁTENÉ NAHOR */}
+            {/* TLAČIDLO SŤAHOVANIA */}
             <button 
               onClick={() => setShowDownloadModal(true)}
               className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 px-4 py-2 rounded-full text-xs font-black text-orange-600 mb-8 shadow-sm hover:bg-orange-100 transition-all active:scale-95 group animate-in fade-in duration-700"
@@ -262,7 +277,6 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
               Stiahnuť aplikáciu MojaStavba
             </button>
 
-            {/* SEO: H1 LEN PRE WEB */}
             {isWebOnly ? (
                 <h1 className="text-3xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
                     Komplexný systém pre <br/>
@@ -299,10 +313,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           </div>
         </section>
 
-        {/* SEO SEKCE LEN PRE WEB */}
         {isWebOnly && (
-            <section className="pt-6 pb-12 px-6 bg-white border-y border-slate-100 animate-in fade-in duration-1000">
-
+            <section className="pt-6 pb-24 px-6 bg-white border-y border-slate-100 animate-in fade-in duration-1000">
                 <div className="max-w-6xl mx-auto">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl font-black text-slate-900 mb-4">Prečo prejsť na digitálne stavebníctvo MojaStavba?</h2>
@@ -363,83 +375,87 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
         )}
       </main>
 
-      {/* FOOTER SEKCE LEN PRE WEB */}
-      {isWebOnly && (
-          <footer className="bg-slate-900 text-white py-16 px-6">
-              <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
-                  <div className="md:col-span-1">
-                      <div className="flex items-center gap-2 mb-6">
-                        <img src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" alt="Logo" className="w-10 h-10 object-contain" />
-                        <span className="font-black text-xl tracking-tight text-white">Moja<span className="text-orange-500">Stavba</span></span>
-                      </div>
-                      <p className="text-slate-400 text-sm leading-relaxed">
-                        Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 14 dní zadarmo a bez zadávania platobných údajov.
-                      </p>
+      <footer className="bg-slate-900 text-white py-16 px-6">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
+              <div className="md:col-span-1">
+                  <div className="flex items-center gap-2 mb-6">
+                    <img src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" alt="Logo" className="w-10 h-10 object-contain" />
+                    <span className="font-black text-xl tracking-tight text-white">Moja<span className="text-orange-500">Stavba</span></span>
                   </div>
+                  <p className="text-slate-400 text-sm leading-relaxed">
+                    Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 14 dní zadarmo a bez zadávania platobných údajov.
+                  </p>
+              </div>
 
-                  <div>
-                      <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Dôležité informácie</h4>
-                      <ul className="space-y-3">
-                          <li><button onClick={() => onSubscriptionClick()} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Cenník a predplatné</button></li>
-                          <li><button onClick={() => setShowLegal('vop')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</button></li>
-                          <li><button onClick={() => setShowLegal('gdpr')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</button></li>
-                      </ul>
-                  </div>
+              <div>
+                  <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Dôležité informácie</h4>
+                  <ul className="space-y-3">
+                      <li><button onClick={() => onSubscriptionClick()} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Cenník a predplatné</button></li>
+                      <li>
+                        {isWebOnly ? (
+                          <a href="/vseobecne-obchodne-podmienky.html" target="_blank" className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</a>
+                        ) : (
+                          <button onClick={() => setShowLegal('vop')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</button>
+                        )}
+                      </li>
+                      <li>
+                        {isWebOnly ? (
+                          <a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</a>
+                        ) : (
+                          <button onClick={() => setShowLegal('gdpr')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</button>
+                        )}
+                      </li>
+                  </ul>
+              </div>
 
-                  <div>
-                      <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Technická podpora</h4>
-                      <ul className="space-y-4">
-                          <li className="flex items-start gap-3">
-                              <Mail size={18} className="text-slate-500 mt-0.5"/>
-                              <div>
-                                  <div className="text-[10px] font-black text-slate-600 uppercase">E-mail</div>
-                                  <a href="mailto:sluzby@lordsbenison.eu" className="text-sm text-slate-300 hover:text-white transition">sluzby@lordsbenison.eu</a>
-                              </div>
-                          </li>
-                          <li className="flex items-start gap-3">
-                              <Phone size={18} className="text-slate-500 mt-0.5"/>
-                              <div>
-                                  <div className="text-[10px] font-black text-slate-600 uppercase">Telefón</div>
-                                  <a href="tel:+421948225713" className="text-sm text-slate-300 hover:text-white transition">+421 948 225 713</a>
-                              </div>
-                          </li>
-                          <li className="flex items-start gap-3">
-                              <Clock size={18} className="text-slate-500 mt-0.5"/>
-                              <div>
-                                  <div className="text-[10px] font-black text-slate-600 uppercase">Pracovná doba</div>
-                                  <div className="text-sm text-slate-300">Po - Pi (08:00 - 16:30)</div>
-                              </div>
-                          </li>
-                      </ul>
-                  </div>
-
-                  <div>
-                      <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Prevádzkovateľ</h4>
-                      <div className="space-y-3 text-sm text-slate-400">
-                          <p className="font-bold text-white">LORD'S BENISON s.r.o.</p>
-                          <p className="flex items-start">
-  <span>M. Nandrássyho 654/10<br/>050 01 Revúca</span>
-</p>
-
-                          <div className="pt-2 text-xs border-t border-slate-800 space-y-1">
-                              <p>IČO: 52404901</p>
-                              <p>DIČ: 2121022992</p>
-                              <p>IČ DPH: SK2121022992</p>
+              <div>
+                  <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Technická podpora</h4>
+                  <ul className="space-y-4">
+                      <li className="flex items-start gap-3">
+                          <Mail size={18} className="text-slate-500 mt-0.5"/>
+                          <div>
+                              <div className="text-[10px] font-black text-slate-600 uppercase">E-mail</div>
+                              <a href="mailto:sluzby@lordsbenison.eu" className="text-sm text-slate-300 hover:text-white transition">sluzby@lordsbenison.eu</a>
                           </div>
+                      </li>
+                      <li className="flex items-start gap-3">
+                          <Phone size={18} className="text-slate-500 mt-0.5"/>
+                          <div>
+                              <div className="text-[10px] font-black text-slate-600 uppercase">Telefón</div>
+                              <a href="tel:+421948225713" className="text-sm text-slate-300 hover:text-white transition">+421 948 225 713</a>
+                          </div>
+                      </li>
+                      <li className="flex items-start gap-3">
+                          <Clock size={18} className="text-slate-500 mt-0.5"/>
+                          <div>
+                              <div className="text-[10px] font-black text-slate-600 uppercase">Pracovná doba</div>
+                              <div className="text-sm text-slate-300">Po - Pi (08:00 - 16:30)</div>
+                          </div>
+                      </li>
+                  </ul>
+              </div>
+
+              <div>
+                  <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Prevádzkovateľ</h4>
+                  <div className="space-y-3 text-sm text-slate-400">
+                      <p className="font-bold text-white">LORD'S BENISON s.r.o.</p>
+                      <p className="flex items-start">
+                        <span>M. Nandrássyho 654/10<br/>050 01 Revúca</span>
+                      </p>
+                      <div className="pt-2 text-xs border-t border-slate-800 space-y-1">
+                          <p>IČO: 52404901</p>
+                          <p>DIČ: 2121022992</p>
+                          <p>IČ DPH: SK2121022992</p>
                       </div>
                   </div>
               </div>
-              
-              <div className="max-w-6xl mx-auto mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-                      © 2026 Vyvinuté spoločnosťou LORD'S BENISON s.r.o. | Všetky práva vyhradené
-                  
-               
-                      
-                  </div>
+          </div>
+          <div className="max-w-6xl mx-auto mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                  © 2026 Vyvinuté spoločnosťou LORD'S BENISON s.r.o. | Všetky práva vyhradené
               </div>
-          </footer>
-      )}
+          </div>
+      </footer>
 
       {showDownloadModal && <DownloadModal onClose={() => setShowDownloadModal(false)} />}
       {showLegal && <LegalModal type={showLegal} onClose={() => setShowLegal(null)} />}
@@ -460,7 +476,6 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const [agreedToTerms, setAgreedToTerms] = useState(false); 
   const [rememberMe, setRememberMe] = useState(true); 
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
-  
   const [alertInfo, setAlertInfo] = useState<{open: boolean, title: string, message: string, type?: 'success' | 'error'}>({ open: false, title: '', message: '' });
 
   useEffect(() => {
@@ -471,111 +486,72 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
     if (view !== 'login' && view !== 'forgot-password' && !agreedToTerms) {
-        setError("Musíte súhlasiť s VOP a GDPR pred registráciou.");
+        setError("Musíte súhlasiť so Všeobecnými podmienkami (VOP) a Ochranou údajov (GDPR) pred registráciou.");
         return;
     }
-
     setLoading(true);
+
+    // Dôležité: Získame správnu URL pre presmerovanie
+    const redirectURL = getRedirectURL();
+    
     try {
       if(view === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if(error) throw error;
       } 
       else if (view === 'forgot-password') {
+          // Použijeme redirectTo parameter pre obnovu hesla
           const { error } = await supabase.auth.resetPasswordForEmail(email, {
-              redirectTo: `${window.location.origin}/?action=reset-password`,
+              redirectTo: `${redirectURL}/?action=reset-password`,
           });
           if (error) throw error;
-          setAlertInfo({ 
-              open: true, 
-              title: "E-mail odoslaný", 
-              message: "Ak daný e-mail v systéme existuje, poslali sme vám inštrukcie na obnovu hesla. Skontrolujte si schránku.",
-              type: 'success'
-          });
+          setAlertInfo({ open: true, title: "E-mail odoslaný", message: "Poslali sme vám inštrukcie na obnovu hesla, skontrolujte si e-mailovú schránku prosím.", type: 'success' });
           setView('login');
       }
       else if (view === 'register-admin') {
+        // Použijeme emailRedirectTo parameter pre registráciu
         const { data: auth, error: authError } = await supabase.auth.signUp({ 
-            email, 
-            password,
-            options: {
-                data: {
-                    full_name: fullName,
-                    company_name: companyName, 
-                    role: 'admin'
-                }
-            }
+          email, 
+          password, 
+          options: { 
+            data: { full_name: fullName, company_name: companyName, role: 'admin' },
+            emailRedirectTo: redirectURL 
+          } 
         });
-        
         if(authError) throw authError;
-        
-        if (auth.session) {
-            onLogin();
-        } else {
-            setAlertInfo({ open: true, title: "Registrácia úspešná", message: "Na váš email sme poslali overovací odkaz. Po kliknutí sa budete môcť prihlásiť." });
-            setView('login');
-        }
+        if (auth.session) onLogin();
+        else { setAlertInfo({ open: true, title: "Registrácia úspešná", message: "Na vašu e-mailovú adresu bol odoslaný overovací odkaz. Po jeho potvrdení sa budete môcť prihlásiť do systému." }); setView('login'); }
       }
       else if (view === 'register-emp') {
           const cleanId = companyId.trim();
-          const { data: org, error: orgCheckError } = await supabase.from('organizations').select('id, name').eq('id', cleanId).maybeSingle();
-          
+          const { data: org, error: orgCheckError = null } = await supabase.from('organizations').select('id, name').eq('id', cleanId).maybeSingle();
           if(orgCheckError || !org) throw new Error("Firma s týmto ID neexistuje. Skontrolujte, či ste správne skopírovali kód.");
-
-          const { data: auth, error: authError } = await supabase.auth.signUp({ 
-              email, 
-              password,
-              options: {
-                  data: {
-                      full_name: fullName,
-                      company_id: cleanId, 
-                      role: 'employee'
-                  }
-              }
-          });
           
+          // Použijeme emailRedirectTo parameter aj pre zamestnanca
+          const { data: auth, error: authError } = await supabase.auth.signUp({ 
+            email, 
+            password, 
+            options: { 
+              data: { full_name: fullName, company_id: cleanId, role: 'employee' },
+              emailRedirectTo: redirectURL 
+            } 
+          });
           if(authError) throw authError;
-
-          if (auth.session) {
-              onLogin();
-          } else {
-              setAlertInfo({ open: true, title: "Vitajte!", message: `Registrácia do firmy "${org.name}" prebehla úspešne! Skontrolujte si email pre overenie účtu.` });
-              setView('login');
-          }
+          if (auth.session) onLogin();
+          else { setAlertInfo({ open: true, title: "Vitajte!", message: `Registrácia do firmy "${org.name}" prebehla úspešne! Skontrolujte si email pre overenie účtu.` }); setView('login'); }
       }
-    } catch(e: any) {
-      const msg = translateAuthError(e.message);
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
+    } catch(e: any) { setError(translateAuthError(e.message)); } finally { setLoading(false); }
   };
 
-  const switchToLogin = () => {
-    setView('login');
-    setError(null);
-  };
+  const switchToLogin = () => { setView('login'); setError(null); };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-start md:justify-center p-4 relative pt-16 pb-12 overflow-y-auto scroll-container">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-start md:justify-center p-4 relative pt-16 pb-12 overflow-y-auto scroll-container flex flex-col">
       {showLegalModal && <LegalModal type={showLegalModal} onClose={() => setShowLegalModal(null)} />}
-      
-      <div className="absolute top-4 left-4 z-50 pt-safe-top">
-          <button 
-            onClick={onBackToLanding} 
-            className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm hover:bg-white text-slate-500 hover:text-slate-900 rounded-xl shadow-sm hover:shadow border border-slate-200/50 transition font-bold text-sm"
-          >
-              <ArrowLeft size={16} /> <span className="hidden sm:inline">Späť na úvod</span>
-          </button>
-      </div>
-
+      <div className="absolute top-4 left-4 z-50 pt-safe-top"><button onClick={onBackToLanding} className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm hover:bg-white text-slate-500 hover:text-slate-900 rounded-xl shadow-sm hover:shadow border border-slate-200/50 transition font-bold text-sm"><ArrowLeft size={16} /> <span className="hidden sm:inline">Späť na úvod</span></button></div>
       <Card className="w-full max-w-md shadow-xl border-slate-200 animate-in zoom-in-95 relative overflow-hidden my-4" padding={view === 'onboarding' ? 'p-0' : 'p-6'}>
-        
-        {view === 'onboarding' ? (
-            <OnboardingCarousel onFinish={() => setView('selection')} />
-        ) : (
+        {view === 'onboarding' ? ( <OnboardingCarousel onFinish={() => setView('selection')} /> ) : (
             <>
                 <div className="text-center">
                 <div className="flex justify-center -mb-10">
@@ -585,7 +561,6 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                       className="w-40 h-40 object-contain" 
                     />
                 </div>
-                {/* SEO: H2 v prihlasovacom okne */}
                 <h2 className="text-2xl font-bold mb-1">
                     <span className="text-slate-900">Moja</span><span className="text-orange-600">Stavba</span>
                 </h2>

@@ -2,7 +2,7 @@
 import React from 'react';
 import { Loader2, X, AlertTriangle, CheckCircle2, HelpCircle, HardHat } from 'lucide-react';
 
-// --- CUSTOM BRAND LOGO (Reverted to Original HardHat) ---
+// --- CUSTOM BRAND LOGO ---
 export const CustomLogo = ({ className = "w-6 h-6", color = "text-white" }: { className?: string, color?: string }) => (
   <HardHat className={`${className} ${color}`} />
 );
@@ -53,7 +53,6 @@ export const Badge = ({ status }: { status: string }) => {
     completed: "bg-slate-100 text-slate-700 border-slate-200",
     todo: "bg-slate-100 text-slate-600 border-slate-200",
     done: "bg-green-50 text-green-600 border-green-200 line-through decoration-green-500/50",
-    // Lead stages
     new: "bg-blue-50 text-blue-600 border-blue-100",
     contacted: "bg-yellow-50 text-yellow-600 border-yellow-100",
     meeting: "bg-purple-50 text-purple-600 border-purple-100",
@@ -67,7 +66,6 @@ export const Badge = ({ status }: { status: string }) => {
     completed: "Ukončené",
     todo: "Na pláne",
     done: "Hotovo",
-    // Lead stages
     new: "Nový dopyt",
     contacted: "Kontaktovaný",
     meeting: "Obhliadka",
@@ -147,38 +145,64 @@ export const Select = (props: any) => (
 );
 
 // --- LEGAL MODAL (GDPR & VOP) ---
-// TU UPRAVUJES TEXTY PRE VOP A GDPR
 export const LegalModal = ({ type, onClose }: { type: 'vop' | 'gdpr', onClose: () => void }) => {
     const titles = { vop: 'Všeobecné obchodné podmienky', gdpr: 'Ochrana osobných údajov (GDPR)' };
     
     return (
-        <Modal title={titles[type]} onClose={onClose} maxWidth="max-w-2xl">
-            <div className="space-y-4 text-sm text-slate-600 leading-relaxed">
+        <Modal title={titles[type]} onClose={onClose} maxWidth="max-w-4xl">
+            <div className="space-y-6 text-sm text-slate-600 leading-relaxed pb-10">
                 {type === 'vop' ? (
                     <>
-                        {/* ZDE MENIT TEXT VOP */}
-                        <p><strong>1. Úvodné ustanovenia</strong><br/>Tieto VOP upravujú vzťahy medzi prevádzkovateľom aplikácie MojaStavba a užívateľom. Používaním aplikácie súhlasíte s týmito podmienkami v plnom rozsahu.</p>
-                        <p><strong>2. Predmet služby</strong><br/>Poskytovanie softvérových nástrojov na správu stavebných zákaziek, evidenciu dochádzky a finančné plánovanie formou SaaS (Software as a Service).</p>
-                        <p><strong>3. Platobné podmienky</strong><br/>Služba je spoplatnená podľa aktuálneho cenníka. Skúšobná doba trvá 14 dní a je bezplatná. Po uplynutí skúšobnej doby je užívateľ povinný uhradiť predplatné pre pokračovanie v službe.</p>
-                        <p><strong>4. Zodpovednosť</strong><br/>Prevádzkovateľ nenesie zodpovednosť za stratu dát spôsobenú chybou na strane užívateľa alebo vyššou mocou. Aplikácia je poskytovaná "tak ako je".</p>
-                        <div className="p-3 bg-slate-100 rounded border border-slate-200 mt-4 text-xs italic">
-                            * Toto je ukážkový text. Pre reálnu prevádzku je odporúčané vložiť kompletný právny text od advokáta.
+                        <div className="border-b border-slate-100 pb-4">
+                            <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest mb-1">Poskytovateľ</h4>
+                            <p className="font-bold">LORD'S BENISON s.r.o.</p>
+                            <p>Sídlo: M. Nandrássyho 654/10, 050 01 Revúca</p>
+                            <p>IČO: 52404901 | DIČ: 2121022992 | IČ DPH: SK2121022992</p>
+                            <p>Zápis: Obchodný register Okresného súdu Banská Bystrica, Oddiel Sro, Vložka č. 36729/S</p>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <p><strong>1. Úvodné ustanovenia a definície</strong><br/>Tieto VOP upravujú vzťahy medzi spoločnosťou LORD'S BENISON s.r.o. (Poskytovateľ) a užívateľom (zákazníkom) pri poskytovaní softvérovej služby MojaStavba. Služba je poskytovaná formou SaaS (Software as a Service) cez webové rozhranie a mobilnú aplikáciu.</p>
+                            
+                            <p><strong>2. Uzatvorenie zmluvy a registrácia</strong><br/>Zmluva vzniká registráciou firemného účtu. Užívateľ je povinný uviesť pravdivé údaje. Firemný účet (Admin) má právo prizývať zamestnancov (Užívateľov), za ktorých činnosť v systéme nesie plnú zodpovednosť.</p>
+                            
+                            <p><strong>3. Platobné podmienky a predplatné</strong><br/>Služba ponúka 14-dňovú skúšobnú lehotu. Po jej uplynutí je služba spoplatnená sumou 15 € s DPH / mesiac za jeden firemný účet (neobmedzený počet zamestnancov). Platba prebieha cez bránu Stripe. Predplatné je bez viazanosti, vypovedateľné kedykoľvek v nastaveniach.</p>
+                            
+                            <p><strong>4. Práva a povinnosti užívateľa</strong><br/>Užívateľ sa zaväzuje nezneužívať systém, nezasahovať do jeho bezpečnosti a využívať ho v súlade s platnou legislatívou SR. Užívateľ zodpovedá za legálnosť a správnosť dát vložených do stavebného denníka a evidencie dochádzky.</p>
+                            
+                            <p><strong>5. Zodpovednosť za vady a dostupnosť</strong><br/>Poskytovateľ garantuje 99% dostupnosť služby. Nenese zodpovednosť za nepriame škody, stratu zisku alebo dát spôsobenú výpadkom internetu na strane užívateľa alebo nesprávnym používaním aplikácie. Služba je poskytovaná "tak, ako je".</p>
+                            
+                            <p><strong>6. Ochrana duševného vlastníctva</strong><br/>Všetok softvérový kód, dizajn a značka MojaStavba sú majetkom Poskytovateľa. Užívateľ získava nevýhradnú licenciu na používanie systému počas trvania predplatného.</p>
+                            
+                            <p><strong>7. Záverečné ustanovenia</strong><br/>Tieto podmienky sa riadia Obchodným zákonníkom SR a zákonom č. 108/2024 Z. z. o ochrane spotrebiteľa. Prípadné spory budú riešené prednostne zmierom, následne súdom v SR.</p>
                         </div>
                     </>
                 ) : (
                     <>
-                        {/* ZDE MENIT TEXT GDPR */}
-                        <p><strong>1. Prevádzkovateľ</strong><br/>Vaše osobné údaje spracúva spoločnosť MojaStavba s.r.o. v súlade s Nariadením EP a Rady (EÚ) 2016/679 (GDPR).</p>
-                        <p><strong>2. Účel spracovania</strong><br/>Údaje (meno, email, telefón, mzdové údaje) spracúvame výhradne za účelom poskytovania funkčnosti aplikácie, fakturácie a plnenia zákonných povinností.</p>
-                        <p><strong>3. Doba uchovávania</strong><br/>Osobné údaje sú uchovávané po dobu trvania zmluvného vzťahu a následne po dobu vyžadovanú platnou legislatívou (napr. účtovníctvo).</p>
-                        <p><strong>4. Vaše práva</strong><br/>Máte právo na prístup k údajom, ich opravu, vymazanie (právo byť zabudnutý), obmedzenie spracúvania a prenosnosť údajov.</p>
-                        <div className="p-3 bg-slate-100 rounded border border-slate-200 mt-4 text-xs italic">
-                            * Toto je ukážkový text. GDPR dokumentácia musí byť vypracovaná na mieru podľa rozsahu spracúvaných údajov.
+                        <div className="border-b border-slate-100 pb-4">
+                            <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest mb-1">Prevádzkovateľ</h4>
+                            <p className="font-bold">LORD'S BENISON s.r.o.</p>
+                            <p>IČO: 52404901 | E-mail: sluzby@lordsbenison.eu</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <p><strong>1. Rozsah a účel spracúvania</strong><br/>Spracúvame len nevyhnutné osobné údaje: meno, e-mail, telefónne číslo, mzdu (hodinovú sadzbu) a lokalizačné údaje (miesto stavby) za účelom plnenia zmluvy (prevádzka aplikácie), vedenia účtovníctva a ochrany majetku firmy.</p>
+                            
+                            <p><strong>2. Právny základ</strong><br/>Spracúvanie prebieha na základe plnenia zmluvy (čl. 6 ods. 1 písm. b GDPR) a oprávneného záujmu prevádzkovateľa (čl. 6 ods. 1 písm. f GDPR) pri monitorovaní pracovného výkonu a bezpečnosti práce.</p>
+                            
+                            <p><strong>3. Príjemcovia údajov</strong><br/>Vaše dáta sú uložené v šifrovanej podobe na serveroch Supabase (Región EÚ). Platobné údaje sú spracúvané výhradne spoločnosťou Stripe, Inc. Údaje neposkytujeme tretím stranám na marketingové účely.</p>
+                            
+                            <p><strong>4. Doba uchovávania</strong><br/>Osobné údaje uchovávame počas trvania účtu. Po požiadaní o zmazanie účtu sú dáta vymazané, s výnimkou údajov potrebných pre účtovníctvo, ktoré uchovávame 10 rokov podľa zákona č. 431/2002 Z. z.</p>
+                            
+                            <p><strong>5. Bezpečnosť a práva dotknutých osôb</strong><br/>Aplikácia využíva SSL šifrovanie a moderné bezpečnostné protokoly. Máte právo na prístup k údajom, opravu, vymazanie (právo na zabudnutie) a podanie sťažnosti na Úrad na ochranu osobných údajov SR.</p>
+                            
+                            <p><strong>6. Používanie cookies</strong><br/>Aplikácia používa len funkčné cookies potrebné pre autentifikáciu (prihlásenie) a stabilitu systému. Nepoužívame sledovacie ani reklamné cookies tretích strán.</p>
                         </div>
                     </>
                 )}
-                <div className="pt-4 flex justify-end">
-                    <Button onClick={onClose}>Prečítal som a rozumiem</Button>
+                <div className="pt-6 border-t border-slate-100 flex justify-between items-center">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Verzia 1.0.2 | Máj 2025</p>
+                    <Button onClick={onClose} className="shadow-orange-100">Rozumiem</Button>
                 </div>
             </div>
         </Modal>

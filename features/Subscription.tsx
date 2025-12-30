@@ -18,7 +18,9 @@ import {
   BookOpen,
   Euro,
   Lock,
-  Sparkles
+  Sparkles,
+  Globe,
+  Info
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
@@ -45,14 +47,8 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
   const [alert, setAlert] = useState({ open: false, title: '', message: '', type: 'success' });
   const [justPaid, setJustPaid] = useState(false);
   const [attempts, setAttempts] = useState(0);
-  const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [debugLog, setDebugLog] = useState<string[]>([]);
   
   const isNative = Capacitor.isNativePlatform();
-
-  const addLog = (msg: string) => {
-    setDebugLog(prev => [`${new Date().toLocaleTimeString()}: ${msg}`, ...prev.slice(0, 19)]);
-  };
 
   const checkDbStatus = useCallback(async (silent = false) => {
     if (!silent) setVerifying(true);
@@ -67,11 +63,10 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
       
       if (data) {
         setOrganization(data);
-        addLog(`Status: ${data.subscription_status.toUpperCase()}`);
         if (data.subscription_status === 'active') return true;
       }
     } catch (e: any) {
-      addLog(`Chyba: ${e.message}`);
+      console.error(e);
     } finally {
       if (!silent) setVerifying(false);
     }
@@ -112,7 +107,7 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
           organizationId: organization.id,
           userEmail: profile.email,
           priceId: 'price_1SjKuxP9f8wnF9RHNWWUxaYg',
-          redirectTo: window.location.origin // Pridaný dynamický návrat na aktuálnu doménu
+          redirectTo: window.location.origin
         }
       });
       if (error) throw error;
@@ -141,7 +136,6 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
   return (
     <div className="max-w-6xl mx-auto py-6 px-4 animate-in fade-in duration-700">
       
-      {/* MINIMALIST NAV BAR */}
       <div className="flex justify-between items-center mb-6 px-2">
           <button 
             onClick={onBack || (() => window.location.reload())} 
@@ -155,7 +149,6 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
           </button>
       </div>
 
-      {/* MAIN CONTENT TITLE */}
       <div className="text-center mb-10">
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">
           Moja<span className="text-orange-600">Stavba</span> <span className="text-orange-600 relative inline-block">PRO<span className="absolute -top-1 -right-4 w-2 h-2 bg-orange-500 rounded-full animate-ping"></span></span>
@@ -163,7 +156,6 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
         <p className="text-slate-400 mt-2 font-bold text-sm uppercase tracking-[0.15em]">Profesionálne riešenie pre vašu firmu</p>
       </div>
 
-      {/* ERROR MESSAGE (EXPIRATION) */}
       {isExpired && !isActivePro && !justPaid && (
           <div className="max-w-2xl mx-auto mb-10 bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-4 animate-in slide-in-from-top-4 shadow-sm">
               <div className="bg-red-500 text-white p-2 rounded-xl shadow-lg shadow-red-200"><ShieldAlert size={20}/></div>
@@ -174,18 +166,13 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
           </div>
       )}
 
-      {/* MAIN INTEGRATED PRO MODULE - SYMMETRICAL GRID */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-[0_30px_70px_-20px_rgba(0,0,0,0.08)] overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
               
-           {/* LEFT COLUMN: FEATURES (1/2 width) */}
-<div className="p-8 md:p-12 lg:p-16 bg-slate-50/50 flex flex-col items-center">
-
- <div className="text-center mb-9">
-  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
-    Čo získate s MojaStavba PRO?
-  </span>
-</div>
+              <div className="p-8 md:p-12 lg:p-16 bg-slate-50/50 flex flex-col items-center">
+                  <div className="text-center mb-9">
+                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Čo získate s MojaStavba PRO?</span>
+                  </div>
 
                   <div className="space-y-10">
                       {[
@@ -207,7 +194,6 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
                   </div>
               </div>
 
-              {/* RIGHT COLUMN: PRICING (1/2 width) */}
               <div className="p-8 md:p-12 lg:p-16 flex flex-col justify-center items-center text-center bg-white">
                   {isActivePro ? (
                       <div className="animate-in zoom-in">
@@ -237,9 +223,6 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
                                       <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">vrátane DPH</div>
                                   </div>
                               </div>
-                              <div className="inline-block mt-6 px-4 py-1.5 bg-orange-50 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-orange-100">
-                                 Bez viazanosti
-                              </div>
                           </div>
 
                           <div className="space-y-5 mb-12 text-left bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
@@ -255,13 +238,39 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
                           </div>
 
                           {isNative ? (
-                              <div className="bg-blue-50 border border-blue-100 p-5 rounded-2xl shadow-sm">
-                                  <div className="flex items-center gap-2 text-blue-900 font-black text-xs mb-2 uppercase tracking-wider justify-center">
-                                      <Monitor size={16}/> Vyžaduje nákup na webe
+                              <div className="bg-blue-600 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden text-center group border border-blue-400">
+                                  <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:rotate-12 transition-transform">
+                                      <Monitor size={120}/>
                                   </div>
-                                  <p className="text-[11px] text-blue-700 leading-relaxed font-medium">
-                                      Kvôli podmienkam obchodov vykonajte nákup na <strong>app.mojastavba.sk</strong>. Účet sa odomkne aj tu.
-                                  </p>
+                                  <div className="relative z-10">
+                                      <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-6 text-white border border-white/20">
+                                          <Monitor size={32}/>
+                                      </div>
+                                      <h3 className="text-white font-black text-lg mb-3 uppercase tracking-tight leading-tight">Predplatné nie je možné zakúpiť v aplikácii</h3>
+                                      <p className="text-blue-100 text-xs leading-relaxed font-medium mb-8">
+                                          MojaStavba PRO licenciu si môžete aktivovať jednoducho na našom webe.
+                                      </p>
+                                      
+                                      <div className="bg-white p-5 rounded-2xl shadow-inner border border-blue-200">
+                                          <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest mb-1.5">Navštívte adresu v prehliadači</p>
+                                          <p className="text-xl font-black text-slate-900 tracking-tight select-all">www.moja-stavba.sk</p>
+                                      </div>
+
+                                      <div className="mt-8 space-y-4 text-left border-t border-white/10 pt-6">
+                                          <div className="flex gap-3 items-start">
+                                              <div className="w-5 h-5 bg-white/10 rounded flex items-center justify-center shrink-0 mt-0.5"><Check size={12} className="text-white"/></div>
+                                              <p className="text-[11px] text-blue-50 font-medium leading-snug">Prihláste sa pod vaším firemným účtom.</p>
+                                          </div>
+                                          <div className="flex gap-3 items-start">
+                                              <div className="w-5 h-5 bg-white/10 rounded flex items-center justify-center shrink-0 mt-0.5"><Check size={12} className="text-white"/></div>
+                                              <p className="text-[11px] text-blue-50 font-medium leading-snug">V sekcii <strong>Predplatné</strong> si nastavte mesačnú platbu.</p>
+                                          </div>
+                                          <div className="flex gap-3 items-start">
+                                              <div className="w-5 h-5 bg-white/10 rounded flex items-center justify-center shrink-0 mt-0.5"><Check size={12} className="text-white"/></div>
+                                              <p className="text-[11px] text-blue-50 font-medium leading-snug">Mobilná aplikácia sa vám okamžite sama odomkne.</p>
+                                          </div>
+                                      </div>
+                                  </div>
                               </div>
                           ) : (
                               <Button 
@@ -286,43 +295,23 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
           </div>
       </div>
 
-      {/* FOOTER INFO */}
-<div className="mt-12 text-center">
-  <div className="inline-flex flex-col sm:flex-row items-center gap-3 sm:gap-6 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm">
-    
-    <p className="text-sm text-slate-500">
-      <span className="font-semibold text-slate-700">E-mail: </span>
-      <a href="mailto:sluzby@lordsbenison.eu" className="text-orange-600 font-semibold hover:underline">
-        sluzby@lordsbenison.eu
-      </a>
-    </p>
-
-    <span className="hidden sm:block text-slate-300">|</span>
-
-    <p className="text-sm text-slate-500">
-      <span className="font-semibold text-slate-700">Tel.: </span>
-      <a href="tel:+421948225713" className="text-orange-600 font-semibold hover:underline">
-        +421 948 225 713
-      </a>
-    </p>
-
-  </div>
-</div>
-
-
-      {showDiagnostics && (
-        <div className="mt-4 max-w-xl mx-auto p-5 bg-white rounded-2xl text-left border border-slate-200 shadow-xl animate-in slide-in-from-bottom-4">
-          <div className="flex justify-between items-center mb-4">
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5"><Activity size={12}/> Systémová Konzola</span>
-              <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">ORG_ID: {organization.id}</span>
-          </div>
-          <div className="space-y-1 max-h-32 overflow-y-auto font-mono text-[9px] text-slate-400 custom-scrollbar pr-2">
-              {debugLog.map((log, i) => (
-                  <p key={i} className={log.includes('✅') ? 'text-blue-500' : log.includes('Chyba') ? 'text-red-500' : ''}>{log}</p>
-              ))}
-          </div>
+      <div className="mt-12 text-center">
+        <div className="inline-flex flex-col sm:flex-row items-center gap-3 sm:gap-6 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm">
+          <p className="text-sm text-slate-500">
+            <span className="font-semibold text-slate-700">E-mail: </span>
+            <a href="mailto:sluzby@lordsbenison.eu" className="text-orange-600 font-semibold hover:underline">
+              sluzby@lordsbenison.eu
+            </a>
+          </p>
+          <span className="hidden sm:block text-slate-300">|</span>
+          <p className="text-sm text-slate-500">
+            <span className="font-semibold text-slate-700">Tel.: </span>
+            <a href="tel:+421948225713" className="text-orange-600 font-semibold hover:underline">
+              +421 948 225 713
+            </a>
+          </p>
         </div>
-      )}
+      </div>
       
       <AlertModal 
         isOpen={alert.open} 

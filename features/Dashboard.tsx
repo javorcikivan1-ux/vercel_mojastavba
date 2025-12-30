@@ -176,7 +176,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
                       {filteredLogged.length > 0 && (
                           <div>
                               <h4 className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                  <CheckCircle2 size={14}/> Zapísaní ({filteredLogged.length})
+                                  <CheckCircle2 size={14}/> Zapísaní zamestnanci ({filteredLogged.length})
                               </h4>
                               <div className="grid grid-cols-1 gap-2">
                                   {filteredLogged.map(w => (
@@ -300,7 +300,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
       </div>
 
       {selectedTask && (
-          <Modal title="Detail Úlohy" onClose={() => setSelectedTask(null)}>
+          <Modal title="Detail úlohy" onClose={() => setSelectedTask(null)}>
               <div className="space-y-6">
                   <div>
                       <div className="text-xs uppercase font-bold text-slate-400 mb-1">Názov úlohy</div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase, UserProfile } from './lib/supabase';
 import { Button, ConfirmModal, LegalModal } from './components/UI';
@@ -14,11 +13,17 @@ import { DiaryScreen } from './features/Diary';
 import { AttendanceScreen } from './features/Attendance';
 import { SupportWidget } from './components/SupportWidget';
 import { LandingScreen, LoginScreen } from './features/Auth';
+import { SuperAdminScreen } from './features/SuperAdmin';
 
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert
 } from 'lucide-react';
+
+import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+
+const SUPER_ADMIN_EMAIL = 'javorcik.ivan1@gmail.com';
 
 export const App = () => {
   const [session, setSession] = useState<any>(null);
@@ -34,6 +39,30 @@ export const App = () => {
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
   const [initialLoginView, setInitialLoginView] = useState('login');
   const [workerTab, setWorkerTab] = useState('dashboard');
+
+  // NATIVE BACK BUTTON HANDLER - FINAL STABLE VERSION
+  useEffect(() => {
+    // Registrujeme listener len ak sme na mobile a profil je admin (worker má vlastný)
+    if (Capacitor.isNativePlatform() && profile && profile.role === 'admin') {
+      const initBackListener = async () => {
+        const handler = await CapApp.addListener('backButton', () => {
+          if (selectedSiteId) {
+            setSelectedSiteId(null);
+          } else if (activeScreen !== 'dashboard') {
+            setActiveScreen('dashboard');
+          } else {
+            CapApp.exitApp();
+          }
+        });
+        return handler;
+      };
+
+      const listenerPromise = initBackListener();
+      return () => {
+        listenerPromise.then(h => h.remove());
+      };
+    }
+  }, [selectedSiteId, activeScreen, profile]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -64,7 +93,6 @@ export const App = () => {
           const { data: org } = await supabase.from('organizations').select('*').eq('id', prof.organization_id).single();
           setOrganization(org);
           setView('app');
-          // Always land on dashboard after fetch to satisfy "vzdy dat do nastenky"
           setActiveScreen('dashboard');
       }
       setLoading(false);
@@ -91,6 +119,7 @@ export const App = () => {
   };
 
   const isTrialExpired = () => {
+      if (profile?.email === SUPER_ADMIN_EMAIL) return false;
       if(!organization) return false;
       if(organization.subscription_status === 'active') return false;
       const ends = new Date(organization.trial_ends_at);
@@ -117,8 +146,6 @@ export const App = () => {
       onLogin={() => { setInitialLoginView('login'); setView('login'); }} 
       onWorker={() => { setInitialLoginView('register-emp'); setView('login'); }} 
       onSubscriptionClick={() => { 
-          // Even if they click subscription from landing, we still take them to login first
-          // then landing them on dashboard is now the global behavior in fetchProfile
           setInitialLoginView('login'); 
           setView('login'); 
       }}
@@ -138,6 +165,8 @@ export const App = () => {
   );
 
   if (view === 'app' && profile && organization) {
+      const isSuperAdmin = profile.email === SUPER_ADMIN_EMAIL;
+
       if (isTrialExpired() && activeScreen !== 'subscription') {
            return <SubscriptionScreen profile={profile} organization={organization} isExpiredProp={true} onSuccess={() => window.location.reload()} onLogout={handleLogout} />;
       }
@@ -151,7 +180,7 @@ export const App = () => {
            );
       }
 
-      const AdminNavItem = ({ id, label, icon: Icon }: any) => (
+      const AdminNavItem = ({ id, label, icon: Icon, color = "text-orange-600" }: any) => (
         <button
           onClick={() => { setActiveScreen(id); setSelectedSiteId(null); }}
           title={isSidebarCollapsed ? label : ''}
@@ -169,8 +198,8 @@ export const App = () => {
                 size={24}
                 className={`transition-colors shrink-0
                   ${activeScreen === id
-                    ? 'text-orange-600'
-                    : 'text-slate-400 group-hover:text-orange-600'
+                    ? color
+                    : 'text-slate-400 group-hover:' + color
                   }`}
               />
           </div>
@@ -202,7 +231,7 @@ export const App = () => {
                      </div>
                  </div>
 
-                 {organization.subscription_status !== 'active' && (
+                 {organization.subscription_status !== 'active' && profile.email !== SUPER_ADMIN_EMAIL && (
                     <div className="mx-4 mb-3 transition-all duration-300">
                         {isSidebarCollapsed ? (
                             <button
@@ -235,6 +264,7 @@ export const App = () => {
                  )}
 
                  <nav className="flex-1 px-3 space-y-1 overflow-y-auto py-2 custom-scrollbar">
+                    {isSuperAdmin && <AdminNavItem id="superadmin" label="ADMIN PANEL" icon={ShieldAlert} color="text-red-600" />}
                     <AdminNavItem id="dashboard" label="Nástenka" icon={LayoutGrid} />
                     <AdminNavItem id="projects" label="Zákazky " icon={Building2} />
                     <AdminNavItem id="attendance" label="Dochádzky" icon={FileCheck} />
@@ -243,7 +273,7 @@ export const App = () => {
                     <AdminNavItem id="team" label="Tím" icon={Users} />
                     <AdminNavItem id="analytics" label="Analytika" icon={BarChart3} />
                     <AdminNavItem id="settings" label="Nastavenia" icon={Settings} />
-                    <AdminNavItem id="subscription" label="Predplatné" icon={CreditCard} />
+                    {!isSuperAdmin && <AdminNavItem id="subscription" label="Predplatné" icon={CreditCard} />}
                  </nav>
 
                  <div className="p-4 pb-4 border-t border-slate-100 bg-slate-50/50">
@@ -295,7 +325,10 @@ export const App = () => {
                      </div>
 
                      <div className="flex items-center gap-3">
-                         {organization?.subscription_status !== 'active' && (
+                         {isSuperAdmin && (
+                             <button onClick={() => setActiveScreen('superadmin')} className="text-red-600 p-1"><ShieldAlert size={20}/></button>
+                         )}
+                         {organization?.subscription_status !== 'active' && profile.email !== SUPER_ADMIN_EMAIL && (
                              <button
                                  onClick={() => setActiveScreen('subscription')}
                                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 active:bg-slate-100 transition-colors"
@@ -317,6 +350,7 @@ export const App = () => {
                  <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 safe-area-pb shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe-bottom">
                       <div className="flex overflow-x-auto no-scrollbar w-full">
                           {[
+                              ...(isSuperAdmin ? [{ id: 'superadmin', label: 'ADMIN', icon: ShieldAlert }] : []),
                               { id: 'dashboard', label: 'Domov', icon: LayoutGrid },
                               { id: 'projects', label: 'Stavby', icon: Building2 },
                               { id: 'attendance', label: 'Dochádzky', icon: FileCheck },
@@ -324,7 +358,7 @@ export const App = () => {
                               { id: 'calendar', label: 'Kalendár', icon: Calendar },
                               { id: 'team', label: 'Tím', icon: Users },
                               { id: 'analytics', label: 'Analytika', icon: BarChart3 },
-                              { id: 'subscription', label: 'Pro', icon: CreditCard },
+                              ...(isSuperAdmin ? [] : [{ id: 'subscription', label: 'Pro', icon: CreditCard }]),
                               { id: 'settings', label: 'Nastavenia', icon: Settings },
                           ].map(item => (
                               <button 
@@ -340,6 +374,7 @@ export const App = () => {
                  </div>
 
                  <div className="p-4 md:p-8 max-w-7xl mx-auto w-full mb-20 md:mb-0">
+                      {activeScreen === 'superadmin' && <SuperAdminScreen />}
                       {activeScreen === 'dashboard' && <DashboardScreen profile={profile} organization={organization} onNavigate={handleNavigate} />}
                       {activeScreen === 'projects' && <ProjectsScreen profile={profile} organization={organization} onSelect={setSelectedSiteId} selectedSiteId={selectedSiteId} />}
                       {activeScreen === 'diary' && <DiaryScreen profile={profile} organization={organization} />}

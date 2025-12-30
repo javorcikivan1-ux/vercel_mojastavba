@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, CustomLogo } from '../components/UI';
-import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck } from 'lucide-react';
+import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
 const PAGE_SIZE = 12;
-const PRIORITY_FLAG = "#PRIORITY";
+
+const UNIT_OPTIONS = ['ks', 'm', 'm2', 'm3', 'kg', 't', 'l', 'bal', 'paleta', 'hod', 'súbor', 'km'];
 
 const EmptyState = ({ message }: { message: string }) => (
     <div className="col-span-full py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white shadow-sm w-full">
@@ -24,6 +25,40 @@ const calculateSmartHours = (start: string, end: string): number => {
     let totalMinutes = (eH * 60 + eM) - (sH * 60 + sM);
     if (totalMinutes < 0) totalMinutes += 24 * 60; 
     return totalMinutes / 60;
+};
+
+const parseNotesData = (rawNotes: string = '') => {
+    let breakdown: any[] = [];
+    let cleanNotes = rawNotes || '';
+    let hasVat = false;
+    let vatRate = 23;
+
+    const startTag = '[JSON_BREAKDOWN:';
+    const startIndex = cleanNotes.indexOf(startTag);
+    
+    if (startIndex !== -1) {
+        const lastIndex = cleanNotes.lastIndexOf(']');
+        if (lastIndex > startIndex) {
+            const jsonString = cleanNotes.substring(startIndex + startTag.length, lastIndex);
+            try {
+                const parsed = JSON.parse(jsonString);
+                if (Array.isArray(parsed)) {
+                    breakdown = parsed;
+                } else {
+                    breakdown = parsed.items || [];
+                    hasVat = parsed.hasVat || false;
+                    vatRate = parsed.vatRate ?? 23;
+                }
+                const before = cleanNotes.substring(0, startIndex);
+                const after = cleanNotes.substring(lastIndex + 1);
+                cleanNotes = (before + after).trim();
+            } catch (e) {
+                console.error("Chyba pri parsovaní rozpisu rozpočtu", e);
+            }
+        }
+    }
+    
+    return { breakdown, cleanNotes, hasVat, vatRate };
 };
 
 export const ProjectsScreen = ({ profile, onSelect, selectedSiteId, organization }: { profile: UserProfile, onSelect: (id: string | null) => void, selectedSiteId: string | null, organization: any }) => {
@@ -56,12 +91,15 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
   
   const [showModal, setShowModal] = useState(false);
   const [editingSite, setEditingSite] = useState<any>(null);
-  const [formData, setFormData] = useState({ name: '', address: '', client_name: '', budget: 0, status: 'lead', lead_stage: 'new', notes: '' });
+  const [formData, setFormData] = useState<any>({ name: '', address: '', client_name: '', budget: 0, status: 'lead', lead_stage: 'new', notes: '', hasVat: false, vatRate: 23 });
+  const [budgetBreakdown, setBudgetBreakdown] = useState<{id: string, label: string, amount: number}[]>([]);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   
   const [alert, setAlert] = useState<{open: boolean, title: string, message: string, type: string}>({ open: false, title: '', message: '', type: 'success' });
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string | null}>({ open: false, action: '', id: null });
 
   const handleTabChange = (newTab: 'leads' | 'active' | 'archive') => {
+      if (newTab === activeTab && sites.length > 0) return; 
       setSites([]);
       setLoading(true);
       setPage(0);
@@ -141,21 +179,87 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
     }
   };
 
-  const handleCreateSite = (status: string = 'lead') => {
-      setEditingSite(null);
-      setFormData({ name: '', address: '', client_name: '', budget: 0, status: status, lead_stage: 'new', notes: '' });
+  const handleEditSite = (site: any) => {
+      setEditingSite(site);
+      const { breakdown, cleanNotes, hasVat, vatRate } = parseNotesData(site.notes);
+
+      setFormData({
+          name: site.name,
+          address: site.address,
+          client_name: site.client_name,
+          budget: site.budget,
+          status: site.status,
+          lead_stage: site.lead_stage || 'new',
+          notes: cleanNotes,
+          hasVat: hasVat,
+          vatRate: vatRate
+      });
+      setBudgetBreakdown(breakdown);
+      setShowBreakdown(breakdown.length > 0);
       setShowModal(true);
+  };
+
+  const calculateTotalWithVat = (items: any[], hasVat: boolean, rate: number) => {
+    const subtotal = items.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0);
+    if (!hasVat) return subtotal;
+    return subtotal * (1 + rate / 100);
+  };
+
+  const addBudgetLine = () => {
+    const newList = [...budgetBreakdown, { id: crypto.randomUUID(), label: '', amount: 0 }];
+    setBudgetBreakdown(newList);
+    setFormData({ ...formData, budget: calculateTotalWithVat(newList, formData.hasVat, formData.vatRate) });
+  };
+
+  const removeBudgetLine = (id: string) => {
+    const newList = budgetBreakdown.filter(i => i.id !== id);
+    setBudgetBreakdown(newList);
+    setFormData({ ...formData, budget: calculateTotalWithVat(newList, formData.hasVat, formData.vatRate) });
+  };
+
+  const updateBudgetLine = (id: string, field: 'label' | 'amount', value: any) => {
+    let finalValue = value;
+    if (field === 'amount') finalValue = Math.max(0, parseFloat(value) || 0);
+    const newList = budgetBreakdown.map(i => i.id === id ? { ...i, [field]: finalValue } : i);
+    setBudgetBreakdown(newList);
+    setFormData({ ...formData, budget: calculateTotalWithVat(newList, formData.hasVat, formData.vatRate) });
+  };
+
+  const toggleVat = (enabled: boolean) => {
+    setFormData({ ...formData, hasVat: enabled, budget: calculateTotalWithVat(budgetBreakdown, enabled, formData.vatRate) });
+  };
+
+  const updateVatRate = (rate: number) => {
+    const cleanRate = Math.max(0, rate);
+    setFormData({ ...formData, vatRate: cleanRate, budget: calculateTotalWithVat(budgetBreakdown, formData.hasVat, cleanRate) });
   };
 
   const handleSaveSite = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+        let rawNotes = formData.notes || '';
+        const { cleanNotes } = parseNotesData(rawNotes);
+        let finalNotes = cleanNotes;
+        
+        if (budgetBreakdown.length > 0) {
+            const dataToStore = {
+                items: budgetBreakdown,
+                hasVat: formData.hasVat,
+                vatRate: formData.vatRate
+            };
+            finalNotes += `\n\n[JSON_BREAKDOWN:${JSON.stringify(dataToStore)}]`;
+        }
+
         const payload = { 
             ...formData, 
-            budget: Number(formData.budget) || 0,
+            notes: finalNotes,
+            budget: Math.max(0, Number(formData.budget)) || 0,
             organization_id: profile.organization_id 
         };
         
+        delete payload.hasVat;
+        delete payload.vatRate;
+
         let result;
         if(editingSite) {
             result = await supabase.from('sites').update(payload).eq('id', editingSite.id).select();
@@ -180,10 +284,19 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
 
   const deleteSite = async () => {
       if(!confirm.id) return;
-      await supabase.from('sites').delete().eq('id', confirm.id);
-      setConfirm({ ...confirm, open: false });
-      setPage(0);
-      load(true);
+      const { error } = await supabase.from('sites').delete().eq('id', confirm.id);
+      if (error) {
+          setAlert({ 
+              open: true, 
+              title: 'Chyba pri mazaní', 
+              message: "Nepodarilo sa vymazať stavbu.", 
+              type: 'error' 
+          });
+      } else {
+          setConfirm({ ...confirm, open: false });
+          setPage(0);
+          load(true);
+      }
   };
 
   const updateLeadStage = async (siteId: string, stage: string) => {
@@ -222,9 +335,17 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
            </h2>
            <p className="text-sm text-slate-500 mt-1 font-medium">Správa zákaziek od dopytu po realizáciu</p>
         </div>
-        <div>
-            <Button onClick={() => handleCreateSite(activeTab === 'active' ? 'active' : 'lead')}><Plus size={18}/> Pridať {activeTab === 'active' ? 'Stavbu' : 'Dopyt'}</Button>
-        </div>
+        {activeTab !== 'archive' && (
+            <div className="flex gap-2 w-full md:w-auto">
+                <Button fullWidth onClick={() => {
+                    setEditingSite(null);
+                    setFormData({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 23 });
+                    setBudgetBreakdown([]);
+                    setShowBreakdown(false);
+                    setShowModal(true);
+                }}><Plus size={18}/> Pridať {activeTab === 'active' ? 'zákazku' : 'dopyt'}</Button>
+            </div>
+        )}
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
@@ -291,6 +412,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
                                                 ))}
                                             </div>
                                             <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+                                                <button onClick={() => handleEditSite(lead)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={18}/></button>
                                                 <button onClick={() => setConfirm({ open: true, action: 'delete', id: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
                                             </div>
                                         </div>
@@ -336,7 +458,10 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
                                         <div className="bg-blue-50 text-blue-600 p-2 rounded-lg"><Euro size={16}/></div>
                                         <div className="font-bold text-slate-700 leading-none">{formatMoney(site.income)}</div>
                                     </div>
-                                    <button onClick={(e) => { e.stopPropagation(); setEditingSite(site); setFormData({name: site.name, address: site.address, client_name: site.client_name, budget: site.budget, status: site.status, lead_stage: 'new', notes: site.notes}); setShowModal(true); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition border border-transparent hover:border-slate-200"><Pencil size={16}/></button>
+                                    <div className="flex gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setConfirm({ open: true, action: 'delete', id: site.id }); }} className="p-2 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-600 transition border border-transparent hover:border-red-100"><Trash2 size={16}/></button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleEditSite(site); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition border border-transparent hover:border-slate-200"><Pencil size={16}/></button>
+                                    </div>
                                 </div>
                             </Card>
                         ))}
@@ -360,9 +485,12 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
             <Input label="Adresa" value={formData.address} onChange={(e: any) => setFormData({...formData, address: e.target.value})} placeholder="Ulica, Mesto" />
             <Input label="Klient (Meno)" value={formData.client_name} onChange={(e: any) => setFormData({...formData, client_name: e.target.value})} placeholder="Ján Novák" />
             
-            {(editingSite || activeTab !== 'leads') && (
-                <div className="grid grid-cols-2 gap-4">
-                <Input label="Rozpočet (€)" type="number" value={formData.budget === 0 ? '' : formData.budget} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormData({...formData, budget: parseFloat(e.target.value) || 0})} placeholder="0.00" />
+            <div className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative">
+                  <Input label="Rozpočet (€)" type="number" value={formData.budget === 0 ? '' : formData.budget} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormData({...formData, budget: Math.max(0, parseFloat(e.target.value) || 0)})} placeholder="0.00" disabled={showBreakdown} />
+                  {showBreakdown && <div className="absolute inset-0 bg-slate-50/10 cursor-not-allowed rounded-xl z-10" title="Suma sa počíta z rozpisu"></div>}
+                </div>
                 <Select label="Status" value={formData.status} onChange={(e: any) => setFormData({...formData, status: e.target.value})}>
                     <option value="lead">Dopyt (Lead)</option>
                     <option value="active">Aktívna Stavba</option>
@@ -370,19 +498,102 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
                     <option value="paused">Pozastavená</option>
                     <option value="completed">Dokončená</option>
                 </Select>
-                </div>
-            )}
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 overflow-hidden">
+                <button 
+                    type="button" 
+                    onClick={() => setShowBreakdown(!showBreakdown)} 
+                    className="flex items-center justify-between w-full text-xs font-black uppercase tracking-widest text-slate-500 hover:text-orange-600 transition"
+                >
+                    <span className="flex items-center gap-2"><ListPlus size={16}/> Rozpísať položky rozpočtu</span>
+                    <ChevronDown size={16} className={`transition-transform duration-300 ${showBreakdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showBreakdown && (
+                    <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-2">
+                        <div className="flex flex-col sm:flex-row gap-4 p-3 bg-white border border-slate-200 rounded-xl mb-2 shadow-sm">
+                             <label className="flex items-center gap-2 cursor-pointer group flex-1">
+                                <input 
+                                    type="checkbox" 
+                                    className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
+                                    checked={formData.hasVat}
+                                    onChange={(e) => toggleVat(e.target.checked)}
+                                />
+                                <span className="text-sm font-bold text-slate-700">Pripočítať DPH</span>
+                             </label>
+                             {formData.hasVat && (
+                                <div className="flex items-center gap-2 animate-in slide-in-from-left-2">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase">Sadzba:</span>
+                                    <input 
+                                        type="number" 
+                                        className="w-16 p-1 text-center font-bold text-slate-800 border-b-2 border-orange-200 focus:border-orange-500 outline-none" 
+                                        value={formData.vatRate} 
+                                        onChange={(e) => updateVatRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                                    />
+                                    <span className="text-sm font-bold text-slate-500">%</span>
+                                </div>
+                             )}
+                        </div>
+
+                        {budgetBreakdown.map((line) => (
+                            <div key={line.id} className="flex gap-2 items-center">
+                                <input 
+                                    type="text" 
+                                    placeholder="Položka (napr. Okná)" 
+                                    className="flex-1 text-sm p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-orange-500 font-bold shadow-sm" 
+                                    value={line.label}
+                                    onChange={(e) => updateBudgetLine(line.id, 'label', e.target.value)}
+                                />
+                                <input 
+                                    type="number" 
+                                    placeholder="Suma" 
+                                    className="w-24 text-sm p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-orange-500 font-mono text-right shadow-sm" 
+                                    value={line.amount === 0 ? '' : line.amount}
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => updateBudgetLine(line.id, 'amount', Math.max(0, parseFloat(e.target.value) || 0))}
+                                />
+                                <button type="button" onClick={() => removeBudgetLine(line.id)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
+                            </div>
+                        ))}
+                        <button 
+                            type="button" 
+                            onClick={addBudgetLine}
+                            className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-400 hover:border-orange-300 hover:text-orange-500 transition bg-white/50 shadow-inner"
+                        >
+                            + Pridať položku do rozpočtu
+                        </button>
+                        <div className="pt-2 border-t border-slate-200 space-y-1 px-1">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Súčet položiek:</span>
+                                <span className="font-bold text-slate-600">{formatMoney(budgetBreakdown.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0))}</span>
+                            </div>
+                            {formData.hasVat && (
+                                <div className="flex justify-between items-center text-slate-400">
+                                    <span className="text-[10px] font-black uppercase tracking-widest">DPH ({formData.vatRate}%):</span>
+                                    <span className="font-bold">+{formatMoney(calculateTotalWithVat(budgetBreakdown, true, formData.vatRate) - budgetBreakdown.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0))}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center border-t border-slate-100 pt-1 mt-1">
+                                <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">CELKOVÝ ROZPOČET:</span>
+                                <span className="font-black text-orange-600 text-lg">{formatMoney(formData.budget)}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+              </div>
+            </div>
             
             <div className="mt-4">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Poznámky</label>
-                <textarea className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 h-24 text-sm font-medium" value={formData.notes || ''} onChange={(e) => setFormData({...formData, notes: e.target.value})} placeholder="Detaily..."></textarea>
+                <textarea className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 h-24 text-sm font-medium" value={formData.notes || ''} onChange={(e) => setFormData({...formData, notes: e.target.value})} placeholder="Detaily, čo si potrebujete zapamätať..."></textarea>
             </div>
-            <Button type="submit" fullWidth className="mt-6 shadow-orange-200">{editingSite ? 'Uložiť Zmeny' : 'Vytvoriť'}</Button>
+            <Button type="submit" fullWidth className="mt-6 shadow-orange-200" size="lg">{editingSite ? 'Uložiť Zmeny' : 'Vytvoriť Zákazku'}</Button>
           </form>
         </Modal>
       )}
 
-      <ConfirmModal isOpen={confirm.open} onClose={() => setConfirm({...confirm, open: false})} onConfirm={deleteSite} title="Naozaj zmazať?" message="Táto akcia je nevratná." type="danger" />
+      <ConfirmModal isOpen={confirm.open} onClose={() => setConfirm({...confirm, open: false})} onConfirm={deleteSite} title="Naozaj zmazať?" message="Všetky údaje spojené s touto zákazkou (transakcie, materiály, dochádzka) budú natrvalo odstránené." type="danger" />
       <AlertModal isOpen={alert.open} onClose={() => setAlert({...alert, open: false})} title={alert.title} message={alert.message} type={alert.type} />
     </div>
   );
@@ -478,19 +689,29 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     useEffect(() => { load(); }, [siteId]);
 
     const handleUpdateNotes = async (e: any) => {
-        await supabase.from('sites').update({ notes: e.target.value }).eq('id', siteId);
-        setLead({ ...lead, notes: e.target.value });
+        const { breakdown, hasVat, vatRate } = parseNotesData(lead.notes);
+        let finalNotes = e.target.value; 
+        
+        if (breakdown.length > 0) {
+            const dataToStore = { items: breakdown, hasVat, vatRate };
+            finalNotes += `\n\n[JSON_BREAKDOWN:${JSON.stringify(dataToStore)}]`;
+        }
+        await supabase.from('sites').update({ notes: finalNotes }).eq('id', siteId);
+        setLead({ ...lead, notes: finalNotes });
     };
 
     const handleUpdateBudget = async (val: number) => {
-        await supabase.from('sites').update({ budget: val }).eq('id', siteId);
-        setLead({ ...lead, budget: val });
+        const cleanVal = Math.max(0, val);
+        await supabase.from('sites').update({ budget: cleanVal }).eq('id', siteId);
+        setLead({ ...lead, budget: cleanVal });
     };
 
     const addCalcRow = () => setCalcRows([...calcRows, { id: crypto.randomUUID(), description: '', unit: 'ks', qty: 0, unit_cost: 0, margin: 20 }]);
     const removeCalcRow = (id: string) => setCalcRows(calcRows.filter(r => r.id !== id));
     const updateRow = (id: string, field: keyof CalcRow, val: any) => {
-        setCalcRows(calcRows.map(r => r.id === id ? { ...r, [field]: val } : r));
+        let finalVal = val;
+        if (['qty', 'unit_cost', 'margin'].includes(field)) finalVal = Math.max(0, parseFloat(val) || 0);
+        setCalcRows(calcRows.map(r => r.id === id ? { ...r, [field]: finalVal } : r));
     };
 
     const totalCost = calcRows.reduce((acc, r) => acc + (r.qty * r.unit_cost), 0);
@@ -502,6 +723,8 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     const totalProfit = totalPrice - totalCost;
 
     if(!lead) return <div className="p-8 text-center"><Loader2 className="animate-spin text-orange-600 mx-auto"/></div>;
+
+    const { cleanNotes, breakdown: budgetItems } = parseNotesData(lead.notes);
 
     return (
         <div className="space-y-6 pb-20">
@@ -543,14 +766,34 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                 <div>
                     {activeTab === 'info' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Poznámky k dopytu</label>
-                                <textarea 
-                                    className="w-full h-64 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 resize-none font-medium text-slate-700 leading-relaxed"
-                                    placeholder="Sem si napíšte detaily, čo treba spraviť, odhady, telefonáty..."
-                                    defaultValue={lead.notes || ''}
-                                    onBlur={handleUpdateNotes}
-                                ></textarea>
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Poznámky k dopytu</label>
+                                    <textarea 
+                                        className="w-full h-64 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 resize-none font-medium text-slate-700 leading-relaxed"
+                                        placeholder="Sem si napíšte detaily, čo treba spraviť, odhady, telefonáty..."
+                                        value={cleanNotes}
+                                        onChange={(e) => {
+                                            setLead({...lead, notes: e.target.value});
+                                        }}
+                                        onBlur={handleUpdateNotes}
+                                    ></textarea>
+                                </div>
+                                {budgetItems.length > 0 && (
+                                    <div className="p-4 bg-orange-50/30 rounded-2xl border border-orange-100">
+                                        <h4 className="text-[10px] font-black uppercase text-orange-600 tracking-widest mb-3 flex items-center gap-2">
+                                            <ListPlus size={14}/> Položkový Rozpočet v poznámkach
+                                        </h4>
+                                        <div className="space-y-1.5">
+                                            {budgetItems.map((item: any) => (
+                                                <div key={item.id} className="flex justify-between items-center text-sm">
+                                                    <span className="text-slate-600 font-bold">{item.label}</span>
+                                                    <span className="text-slate-900 font-black">{formatMoney(item.amount)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div className="space-y-6">
                                 <Card className="bg-blue-50/50 border-blue-100">
@@ -563,7 +806,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                                 className="w-full bg-white border border-blue-200 rounded-lg p-2 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-300 transition"
                                                 defaultValue={lead.budget === 0 ? '' : lead.budget}
                                                 onFocus={(e) => e.target.select()}
-                                                onBlur={(e) => handleUpdateBudget(parseFloat(e.target.value) || 0)}
+                                                onBlur={(e) => handleUpdateBudget(Math.max(0, parseFloat(e.target.value) || 0))}
                                                 placeholder="0.00"
                                             />
                                         </div>
@@ -604,10 +847,14 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                                       <tr key={row.id} className="group hover:bg-slate-50 transition">
                                                           <td className="p-3 text-center text-slate-300 font-mono">{i+1}</td>
                                                           <td className="p-3"><input className="w-full bg-transparent outline-none font-bold text-slate-700 placeholder:text-slate-300" value={row.description} onChange={e => updateRow(row.id, 'description', e.target.value)} placeholder="Názov položky..." /></td>
-                                                          <td className="p-3"><input className="w-full bg-transparent outline-none text-center text-slate-500" value={row.unit} onChange={e => updateRow(row.id, 'unit', e.target.value)} /></td>
-                                                          <td className="p-3"><input type="number" className="w-full bg-transparent outline-none text-right font-mono" value={row.qty === 0 ? '' : row.qty} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'qty', parseFloat(e.target.value)||0)} placeholder="0" /></td>
-                                                          <td className="p-3"><input type="number" className="w-full bg-transparent outline-none text-right font-mono" value={row.unit_cost === 0 ? '' : row.unit_cost} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'unit_cost', parseFloat(e.target.value)||0)} placeholder="0.00" /></td>
-                                                          <td className="p-3"><input type="number" className="w-full bg-transparent outline-none text-right font-bold text-orange-600" value={row.margin === 0 ? '' : row.margin} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'margin', parseFloat(e.target.value)||0)} placeholder="0" /></td>
+                                                          <td className="p-3">
+                                                              <select className="w-full bg-transparent outline-none text-center text-slate-500" value={row.unit} onChange={e => updateRow(row.id, 'unit', e.target.value)}>
+                                                                  {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                                                              </select>
+                                                          </td>
+                                                          <td className="p-3"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.qty === 0 ? '' : row.qty} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'qty', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
+                                                          <td className="p-3"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.unit_cost === 0 ? '' : row.unit_cost} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'unit_cost', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
+                                                          <td className="p-3"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-bold text-orange-600" value={row.margin === 0 ? '' : row.margin} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'margin', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
                                                           <td className="p-3 text-right font-bold text-slate-900 bg-slate-50/50">{formatMoney(rowPrice)}</td>
                                                           <td className="p-3 text-center"><button onClick={() => removeCalcRow(row.id)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></td>
                                                       </tr>
@@ -681,8 +928,12 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
 };
 
 const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSiteId }: any) => {
-    const [header, setHeader] = useState({ client_name: '', client_address: '', site_id: initialSiteId || '', issue_date: new Date().toISOString().split('T')[0], valid_until: '', has_vat: false, vat_rate: 23 });
-    const [items, setTableItems] = useState([{ description: '', quantity: 1, unit: 'ks', unit_price: 0 }]);
+    const [header, setHeader] = useState({ 
+        client_name: '', client_address: '', site_id: initialSiteId || '', 
+        issue_date: new Date().toISOString().split('T')[0], valid_until: '', 
+        has_vat: organization?.is_vat_payer || false, vat_rate: 23 
+    });
+    const [items, setTableItems] = useState([{ description: '', quantity: 1, unit: 'ks', unit_price: 0, vat_rate: 23 }]);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -692,18 +943,23 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
         }
     }, [header.site_id]);
 
-    const addItem = () => setTableItems([...items, { description: '', quantity: 1, unit: 'ks', unit_price: 0 }]);
+    const addItem = () => setTableItems([...items, { description: '', quantity: 1, unit: 'ks', unit_price: 0, vat_rate: header.vat_rate }]);
     const removeItem = (idx: number) => setTableItems(items.filter((_, i) => i !== idx));
     const updateItem = (idx: number, field: string, val: any) => {
         const newItems = [...items];
+        let finalVal = val;
+        if (['quantity', 'unit_price', 'vat_rate'].includes(field)) finalVal = Math.max(0, parseFloat(val) || 0);
         // @ts-ignore
-        newItems[idx][field] = val;
+        newItems[idx][field] = finalVal;
         setTableItems(newItems);
     };
 
     const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-    const vatAmount = header.has_vat ? subtotal * (header.vat_rate / 100) : 0;
-    const total = subtotal + vatAmount;
+    const totalVat = items.reduce((sum, item) => {
+        const itemSubtotal = item.quantity * item.unit_price;
+        return sum + (header.has_vat ? itemSubtotal * (item.vat_rate / 100) : 0);
+    }, 0);
+    const total = subtotal + totalVat;
 
     const handleSave = async () => {
         setSaving(true);
@@ -716,19 +972,25 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                 total_amount: total,
                 issue_date: header.issue_date,
                 valid_until: header.valid_until || null,
-                quote_number: `CP-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000)}` 
+                quote_number: `CP-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000)}`,
+                notes: header.has_vat ? "VAT_PER_ITEM" : "" 
             }]).select().single();
 
             if (qErr) throw qErr;
 
-            const itemsPayload = items.map(i => ({
-                quote_id: quote.id,
-                description: i.description,
-                quantity: i.quantity,
-                unit: i.unit,
-                unit_price: i.unit_price,
-                total_price: i.quantity * i.unit_price
-            }));
+            const itemsPayload = items.map(i => {
+                const itemSubtotal = i.quantity * i.unit_price;
+                const itemVat = header.has_vat ? itemSubtotal * (i.vat_rate / 100) : 0;
+                return {
+                    quote_id: quote.id,
+                    description: i.description,
+                    quantity: i.quantity,
+                    unit: i.unit,
+                    unit_price: i.unit_price,
+                    total_price: itemSubtotal + itemVat,
+                    vat_rate: header.has_vat ? i.vat_rate : 0
+                };
+            });
 
             const { error: iErr } = await supabase.from('quote_items').insert(itemsPayload);
             if (iErr) throw iErr;
@@ -742,7 +1004,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
     };
 
     return (
-        <Modal title="Tvorba Cenovej Ponuky" onClose={onClose} maxWidth="max-w-4xl">
+        <Modal title="Tvorba Cenovej Ponuky" onClose={onClose} maxWidth="max-w-6xl">
             <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
                     <div className="space-y-4">
@@ -754,61 +1016,78 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                         <Input label="Adresa Klienta" value={header.client_address} onChange={(e: any) => setHeader({...header, client_address: e.target.value})} />
                     </div>
                     <div className="space-y-4">
-                        <Input label="Dátum vystavenia" type="date" value={header.issue_date} onChange={(e: any) => setHeader({...header, issue_date: e.target.value})} />
-                        <Input label="Platnosť do" type="date" value={header.valid_until} onChange={(e: any) => setHeader({...header, valid_until: e.target.value})} />
-                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                            <div className="flex items-center gap-2 mb-2">
-                                <input type="checkbox" id="vat" className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" checked={header.has_vat} onChange={(e) => setHeader({...header, has_vat: e.target.checked})} />
-                                <label htmlFor="vat" className="font-bold text-sm text-slate-700">Pripočítať DPH</label>
-                            </div>
-                            {header.has_vat && (
-                                <div className="flex items-center gap-2 animate-in fade-in">
-                                    <label className="text-xs font-bold text-slate-500 uppercase">Sadzba %</label>
-                                    <input type="number" className="w-20 p-1 border border-slate-300 rounded text-center font-bold" value={header.vat_rate} onChange={(e) => setHeader({...header, vat_rate: parseFloat(e.target.value) || 0})} />
-                                </div>
-                            )}
+                        <div className="grid grid-cols-2 gap-2">
+                            <Input label="Dátum vystavenia" type="date" value={header.issue_date} onChange={(e: any) => setHeader({...header, issue_date: e.target.value})} />
+                            <Input label="Platnosť do" type="date" value={header.valid_until} onChange={(e: any) => setHeader({...header, valid_until: e.target.value})} />
                         </div>
-                        <div className="pt-2 text-right">
-                            <div className="text-xs uppercase font-bold text-slate-400">Celková suma {header.has_vat && '(s DPH)'}</div>
-                            <div className="text-3xl font-bold text-slate-900 tracking-tighter">{formatMoney(total)}</div>
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" id="vat" className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" checked={header.has_vat} onChange={(e) => setHeader({...header, has_vat: e.target.checked})} />
+                                <label htmlFor="vat" className="font-bold text-sm text-slate-700">Uplatniť DPH (rozpísať položkovo)</label>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-[9px] uppercase font-black text-slate-400">Celková suma s DPH</div>
+                                <div className="text-2xl font-black text-orange-600 tracking-tighter">{formatMoney(total)}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div>
-                    <h4 className="font-bold text-slate-800 mb-2 flex justify-between items-center px-1">
+                    <h4 className="font-bold text-slate-800 mb-2 flex justify-between items-center px-1 uppercase text-xs tracking-widest">
                         Položky rozpočtu
                         <Button size="sm" variant="secondary" onClick={addItem}><Plus size={14}/> Pridať riadok</Button>
                     </h4>
                     <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
                         <div className="w-full overflow-x-auto">
-                           <table className="w-full text-sm text-left min-w-[700px]">
-                            <thead className="bg-slate-100 text-slate-500 font-bold border-b border-slate-200">
+                           <table className="w-full text-sm text-left min-w-[1000px]">
+                            <thead className="bg-slate-100 text-slate-500 font-bold border-b border-slate-200 uppercase text-[10px] tracking-widest">
                                 <tr>
                                     <th className="p-3 pl-4">Popis</th>
-                                    <th className="p-3 w-24">Množstvo</th>
-                                    <th className="p-3 w-24">Jedn.</th>
-                                    <th className="p-3 w-32">Cena/Jedn.</th>
-                                    <th className="p-3 w-32 text-right">Spolu</th>
+                                    <th className="p-3 w-16 text-center">Mn.</th>
+                                    <th className="p-3 w-24 text-center">Jedn.</th>
+                                    <th className="p-3 w-28 text-right">Cena bez DPH</th>
+                                    {header.has_vat && <th className="p-3 w-16 text-center">DPH %</th>}
+                                    {header.has_vat && <th className="p-3 w-24 text-right">Suma DPH</th>}
+                                    <th className="p-3 w-32 text-right">Spolu {header.has_vat ? 's DPH' : ''}</th>
                                     <th className="p-3 w-10"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {items.map((item, i) => (
-                                    <tr key={i} className="group hover:bg-slate-50 transition">
-                                        <td className="p-2 pl-4"><input className="w-full bg-transparent outline-none font-medium text-slate-700" placeholder="Názov položky..." value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} /></td>
-                                        <td className="p-2"><input type="number" className="w-full bg-transparent outline-none text-center font-mono" value={item.quantity === 0 ? '' : item.quantity} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'quantity', parseFloat(e.target.value) || 0)} placeholder="0" /></td>
-                                        <td className="p-2"><input className="w-full bg-transparent outline-none text-center text-slate-500" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)} /></td>
-                                        <td className="p-2"><input type="number" className="w-full bg-transparent outline-none font-mono" value={item.unit_price === 0 ? '' : item.unit_price} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'unit_price', parseFloat(e.target.value) || 0)} placeholder="0.00" /></td>
-                                        <td className="p-2 text-right font-bold text-slate-800">{formatMoney(item.quantity * item.unit_price)}</td>
-                                        <td className="p-2 text-right"><button onClick={() => removeItem(i)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></td>
-                                    </tr>
-                                ))}
+                                {items.map((item, i) => {
+                                    const itemSubtotal = item.quantity * item.unit_price;
+                                    const itemVat = header.has_vat ? itemSubtotal * (item.vat_rate / 100) : 0;
+                                    const itemTotal = itemSubtotal + itemVat;
+                                    return (
+                                        <tr key={i} className="group hover:bg-slate-50 transition">
+                                            <td className="p-2 pl-4"><input className="w-full bg-transparent outline-none font-bold text-slate-700" placeholder="Názov položky..." value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} /></td>
+                                            <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-center font-mono" value={item.quantity === 0 ? '' : item.quantity} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
+                                            <td className="p-2">
+                                                <select className="w-full bg-transparent outline-none text-center text-slate-500 font-medium" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
+                                                    {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                                                </select>
+                                            </td>
+                                            <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none font-mono text-right" value={item.unit_price === 0 ? '' : item.unit_price} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'unit_price', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
+                                            {header.has_vat && (
+                                                <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-center font-bold text-orange-600" value={item.vat_rate} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'vat_rate', Math.max(0, parseFloat(e.target.value) || 0))} /></td>
+                                            )}
+                                            {header.has_vat && (
+                                                <td className="p-2 text-right text-slate-400 font-mono">{formatMoney(itemVat)}</td>
+                                            )}
+                                            <td className="p-2 text-right font-black text-slate-800 bg-slate-50/30">{formatMoney(itemTotal)}</td>
+                                            <td className="p-2 text-right"><button onClick={() => removeItem(i)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                            </table>
                         </div>
                     </div>
                 </div>
-                <div className="flex justify-end pt-4 border-t border-slate-100">
+                <div className="flex justify-between items-end pt-4 border-t border-slate-100">
+                    <div className="space-y-1">
+                        <div className="text-[10px] font-black uppercase text-slate-400">Sumár bez DPH: <span className="text-slate-600 ml-2">{formatMoney(subtotal)}</span></div>
+                        {header.has_vat && <div className="text-[10px] font-black uppercase text-slate-400">DPH spolu: <span className="text-orange-600 ml-2">+{formatMoney(totalVat)}</span></div>}
+                    </div>
                     <Button onClick={handleSave} loading={saving} size="lg" className="shadow-orange-200"><CheckCircle2 size={18}/> Vystaviť Cenovú Ponuku</Button>
                 </div>
             </div>
@@ -827,11 +1106,17 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
         setSelectedQuote(quote);
     };
 
-    const quoteSubtotal: number = selectedQuote ? (items.reduce((s: number, i: any) => s + (Number(i.quantity) * Number(i.unit_price)), 0)) : 0;
-    const totalStored: number = Number(selectedQuote?.total_amount || 0);
-    const diff: number = Math.max(0, totalStored - quoteSubtotal);
-    const hasVat: boolean = diff > 1; 
-    const vatAmount: number = diff; 
+    const quoteSubtotal = items.reduce((s: number, i: any) => {
+        const sub = Number(i.quantity) * Number(i.unit_price);
+        return s + sub;
+    }, 0);
+    
+    const quoteVatTotal = items.reduce((s: number, i: any) => {
+        const sub = Number(i.quantity) * Number(i.unit_price);
+        return s + (sub * ((i.vat_rate || 0) / 100));
+    }, 0);
+
+    const totalStored = Number(selectedQuote?.total_amount || 0);
 
     const generatePDF = async () => {
         if (!printRef.current) return;
@@ -871,17 +1156,26 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                     <div className="bg-slate-500/10 p-4 md:p-8 rounded-2xl overflow-auto flex justify-center">
                         <div 
                             ref={printRef} 
-                            className="bg-white text-slate-900 relative shadow-2xl mx-auto"
+                            className="bg-white text-slate-900 relative shadow-2xl mx-auto flex flex-col"
                             style={{ width: '210mm', minHeight: '297mm', padding: '15mm 15mm' }} 
                         >
                             <div className="flex justify-between items-start mb-10 border-b-2 border-orange-500 pb-6">
-                                <div>
-                                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">CENOVÁ PONUKA</h1>
-                                    <div className="text-slate-500 mt-2 font-medium">č. {selectedQuote.quote_number}</div>
+                                <div className="flex items-center gap-4">
+                                    {organization.logo_url && <img src={organization.logo_url} crossOrigin="anonymous" className="h-16 w-16 object-contain" alt="Logo" />}
+                                    <div>
+                                        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">CENOVÁ PONUKA</h1>
+                                        <div className="text-slate-500 mt-2 font-medium uppercase tracking-widest text-[10px]">č. {selectedQuote.quote_number}</div>
+                                    </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="font-bold text-xl">{organization.name}</div>
-                                    <div className="text-sm text-slate-500">Dodávateľ</div>
+                                    <div className="font-black text-xl text-slate-800">{organization.name}</div>
+                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Zhotoviteľ</div>
+                                    <div className="text-[10px] text-slate-400 space-y-0.5">
+                                        {organization.ico && <div>IČO: {organization.ico}</div>}
+                                        {organization.dic && <div>DIČ: {organization.dic}</div>}
+                                        {organization.is_vat_payer && organization.ic_dph && <div>IČ DPH: {organization.ic_dph}</div>}
+                                        {organization.business_address && <div>{organization.address_type === 'sidlo' ? 'Sídlo' : 'Miesto podnikania'}: {organization.business_address}</div>}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex justify-between mb-10">
@@ -901,36 +1195,42 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                                     </div>
                                 </div>
                             </div>
-                            <table className="w-full text-sm mb-10">
-                                <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-xs">
+                            <table className="w-full text-[11px] mb-10 border-collapse">
+                                <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[9px]">
                                     <tr>
                                         <th className="p-3 text-left">Položka</th>
-                                        <th className="p-3 text-right">Množstvo</th>
-                                        <th className="p-3 text-right">Jedn. Cena</th>
-                                        <th className="p-3 text-right">Spolu</th>
+                                        <th className="p-3 text-center w-16">Mn.</th>
+                                        <th className="p-3 text-right">Cena bez DPH</th>
+                                        {quoteVatTotal > 0 && <th className="p-3 text-center">DPH %</th>}
+                                        <th className="p-3 text-right">Celkom</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {items.map((item, i) => (
-                                        <tr key={i}>
-                                            <td className="p-3 font-medium text-slate-800">{item.description}</td>
-                                            <td className="p-3 text-right text-slate-600">{item.quantity} {item.unit}</td>
-                                            <td className="p-3 text-right text-slate-600">{formatMoney(item.unit_price)}</td>
-                                            <td className="p-3 text-right font-bold text-slate-800">{formatMoney(item.total_price)}</td>
-                                        </tr>
-                                    ))}
+                                    {items.map((item, i) => {
+                                        const itemSub = Number(item.quantity) * Number(item.unit_price);
+                                        const itemVat = itemSub * ((item.vat_rate || 0) / 100);
+                                        return (
+                                            <tr key={i}>
+                                                <td className="p-3 font-medium text-slate-800">{item.description}</td>
+                                                <td className="p-3 text-center text-slate-600">{item.quantity} {item.unit}</td>
+                                                <td className="p-3 text-right text-slate-600">{formatMoney(item.unit_price)}</td>
+                                                {quoteVatTotal > 0 && <td className="p-3 text-center text-slate-400 font-bold">{item.vat_rate}%</td>}
+                                                <td className="p-3 text-right font-bold text-slate-800">{formatMoney(itemSub + itemVat)}</td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
-                            <div className="flex justify-end">
+                            <div className="flex justify-end mb-20">
                                 <div className="w-64 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                    <div className="flex justify-between items-center mb-2 text-slate-500 text-sm">
+                                    <div className="flex justify-between items-center mb-2 text-slate-500 text-xs">
                                         <span>Základ dane</span>
                                         <span>{formatMoney(quoteSubtotal)}</span>
                                     </div>
-                                    {hasVat && (
-                                        <div className="flex justify-between items-center mb-2 text-slate-500 text-sm">
-                                            <span>DPH ({Math.round(vatAmount/quoteSubtotal*100)}%)</span>
-                                            <span>{formatMoney(vatAmount)}</span>
+                                    {quoteVatTotal > 0 && (
+                                        <div className="flex justify-between items-center mb-2 text-slate-500 text-xs">
+                                            <span>DPH celkom</span>
+                                            <span>{formatMoney(quoteVatTotal)}</span>
                                         </div>
                                     )}
                                     <div className="flex justify-between items-center text-xl font-extrabold text-slate-900 border-t border-slate-200 pt-2 mt-2">
@@ -939,8 +1239,27 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                                     </div>
                                 </div>
                             </div>
-                            <div className="absolute bottom-12 left-12 right-12 text-center text-slate-400 text-xs border-t border-slate-100 pt-4 leading-relaxed">
-                                Ďakujeme za záujem o naše služby. Tešíme sa na spoluprácu.<br/>
+                            
+                            <div className="mt-auto grid grid-cols-2 gap-20">
+                                <div className="text-center">
+                                    <div className="border-b border-slate-300 mb-2 h-16"></div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Podpis Preberajúceho</div>
+                                </div>
+                                <div className="text-center relative">
+                                    {organization.stamp_url && (
+                                        <img 
+                                            src={organization.stamp_url} 
+                                            crossOrigin="anonymous" 
+                                            className="h-32 absolute -top-24 left-1/2 -translate-x-1/2 opacity-90 rotate-3 pointer-events-none" 
+                                            alt="Stamp" 
+                                        />
+                                    )}
+                                    <div className="border-b border-slate-300 mb-2 h-16"></div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pečiatka a podpis zhotoviteľa</div>
+                                </div>
+                            </div>
+
+                            <div className="text-center text-slate-300 text-[9px] border-t border-slate-100 pt-4 mt-8 font-medium uppercase tracking-widest">
                                 Vygenerované aplikáciou MojaStavba
                             </div>
                         </div>
@@ -1160,10 +1479,10 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
               const materialPayload = {
                   ...common,
                   name: formState.description || formState.category,
-                  quantity: formState.quantity,
+                  quantity: Math.max(0, formState.quantity),
                   unit: formState.unit,
-                  unit_price: formState.unit_price,
-                  total_price: formState.amount, 
+                  unit_price: Math.max(0, formState.unit_price),
+                  total_price: Math.max(0, formState.amount), 
                   purchase_date: formState.date,
                   supplier: formState.supplier
               };
@@ -1174,7 +1493,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                   ...common,
                   type: formState.type, 
                   category: formState.category,
-                  amount: formState.amount,
+                  amount: Math.max(0, formState.amount),
                   date: formState.date,
                   description: formState.description,
                   is_paid: formState.is_paid
@@ -1242,6 +1561,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       }))
   ].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  const { breakdown: budgetItems, cleanNotes, hasVat, vatRate } = parseNotesData(site.notes);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between gap-4">
@@ -1302,54 +1623,103 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
         <div className="p-4 md:p-8 flex-1">
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in">
-              <Card className="bg-white border-slate-200 shadow-sm">
-                <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2"><BarChart3 size={20} className="text-orange-500"/> Finančný Rozbor</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-4 bg-green-50 rounded-xl border border-green-100">
-                    <span className="font-bold text-green-800 text-xs uppercase tracking-wider">Príjmy (Platby)</span>
-                    <span className="font-black text-green-700 text-xl">+{formatMoney(stats.paid)}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
-                    <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Materiál & Iné</span>
-                    <span className="font-black text-red-700 text-xl">-{formatMoney(stats.totalCost - stats.laborCost)}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
-                    <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Práca (Mzdy)</span>
-                    <span className="font-black text-red-700 text-xl">-{formatMoney(stats.laborCost)}</span>
-                  </div>
-                  <div className="border-t-2 border-dashed border-slate-100 my-4 pt-6">
-                    <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                      <span className="font-black text-slate-600 uppercase text-[10px] tracking-widest">Celkový profit</span>
-                      <span className={`font-black text-3xl tracking-tighter ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(stats.profit)}</span>
+            <div className="space-y-8 animate-in fade-in">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="bg-white border-slate-200 shadow-sm">
+                    <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2"><BarChart3 size={20} className="text-orange-500"/> Finančný Rozbor</h3>
+                    <div className="space-y-4">
+                    <div className="flex justify-between items-center p-4 bg-green-50 rounded-xl border border-green-100">
+                        <span className="font-bold text-green-800 text-xs uppercase tracking-wider">Príjmy (Platby)</span>
+                        <span className="font-black text-green-700 text-xl">+{formatMoney(stats.paid)}</span>
                     </div>
-                  </div>
-                </div>
-              </Card>
-              <Card className="bg-white border-slate-200 shadow-sm">
-                <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2"><Package size={20} className="text-orange-500"/> Rozpočet</h3>
-                <div className="flex justify-between text-[11px] mb-3 text-slate-500 font-black uppercase tracking-widest">
-                  <span>Aktuálne: {formatMoney(stats.totalCost)}</span>
-                  <span>Limit: {formatMoney(site.budget)}</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-5 overflow-hidden mb-8 border border-slate-200 shadow-inner p-1">
-                  <div className={`${stats.totalCost > site.budget ? 'bg-red-500' : 'bg-orange-500'} h-full rounded-full transition-all duration-1000 shadow-sm`} style={{ width: `${Math.min(100, (stats.totalCost / site.budget) * 100)}%` }}></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div className="text-[10px] uppercase text-slate-400 font-black mb-1">Hodiny</div>
-                    <div className="text-2xl font-black text-slate-900 tracking-tight">{formatDuration(stats.laborHours)}</div>
-                  </div>
-                  <div className="text-center p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div className="text-[10px] uppercase text-slate-400 font-black mb-1">Materiál</div>
-                    <div className="text-2xl font-black text-slate-900 tracking-tight">{formatMoney(stats.materialCost)}</div>
-                  </div>
-                </div>
-                <div className="mt-8 p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex items-start gap-3">
-                    <Info size={18} className="text-blue-500 shrink-0 mt-0.5"/>
-                    <p className="text-xs text-blue-700 leading-relaxed font-medium">Profit je počítaný z reálne prijatých platieb (Uhradené) mínus všetky náklady na materiál a prácu (vrátane nevyplatených miezd).</p>
-                </div>
-              </Card>
+                    <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
+                        <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Materiál & Iné</span>
+                        <span className="font-black text-red-700 text-xl">-{formatMoney(stats.totalCost - stats.laborCost)}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
+                        <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Práca (Mzdy)</span>
+                        <span className="font-black text-red-700 text-xl">-{formatMoney(stats.laborCost)}</span>
+                    </div>
+                    <div className="border-t-2 border-dashed border-slate-100 my-4 pt-6">
+                        <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                        <span className="font-black text-slate-600 uppercase text-[10px] tracking-widest">Celkový profit</span>
+                        <span className={`font-black text-3xl tracking-tighter ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(stats.profit)}</span>
+                        </div>
+                    </div>
+                    </div>
+                </Card>
+                
+                <Card className="bg-white border-slate-200 shadow-sm">
+                    <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2"><Package size={20} className="text-orange-500"/> Rozpočet</h3>
+                    <div className="flex justify-between text-[11px] mb-3 text-slate-500 font-black uppercase tracking-widest">
+                    <span>Aktuálne: {formatMoney(stats.totalCost)}</span>
+                    <span>Limit: {formatMoney(site.budget)}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-5 overflow-hidden mb-8 border border-slate-200 shadow-inner p-1">
+                    <div className={`${stats.totalCost > site.budget ? 'bg-red-500' : 'bg-orange-500'} h-full rounded-full transition-all duration-1000 shadow-sm`} style={{ width: `${Math.min(100, (stats.totalCost / site.budget) * 100)}%` }}></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="text-[10px] uppercase text-slate-400 font-black mb-1">Hodiny</div>
+                        <div className="text-2xl font-black text-slate-900 tracking-tight">{formatDuration(stats.laborHours)}</div>
+                    </div>
+                    <div className="text-center p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="text-[10px] uppercase text-slate-400 font-black mb-1">Materiál</div>
+                        <div className="text-2xl font-black text-slate-900 tracking-tight">{formatMoney(stats.materialCost)}</div>
+                    </div>
+                    </div>
+                </Card>
+              </div>
+
+              {budgetItems.length > 0 && (
+                <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" padding="p-0">
+                    <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                        <ListPlus size={20} className="text-orange-500"/>
+                        <h3 className="font-black text-lg text-slate-900 uppercase tracking-tight">Položkový rozpis rozpočtu</h3>
+                    </div>
+                    <div className="p-6 space-y-1">
+                        <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">
+                            <span>Názov položky</span>
+                            <span>Suma (€)</span>
+                        </div>
+                        {budgetItems.map((item) => (
+                            <div key={item.id} className="flex justify-between items-center py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 px-2 rounded-lg transition group">
+                                <span className="text-sm font-bold text-slate-700 group-hover:text-orange-600">{item.label}</span>
+                                <span className="font-mono font-black text-slate-900 text-base">{formatMoney(item.amount)}</span>
+                            </div>
+                        ))}
+                        <div className="mt-6 pt-6 border-t-2 border-dashed border-slate-200 flex flex-col items-end gap-1.5">
+                            {hasVat && (
+                                <>
+                                    <div className="flex gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        <span>Základ bez DPH:</span>
+                                        <span>{formatMoney(budgetItems.reduce((acc, i) => acc + Number(i.amount), 0))}</span>
+                                    </div>
+                                    <div className="flex gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        <span>DPH ({vatRate}%):</span>
+                                        <span>{formatMoney(site.budget - budgetItems.reduce((acc, i) => acc + Number(i.amount), 0))}</span>
+                                    </div>
+                                </>
+                            )}
+                            <div className="flex gap-6 text-sm font-black text-slate-900 uppercase tracking-widest mt-2 bg-slate-100 px-6 py-3 rounded-2xl border border-slate-200 shadow-inner">
+                                <span className="text-slate-500">CELKOVÝ ROZPOČET {hasVat ? 'S DPH' : ''}:</span>
+                                <span className="text-2xl text-orange-600 tracking-tighter">{formatMoney(site.budget)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+              )}
+
+              {cleanNotes && (
+                <Card className="bg-white border-slate-200 shadow-sm" padding="p-6">
+                    <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <FileText size={20} className="text-orange-500"/> Poznámky k projektu
+                    </h3>
+                    <p className="text-slate-700 text-sm font-medium leading-relaxed whitespace-pre-wrap italic">
+                        {cleanNotes}
+                    </p>
+                </Card>
+              )}
             </div>
           )}
 
@@ -1536,7 +1906,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                     step="0.01" 
                     value={formState.hourly_rate_snapshot || 0} 
                     onFocus={(e:any) => e.target.select()}
-                    onChange={(e: any) => setFormState({...formState, hourly_rate_snapshot: parseFloat(e.target.value) || 0})} 
+                    onChange={(e: any) => setFormState({...formState, hourly_rate_snapshot: Math.max(0, parseFloat(e.target.value) || 0)})} 
                     required 
                 />
             </div>
@@ -1567,13 +1937,13 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 <>
                     <Input label="Názov materiálu" value={formState.description || ''} onChange={(e: any) => setFormState({...formState, description: e.target.value, category: 'Materiál'})} required autoFocus placeholder="Napr. Cement 25kg, SDK Profily..." />
                     <div className="grid grid-cols-2 gap-4">
-                        <Input label="Množstvo" type="number" step="0.01" value={formState.quantity} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, quantity: parseFloat(e.target.value), amount: (parseFloat(e.target.value) * (formState.unit_price || 0)) })} required />
+                        <Input label="Množstvo" type="number" step="0.01" value={formState.quantity} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, quantity: Math.max(0, parseFloat(e.target.value)), amount: (Math.max(0, parseFloat(e.target.value)) * (formState.unit_price || 0)) })} required />
                         <Select label="Jednotka" value={formState.unit} onChange={(e: any) => setFormState({...formState, unit: e.target.value})}>
-                            {['ks', 'm', 'm2', 'm3', 'kg', 't', 'l', 'bal', 'paleta', 'hod'].map(u => <option key={u} value={u}>{u}</option>)}
+                            {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                         </Select>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <Input label="Cena za jednotku €" type="number" step="0.01" value={formState.unit_price || ''} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, unit_price: parseFloat(e.target.value), amount: (parseFloat(e.target.value) * (formState.quantity || 0)) })} required />
+                        <Input label="Cena za jednotku €" type="number" step="0.01" value={formState.unit_price || ''} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, unit_price: Math.max(0, parseFloat(e.target.value)), amount: (Math.max(0, parseFloat(e.target.value)) * (formState.quantity || 0)) })} required />
                         <div>
                             <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Spolu €</label>
                             <div className="p-3 bg-slate-100 rounded-xl text-slate-700 font-black text-lg border border-slate-200">{formatMoney(formState.amount)}</div>
@@ -1584,7 +1954,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             ) : (
                 <>
                     <Input label="Kategória / Hlavný popis" value={formState.category || ''} onChange={(e: any) => setFormState({...formState, category: e.target.value})} required autoFocus placeholder="Napr. Zálohová platba, Odvoz odpadu..." />
-                    <Input label="Celková Suma €" type="number" step="0.01" value={formState.amount || ''} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, amount: parseFloat(e.target.value)})} required />
+                    <Input label="Celková Suma €" type="number" step="0.01" value={formState.amount || ''} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, amount: Math.max(0, parseFloat(e.target.value))})} required />
                     <Input label="Detailná poznámka (Voliteľné)" value={formState.description || ''} onChange={(e: any) => setFormState({...formState, description: e.target.value})} />
                 </>
             )}
@@ -1652,18 +2022,24 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       )}
 
       <div className="fixed left-[-9999px]">
-          <div ref={printRef} className="w-[190mm] bg-white p-12 text-slate-900 font-sans text-sm leading-normal relative box-border text-left">
+          <div ref={printRef} className="w-[190mm] bg-white p-12 text-slate-900 font-sans text-sm leading-normal relative box-border text-left flex flex-col min-h-[277mm]">
               <div className="absolute top-4 right-4 text-[10px] text-slate-400">Vygenerované cez MojaStavba • {new Date().toLocaleDateString('sk-SK')}</div>
               
               <div className="flex justify-between items-start mb-10 border-b-2 border-slate-200 pb-6">
                 <div>
-                    <h1 className="text-2xl font-black uppercase tracking-widest text-slate-800">{exportSettings.type === 'client' ? 'Výkaz prác pre klienta' : 'Kompletný projektový výkaz'}</h1>
+                    <h1 className="text-2xl font-black uppercase tracking-widest text-slate-800">{exportSettings.type === 'client' ? 'Výkaz prác' : 'Kompletný projektový výkaz'}</h1>
                     <div className="text-orange-600 mt-2 font-bold text-lg">{site.name}</div>
                     <div className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-wider">{site.address}</div>
                 </div>
                 <div className="text-right">
                     <div className="font-black text-xl text-slate-800">{organization.name}</div>
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Zhotoviteľ</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Zhotoviteľ</div>
+                    <div className="text-[9px] text-slate-400 mt-2 space-y-0.5">
+                        {organization.ico && <div>IČO: {organization.ico}</div>}
+                        {organization.dic && <div>DIČ: {organization.dic}</div>}
+                        {organization.is_vat_payer && organization.ic_dph && <div>IČ DPH: {organization.ic_dph}</div>}
+                        {organization.business_address && <div>{organization.address_type === 'sidlo' ? 'Sídlo' : 'Miesto podnikania'}: {organization.business_address}</div>}
+                    </div>
                 </div>
               </div>
 
@@ -1781,80 +2157,24 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                   </div>
               )}
 
-              {exportSettings.type === 'owner' && (
-                   <div className="mb-10">
-                      <div className="font-black uppercase text-xs border-b border-slate-200 mb-4 pb-2 flex items-center gap-2 text-slate-800">
-                          <Euro size={14} className="text-orange-600"/> Prehľad platieb a výdavkov
-                      </div>
-                      <table className="w-full text-[10px] border-collapse">
-                          <thead>
-                              <tr className="bg-slate-50 text-[9px] font-black uppercase tracking-wider">
-                                  <th className="border border-slate-200 p-2 text-left w-[25mm]">Dátum</th>
-                                  <th className="border border-slate-200 p-2 text-left">Kategória / Popis</th>
-                                  <th className="border border-slate-200 p-2 text-right w-[30mm]">Suma</th>
-                                  <th className="border border-slate-200 p-2 text-center w-[20mm]">Stav</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              {data.transactions.map((t: any, idx: number) => (
-                                  <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
-                                      <td className="border border-slate-200 p-2">{formatDate(t.date)}</td>
-                                      <td className="border border-slate-200 p-2 font-medium">{t.category} <span className="text-slate-400 font-normal">({t.description})</span></td>
-                                      <td className={`border border-slate-200 p-2 text-right font-black ${t.type === 'invoice' ? 'text-green-600' : 'text-red-600'}`}>{t.type === 'invoice' ? '+' : '-'}{formatMoney(t.amount)}</td>
-                                      <td className="border border-slate-200 p-2 text-center text-[8px] uppercase font-bold">{t.is_paid ? 'Uhradené' : 'Čaká'}</td>
-                                  </tr>
-                              ))}
-                          </tbody>
-                      </table>
-                  </div>
-              )}
-
-              {(exportSettings.type === 'owner' || exportSettings.includeFinancials) && (
-                  <div className="bg-slate-50 p-6 rounded-2xl mb-10 border border-slate-200">
-                      <div className="text-[10px] font-black uppercase tracking-widest mb-4 border-b border-slate-200 pb-2 text-slate-400">Záverečná finančná rekapitulácia</div>
-                      <div className="grid grid-cols-3 gap-8">
-                          <div>
-                              <div className="text-[9px] text-slate-500 uppercase font-bold mb-1">Príjmy projektu</div>
-                              <div className="text-xl font-black text-green-600">{formatMoney(stats.paid)}</div>
-                          </div>
-                          <div>
-                              <div className="text-[9px] text-slate-500 uppercase font-bold mb-1">Náklady spolu</div>
-                              <div className="text-xl font-black text-red-600">-{formatMoney(stats.totalCost)}</div>
-                          </div>
-                          <div className="text-right">
-                              <div className="text-[9px] text-slate-500 uppercase font-bold mb-1">Celková bilancia</div>
-                              <div className={`text-2xl font-black ${stats.profit >= 0 ? 'text-slate-800' : 'text-red-700'}`}>{formatMoney(stats.profit)}</div>
-                          </div>
-                      </div>
-                  </div>
-              )}
-
-              <div className="mt-20 grid grid-cols-2 gap-20">
+              <div className="mt-auto pt-20 grid grid-cols-2 gap-20 pb-10">
                   <div className="text-center">
-                      <div className="h-16 border-b-2 border-slate-100 mb-2"></div>
+                      <div className="border-b border-slate-300 mb-2 h-16"></div>
                       <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Podpis Preberajúceho</div>
                   </div>
                   <div className="text-center relative">
-                    <div className="h-16 border-b-2 border-slate-100 mb-2 flex items-center justify-center">
-                        {organization.stamp_url ? (
+                    <div className="h-16 border-b border-slate-300 mb-2 flex items-center justify-center">
+                        {organization.stamp_url && (
                             <img 
                                 src={organization.stamp_url} 
                                 alt="Pečiatka" 
                                 crossOrigin="anonymous" 
-                                className="h-28 absolute -top-12 rotate-3 opacity-95" 
+                                className="h-32 absolute -top-24 left-1/2 -translate-x-1/2 rotate-2 opacity-95 pointer-events-none" 
                             />
-                        ) : (
-                            <div className="opacity-10 pointer-events-none transform -rotate-12 absolute -top-8">
-                                <CustomLogo className="w-16 h-16 text-slate-900"/>
-                            </div>
                         )}
                     </div>
-                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pečiatka a Podpis Firmy</div>
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pečiatka a podpis zhotoviteľa</div>
                   </div>
-              </div>
-
-              <div className="mt-24 text-center text-[9px] text-slate-300 font-bold uppercase border-t border-slate-100 pt-4 tracking-[0.2em]">
-                  Tento dokument má informatívny charakter
               </div>
           </div>
       </div>

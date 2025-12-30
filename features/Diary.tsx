@@ -377,6 +377,8 @@ export const DiaryScreen = ({ profile, organization }: any) => {
               console.error(err);
               setAlert({ open: true, message: "Nepodarilo sa nahrať fotku: " + err.message, type: 'error' });
           } finally {
+              // Senior fix: Reset values to allow uploading the same file if deleted and re-selected
+              e.target.value = '';
               setLoading(false);
           }
       }
@@ -461,10 +463,6 @@ export const DiaryScreen = ({ profile, organization }: any) => {
       }
   };
 
-  const filteredSitesList = sites.filter(s => 
-    s.name.toLowerCase().includes(searchSiteQuery.toLowerCase())
-  );
-
   const getDaysInMonth = (date: Date) => {
       const year = date.getFullYear();
       const month = date.getMonth();
@@ -485,6 +483,9 @@ export const DiaryScreen = ({ profile, organization }: any) => {
       </div>
   );
 
+  const filteredSitesList = sites.filter(s => 
+    s.name.toLowerCase().includes(searchSiteQuery.toLowerCase())
+  );
   const currentSiteName = sites.find(s => s.id === selectedSiteId)?.name || 'Stavba';
 
   return (
@@ -541,7 +542,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
           </div>
       )}
 
-      {/* Floating Preview Popover - pointer-events-none is CRITICAL to stop flickering */}
+      {/* Floating Preview Popover */}
       {previewDay && (
           <div 
             className="fixed z-[100] w-64 md:w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 animate-in zoom-in-95 duration-200 pointer-events-none backdrop-blur-sm bg-white/95"
@@ -808,7 +809,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
               {/* HIDDEN PDF TEMPLATE */}
               <div className="fixed left-[-9999px]">
                   <div ref={printRef} className="w-[190mm] bg-white p-8 text-slate-900 font-sans text-sm leading-normal relative box-border text-left">
-                      <div className="absolute top-4 right-4 text-[10px] text-slate-400">MojaStavba.app - Digitálny Denník</div>
+                      <div className="absolute top-4 right-4 text-[10px] text-slate-400">Digitálny Denník vygenerovaný cez MojaStavba</div>
                       <div className="border-b-2 border-black pb-4 mb-6">
                           <h1 className="text-2xl font-bold uppercase tracking-widest text-center mb-2">Stavebný Denník</h1>
                           <div className="flex justify-between items-end mt-4">

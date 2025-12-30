@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Modal, Input, Badge, ConfirmModal, AlertModal, Select } from '../components/UI';
-import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote, Trash2, Archive, CheckCircle2, Users, Pencil, RefreshCcw, Link, Copy, ChevronDown, ChevronRight, Clock, MapPin, Send, Zap, Info, Smartphone, Monitor, Wallet, Loader2, Filter, FileText, Search } from 'lucide-react';
+import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote, Trash2, Archive, CheckCircle2, Users, Pencil, RefreshCcw, Link, Copy, ChevronDown, ChevronRight, Clock, MapPin, Send, Zap, Info, Smartphone, Monitor, Wallet, Loader2, Filter, FileText, Search, Briefcase, Eye, EyeOff } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 
 const TEAM_PAGE_SIZE = 15;
@@ -29,7 +30,15 @@ const TeamList = ({ profile, onSelect }: any) => {
   const [showModal, setShowModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingWorker, setEditingWorker] = useState<any>(null);
-  const [formData, setFormData] = useState<any>({ email: '', fullName: '', rate: 0, phone: '', is_active: true });
+  const [formData, setFormData] = useState<any>({ 
+    email: '', 
+    fullName: '', 
+    rate: 0, 
+    phone: '', 
+    is_active: true, 
+    job_title: 'zamestnanec',
+    show_wage_in_profile: true 
+  });
   
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string, name?: string}>({ open: false, action: '', id: '' });
   const [alert, setAlert] = useState<{open: boolean, message: string}>({ open: false, message: '' });
@@ -90,12 +99,17 @@ const TeamList = ({ profile, onSelect }: any) => {
   const handleEdit = (worker: any, e: any) => {
       e.stopPropagation();
       setEditingWorker(worker);
+      
+      const displayJobTitle = worker.role === 'admin' ? 'Administrátor' : (worker.job_title || 'zamestnanec');
+      
       setFormData({ 
           email: worker.email, 
           fullName: worker.full_name, 
           rate: worker.hourly_rate, 
           phone: worker.phone,
-          is_active: worker.is_active
+          is_active: worker.is_active,
+          job_title: displayJobTitle,
+          show_wage_in_profile: worker.show_wage_in_profile ?? true
       });
       setShowModal(true);
   }
@@ -105,13 +119,21 @@ const TeamList = ({ profile, onSelect }: any) => {
     try {
         let error;
         if (editingWorker) {
-             const { error: err } = await supabase.from('profiles').update({
+             const payload: any = {
                 full_name: formData.fullName,
                 email: formData.email,
                 hourly_rate: formData.rate,
                 phone: formData.phone,
-                is_active: formData.is_active
-             }).eq('id', editingWorker.id);
+                is_active: formData.is_active,
+                job_title: formData.job_title,
+                show_wage_in_profile: formData.show_wage_in_profile
+             };
+             
+             if (editingWorker.role === 'admin') {
+                 payload.job_title = 'Administrátor';
+             }
+
+             const { error: err } = await supabase.from('profiles').update(payload).eq('id', editingWorker.id);
              error = err;
         } else {
             const newId = crypto.randomUUID();
@@ -123,7 +145,9 @@ const TeamList = ({ profile, onSelect }: any) => {
               organization_id: profile.organization_id, 
               hourly_rate: formData.rate, 
               phone: formData.phone,
-              is_active: true
+              is_active: true,
+              job_title: formData.job_title || 'zamestnanec',
+              show_wage_in_profile: formData.show_wage_in_profile
             }]);
             error = err;
         }
@@ -230,9 +254,17 @@ const TeamList = ({ profile, onSelect }: any) => {
                       </div>
                       <div className="min-w-0">
                         <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition truncate pr-8">{w.full_name}</h3>
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1 ${w.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-200 text-slate-500 border border-slate-300'}`}>
-                            {w.is_active ? (w.role === 'admin' ? 'Administrátor' : 'Pracovník') : 'Archivovaný'}
-                        </span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${w.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-200 text-slate-500 border border-slate-300'}`}>
+                                {w.is_active ? (w.role === 'admin' ? 'Administrátor' : (w.job_title || 'zamestnanec')) : 'Archivovaný'}
+                            </span>
+                            {w.is_active && w.role !== 'admin' && (
+                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${w.show_wage_in_profile ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                                    {w.show_wage_in_profile ? <Eye size={10} className="inline mr-1"/> : <EyeOff size={10} className="inline mr-1"/>}
+                                    {w.show_wage_in_profile ? 'Mzda viditeľná' : 'Mzda skrytá'}
+                                </span>
+                            )}
+                        </div>
                       </div>
                     </div>
                     <div className="mt-auto space-y-3 pt-4 border-t border-slate-100">
@@ -274,7 +306,7 @@ const TeamList = ({ profile, onSelect }: any) => {
 
       {hasMore && !loading && (
           <div className="flex justify-center pt-8 pb-12">
-              <Button variant="secondary" onClick={handleLoadMore} loading={loadingMore} className="bg-white min-w-[200px]">Načítať ďalších zamestnancov...</Button>
+              <Button variant="secondary" onClick={handleLoadMore} loading={loadingMore} className="bg-white min-w-[220px]">Načítať ďalších zamestnancov...</Button>
           </div>
       )}
 
@@ -301,20 +333,53 @@ const TeamList = ({ profile, onSelect }: any) => {
 
       {showModal && (
         <Modal title="Upraviť Zamestnanca" onClose={() => setShowModal(false)}>
-          <form onSubmit={handleSave}>
+          <form onSubmit={handleSave} className="space-y-4">
             <Input label="Meno a Priezvisko" value={formData.fullName} onChange={(e: any) => setFormData({...formData, fullName: e.target.value})} required placeholder="Ján Novák" />
+            
+            <Input 
+                label="Pracovná pozícia / Rola" 
+                value={formData.job_title} 
+                onChange={(e: any) => setFormData({...formData, job_title: e.target.value})} 
+                placeholder="napr. murár, elektrikár, zamestnanec..." 
+                disabled={editingWorker?.role === 'admin'}
+                className={editingWorker?.role === 'admin' ? 'bg-slate-50 cursor-not-allowed font-bold text-slate-500' : ''}
+            />
+
             <div className="grid grid-cols-2 gap-4">
                 <Input label="Hodinová sadzba €" type="number" step="0.5" value={formData.rate} onChange={(e: any) => setFormData({...formData, rate: parseFloat(e.target.value)})} required />
                 <Input label="Telefón" value={formData.phone} onChange={(e: any) => setFormData({...formData, phone: e.target.value})} placeholder="+421..." />
             </div>
             <Input label="Email" type="email" value={formData.email} onChange={(e: any) => setFormData({...formData, email: e.target.value})} readOnly className="bg-slate-50" />
             
-            <div className="flex items-center gap-2 mb-4 pt-2 border-t border-slate-100">
-                <input type="checkbox" id="isActive" checked={formData.is_active} onChange={(e) => setFormData({...formData, is_active: e.target.checked})} className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500" />
-                <label htmlFor="isActive" className="text-sm font-bold text-slate-700">Aktívny zamestnanec</label>
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                    <input type="checkbox" id="isActive" checked={formData.is_active} onChange={(e) => setFormData({...formData, is_active: e.target.checked})} className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500" />
+                    <label htmlFor="isActive" className="text-sm font-bold text-slate-700">Aktívny zamestnanec</label>
+                </div>
+
+                {editingWorker?.role !== 'admin' && (
+                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl space-y-2">
+                        <div className="flex items-center gap-2">
+                            <input 
+                                type="checkbox" 
+                                id="showWage" 
+                                checked={formData.show_wage_in_profile} 
+                                onChange={(e) => setFormData({...formData, show_wage_in_profile: e.target.checked})} 
+                                className="w-6 h-6 rounded text-blue-600 focus:ring-blue-500" 
+                            />
+                            <label htmlFor="showWage" className="text-sm font-black text-blue-900 flex items-center gap-2 cursor-pointer">
+                                Zobrazovať mzdu v profile
+                            </label>
+                        </div>
+                        <p className="text-[10px] text-blue-700 font-medium leading-relaxed ml-8">
+                            <Info size={10} className="inline mr-1 mb-0.5"/>
+                            Po zakliknutí sa bude zamestnancovi v profile zobrazovať jeho hodinová mzda a celkový mesačný zárobok. V opačnom prípade uvidí iba počet odpracovaných hodín.
+                        </p>
+                    </div>
+                )}
             </div>
 
-            <Button type="submit" fullWidth className="mt-4">Uložiť Zmeny</Button>
+            <Button type="submit" fullWidth className="mt-4 shadow-md">Uložiť Zmeny</Button>
           </form>
         </Modal>
       )}
@@ -380,7 +445,6 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
     const [allLogs, setAllLogs] = useState<any[]>([]);
     const [sites, setSites] = useState<any[]>([]);
     
-    // Filters
     const [filterSite, setFilterSite] = useState('');
     const [searchSiteQuery, setSearchSiteQuery] = useState('');
     const [filterMonth, setFilterMonth] = useState(() => {
@@ -404,15 +468,13 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
 
     useEffect(() => { loadData(); }, [empId]);
 
-    // Filter sites for the dropdown search
     const filteredSitesList = sites.filter(s => 
         s.name.toLowerCase().includes(searchSiteQuery.toLowerCase())
     );
 
-    // Apply local filtering to logs
     const filteredLogs = allLogs.filter(log => {
         const matchesSite = filterSite === '' || log.site_id === filterSite;
-        const logMonth = log.date.substring(0, 7); // YYYY-MM
+        const logMonth = log.date.substring(0, 7); 
         const matchesMonth = filterMonth === '' || logMonth === filterMonth;
         return matchesSite && matchesMonth;
     });
@@ -429,14 +491,12 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
 
     return (
         <div className="space-y-6 pb-20 animate-in fade-in duration-300">
-            {/* Header with back button */}
             <div className="flex justify-between items-center">
                  <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition">
                     <ArrowLeft size={16}/> Späť na tím
                  </button>
             </div>
 
-            {/* Profile Info Card */}
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-6 items-center md:items-start">
                 <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center font-bold text-3xl text-slate-400 border border-slate-200 shrink-0">
                     {emp.full_name?.charAt(0)}
@@ -444,6 +504,7 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 <div className="text-center md:text-left flex-1">
                     <h1 className="text-3xl font-black text-slate-900 leading-tight">{emp.full_name}</h1>
                     <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-2 text-sm">
+                         <span className="flex items-center gap-1 text-slate-500 font-medium"><Briefcase size={14}/> {emp.role === 'admin' ? 'Administrátor' : (emp.job_title || 'zamestnanec')}</span>
                          <span className="flex items-center gap-1 text-slate-500 font-medium"><Mail size={14}/> {emp.email}</span>
                          {emp.phone && <span className="flex items-center gap-1 text-slate-500 font-medium"><Phone size={14}/> {emp.phone}</span>}
                     </div>
@@ -454,7 +515,6 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 </div>
             </div>
 
-            {/* Filters Row with Integrated Stats */}
             <Card className="bg-slate-50 border-slate-200 p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div className="lg:col-span-1">
@@ -503,7 +563,6 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                         />
                     </div>
                     
-                    {/* Integrated Statistics - Worked Hours */}
                     <div className="lg:col-span-1">
                         <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm h-[46px] flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -514,7 +573,6 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                         </div>
                     </div>
 
-                    {/* Integrated Statistics - Earned */}
                     <div className="lg:col-span-1">
                         <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm h-[46px] flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -527,7 +585,6 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 </div>
             </Card>
 
-            {/* Detailed Logs List */}
             <div className="space-y-4">
                 <h3 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
                     <FileText className="text-orange-500" size={22}/> 
