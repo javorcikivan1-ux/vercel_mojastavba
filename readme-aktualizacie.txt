@@ -2,6 +2,9 @@ KAMERA:
 B. Povolenia (Permissions):
 V metadata.json máš kameru. Pre App Store a Google Play musíš v kóde (plist a manifest) definovať textové zdôvodnenie, prečo tú kameru chceš (napr. "Potrebujeme prístup k fotoaparátu, aby ste mohli pridávať fotky k záznamom v denníku"). Ak to tam nebude, vyhodia ťa hneď v prvom kole.
 
+robenie APK: „Keď zmením kód → vždy npm run build → vždy npx cap sync android → až potom Android build.“
+
+
 exe: 
 npm run build
 npm run electron:build
@@ -12,9 +15,6 @@ git add .
 git commit -m "moja zmena"
 git push
 
-
-
-robenie APK: „Keď zmením kód → vždy npm run build → vždy npx cap sync android → až potom Android build.“
 
 
 

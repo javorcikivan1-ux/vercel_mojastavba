@@ -94,7 +94,7 @@ const DownloadModal = ({ onClose }: { onClose: () => void }) => {
                     <div className="text-[10px] font-black text-blue-600 uppercase mb-2 flex items-center gap-1">
                         <Monitor size={12}/> Inštalácia na Windows
                     </div>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                    <p className="text-11px text-slate-500 leading-relaxed">
                         Pretože sme nová aplikácia, Windows môže zobraziť varovanie "SmartScreen". Kliknite na <strong>"Viac informácií"</strong> a následne <strong>"Spustiť aj tak"</strong>. Súbor je 100% bezpečný a skontrolovaný.
                     </p>
                 </div>
@@ -375,87 +375,89 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
         )}
       </main>
 
-      <footer className="bg-slate-900 text-white py-16 px-6">
-          <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
-              <div className="md:col-span-1">
-                  <div className="flex items-center gap-2 mb-6">
-                    <img src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" alt="Logo" className="w-10 h-10 object-contain" />
-                    <span className="font-black text-xl tracking-tight text-white">Moja<span className="text-orange-500">Stavba</span></span>
-                  </div>
-                  <p className="text-slate-400 text-sm leading-relaxed">
-                    Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 14 dní zadarmo a bez zadávania platobných údajov.
-                  </p>
-              </div>
+      {isWebOnly && (
+        <footer className="bg-slate-900 text-white py-16 px-6">
+            <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
+                <div className="md:col-span-1">
+                    <div className="flex items-center gap-2 mb-6">
+                      <img src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" alt="Logo" className="w-10 h-10 object-contain" />
+                      <span className="font-black text-xl tracking-tight text-white">Moja<span className="text-orange-500">Stavba</span></span>
+                    </div>
+                    <p className="text-slate-400 text-sm leading-relaxed">
+                      Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 14 dní zadarmo a bez zadávania platobných údajov.
+                    </p>
+                </div>
 
-              <div>
-                  <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Dôležité informácie</h4>
-                  <ul className="space-y-3">
-                      <li><button onClick={() => onSubscriptionClick()} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Cenník a predplatné</button></li>
-                      <li>
-                        {isWebOnly ? (
-                          <a href="/vseobecne-obchodne-podmienky.html" target="_blank" className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</a>
-                        ) : (
-                          <button onClick={() => setShowLegal('vop')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</button>
-                        )}
-                      </li>
-                      <li>
-                        {isWebOnly ? (
-                          <a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</a>
-                        ) : (
-                          <button onClick={() => setShowLegal('gdpr')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</button>
-                        )}
-                      </li>
-                  </ul>
-              </div>
+                <div>
+                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Dôležité informácie</h4>
+                    <ul className="space-y-3">
+                        <li><button onClick={() => onSubscriptionClick()} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Cenník a predplatné</button></li>
+                        <li>
+                          {isWebOnly ? (
+                            <a href="/vseobecne-obchodne-podmienky.html" target="_blank" className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</a>
+                          ) : (
+                            <button onClick={() => setShowLegal('vop')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</button>
+                          )}
+                        </li>
+                        <li>
+                          {isWebOnly ? (
+                            <a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</a>
+                          ) : (
+                            <button onClick={() => setShowLegal('gdpr')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</button>
+                          )}
+                        </li>
+                    </ul>
+                </div>
 
-              <div>
-                  <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Technická podpora</h4>
-                  <ul className="space-y-4">
-                      <li className="flex items-start gap-3">
-                          <Mail size={18} className="text-slate-500 mt-0.5"/>
-                          <div>
-                              <div className="text-[10px] font-black text-slate-600 uppercase">E-mail</div>
-                              <a href="mailto:sluzby@lordsbenison.eu" className="text-sm text-slate-300 hover:text-white transition">sluzby@lordsbenison.eu</a>
-                          </div>
-                      </li>
-                      <li className="flex items-start gap-3">
-                          <Phone size={18} className="text-slate-500 mt-0.5"/>
-                          <div>
-                              <div className="text-[10px] font-black text-slate-600 uppercase">Telefón</div>
-                              <a href="tel:+421948225713" className="text-sm text-slate-300 hover:text-white transition">+421 948 225 713</a>
-                          </div>
-                      </li>
-                      <li className="flex items-start gap-3">
-                          <Clock size={18} className="text-slate-500 mt-0.5"/>
-                          <div>
-                              <div className="text-[10px] font-black text-slate-600 uppercase">Pracovná doba</div>
-                              <div className="text-sm text-slate-300">Po - Pi (08:00 - 16:30)</div>
-                          </div>
-                      </li>
-                  </ul>
-              </div>
+                <div>
+                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Technická podpora</h4>
+                    <ul className="space-y-4">
+                        <li className="flex items-start gap-3">
+                            <Mail size={18} className="text-slate-500 mt-0.5"/>
+                            <div>
+                                <div className="text-[10px] font-black text-slate-600 uppercase">E-mail</div>
+                                <a href="mailto:sluzby@lordsbenison.eu" className="text-sm text-slate-300 hover:text-white transition">sluzby@lordsbenison.eu</a>
+                            </div>
+                        </li>
+                        <li className="flex items-start gap-3">
+                            <Phone size={18} className="text-slate-500 mt-0.5"/>
+                            <div>
+                                <div className="text-[10px] font-black text-slate-600 uppercase">Telefón</div>
+                                <a href="tel:+421948225713" className="text-sm text-slate-300 hover:text-white transition">+421 948 225 713</a>
+                            </div>
+                        </li>
+                        <li className="flex items-start gap-3">
+                            <Clock size={18} className="text-slate-500 mt-0.5"/>
+                            <div>
+                                <div className="text-[10px] font-black text-slate-600 uppercase">Pracovná doba</div>
+                                <div className="text-sm text-slate-300">Po - Pi (08:00 - 16:30)</div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
 
-              <div>
-                  <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Prevádzkovateľ</h4>
-                  <div className="space-y-3 text-sm text-slate-400">
-                      <p className="font-bold text-white">LORD'S BENISON s.r.o.</p>
-                      <p className="flex items-start">
-                        <span>M. Nandrássyho 654/10<br/>050 01 Revúca</span>
-                      </p>
-                      <div className="pt-2 text-xs border-t border-slate-800 space-y-1">
-                          <p>IČO: 52404901</p>
-                          <p>DIČ: 2121022992</p>
-                          <p>IČ DPH: SK2121022992</p>
-                      </div>
-                  </div>
-              </div>
-          </div>
-          <div className="max-w-6xl mx-auto mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-                  © 2026 Vyvinuté spoločnosťou LORD'S BENISON s.r.o. | Všetky práva vyhradené
-              </div>
-          </div>
-      </footer>
+                <div>
+                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Prevádzkovateľ</h4>
+                    <div className="space-y-3 text-sm text-slate-400">
+                        <p className="font-bold text-white">LORD'S BENISON s.r.o.</p>
+                        <p className="flex items-start">
+                          <span>M. Nandrássyho 654/10<br/>050 01 Revúca</span>
+                        </p>
+                        <div className="pt-2 text-xs border-t border-slate-800 space-y-1">
+                            <p>IČO: 52404901</p>
+                            <p>DIČ: 2121022992</p>
+                            <p>IČ DPH: SK2121022992</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div className="max-w-6xl mx-auto mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                    © 2026 Vyvinuté spoločnosťou LORD'S BENISON s.r.o. | Všetky práva vyhradené
+                </div>
+            </div>
+        </footer>
+      )}
 
       {showDownloadModal && <DownloadModal onClose={() => setShowDownloadModal(false)} />}
       {showLegal && <LegalModal type={showLegal} onClose={() => setShowLegal(null)} />}
