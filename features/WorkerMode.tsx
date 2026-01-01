@@ -6,7 +6,8 @@ import {
   HardHat, Building2, Calendar, Clock, CheckCircle2, Send, Loader2, 
   WifiOff, LayoutGrid, ListTodo, User, LogOut, 
   ChevronRight, MapPin, TrendingUp, Wallet, Phone, Lock, Info, Zap,
-  Activity, ChevronLeft, Mail, Pencil, Save, Coins, AlertCircle, History, ArrowRight, Camera, KeyRound, Shield
+  Activity, ChevronLeft, Mail, Pencil, Save, Coins, AlertCircle, History, ArrowRight, Camera, KeyRound, Shield, Briefcase, Filter, Search,
+  ChevronDown, Banknote, ChevronUp, ArrowUp
 } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 
@@ -16,7 +17,6 @@ import { Capacitor } from '@capacitor/core';
 const PRIORITY_FLAG = "#PRIORITY";
 const HISTORY_PAGE_SIZE = 20;
 
-// Pomocná funkcia pre kompresiu profilovej fotky
 const compressAvatar = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -44,6 +44,13 @@ const compressAvatar = (file: File): Promise<Blob> => {
     });
 };
 
+const getLocalDateISO = (date: Date) => {
+    const y = date.getFullYear();
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
 interface WorkerModeProps {
   profile: any;
   onLogout: () => void;
@@ -52,7 +59,7 @@ interface WorkerModeProps {
 
 export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialProfile, onLogout, onTabChange }) => {
   const [profile, setProfile] = useState(initialProfile);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'log' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'log' | 'history' | 'profile' | 'advances'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
@@ -65,18 +72,37 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
   const [hasMoreDone, setHasMoreDone] = useState(true);
   const [loadingMoreDone, setLoadingMoreDone] = useState(false);
 
-  const [stats, setStats] = useState({ monthHours: 0, monthEarned: 0, weeklyHistory: [] as any[] });
+  // History state
+  const [historyLogs, setHistoryLogs] = useState<any[]>([]);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historySiteFilter, setHistorySiteFilter] = useState('');
+  const [historyYearFilter, setHistoryYearFilter] = useState(new Date().getFullYear().toString());
+  const [relevantSites, setRelevantSites] = useState<any[]>([]);
+  const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Advances state
+  const [myAdvances, setMyAdvances] = useState<any[]>([]);
+  const [loadingAdvances, setLoadingAdvances] = useState(false);
+
+  const [stats, setStats] = useState({ monthHours: 0, monthEarned: 0, todayHours: 0, weeklyHistory: [] as any[] });
   const [lastLogs, setLastLogs] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showHistory, setShowHistory] = useState(false);
 
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+
   const [logForm, setLogForm] = useState({
       site_id: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateISO(new Date()),
       start_time: '07:00',
       end_time: '15:30',
       hours: '8.5',
-      description: ''
+      description: '',
+      payment_type: 'hourly' as 'hourly' | 'fixed',
+      fixed_amount: ''
   });
 
   const [profileForm, setProfileForm] = useState({
@@ -84,7 +110,6 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       phone: profile?.phone || ''
   });
 
-  // Password change state
   const [passwordForm, setPasswordForm] = useState({ new: '', confirm: '' });
 
   const [actionLoading, setActionLoading] = useState(false);
@@ -94,42 +119,45 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // NATIVE BACK BUTTON HANDLER
+  // Detect scroll to show/hide "Back to Top"
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      const initBackListener = async () => {
-        const handler = await CapApp.addListener('backButton', () => {
-          if (selectedTask) {
-            setSelectedTask(null);
-          } else if (activeTab !== 'dashboard') {
-            setActiveTab('dashboard');
-            setSuccess(false);
-          } else {
-            CapApp.exitApp();
-          }
-        });
-        return handler;
-      };
+    const handleScroll = () => {
+        if (mainScrollRef.current) {
+            setShowScrollTop(mainScrollRef.current.scrollTop > 500);
+        }
+    };
+    const el = mainScrollRef.current;
+    el?.addEventListener('scroll', handleScroll);
+    return () => el?.removeEventListener('scroll', handleScroll);
+  }, []);
 
-      const listenerPromise = initBackListener();
-      return () => {
-        listenerPromise.then(h => h.remove());
-      };
-    }
-  }, [activeTab, selectedTask]);
+  const scrollToTop = () => {
+    mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const loadAllData = useCallback(async () => {
     if (!profile?.id) return;
     setLoading(true);
+    
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const todayStr = getLocalDateISO(now);
+    const startOfMonth = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-01`;
+
+    const curr = new Date(now);
+    const day = curr.getDay(); 
+    const diffToMon = curr.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(curr.setDate(diffToMon));
+    monday.setHours(0,0,0,0);
+    const weekStartStr = getLocalDateISO(monday);
 
     try {
-        const [sitesRes, todoTasksRes, logsRes, profileRes] = await Promise.all([
+        const [sitesRes, todoTasksRes, logsRes, profileRes, weekLogsRes, advancesRes] = await Promise.all([
             supabase.from('sites').select('id, name').eq('organization_id', profile.organization_id).eq('status', 'active'),
             supabase.from('tasks').select('*, sites(name)').eq('assigned_to', profile.id).eq('status', 'todo').order('start_date', { ascending: true }),
             supabase.from('attendance_logs').select('*, sites(name)').eq('user_id', profile.id).gte('date', startOfMonth).order('date', { ascending: false }),
-            supabase.from('profiles').select('*').eq('id', profile.id).single()
+            supabase.from('profiles').select('*').eq('id', profile.id).single(),
+            supabase.from('attendance_logs').select('date, hours').eq('user_id', profile.id).gte('date', weekStartStr),
+            supabase.from('advances').select('*').eq('user_id', profile.id).order('date', { ascending: false })
         ]);
 
         if (profileRes.data) {
@@ -141,29 +169,39 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
         }
         if (sitesRes.data) setProjects(sitesRes.data);
         if (todoTasksRes.data) setTodoTasks(todoTasksRes.data);
+        if (advancesRes.data) setMyAdvances(advancesRes.data);
         
-        // Reset Done tasks (history) to first page
-        setDonePage(0);
-        setDoneTasks([]);
-        setHasMoreDone(true);
-
         if (logsRes.data) {
             setLastLogs(logsRes.data.slice(0, 5));
             const totalH = logsRes.data.reduce((sum, l) => sum + Number(l.hours), 0);
-            const earned = logsRes.data.reduce((sum, l) => sum + (Number(l.hours) * (l.hourly_rate_snapshot || profile.hourly_rate || 0)), 0);
+            const todayH = weekLogsRes.data?.filter(l => l.date === todayStr).reduce((sum, l) => sum + Number(l.hours), 0) || 0;
             
-            const historyMap: Record<string, number> = {};
-            for(let i=0; i<7; i++) {
-                const d = new Date();
-                d.setDate(now.getDate() - i);
-                historyMap[d.toISOString().split('T')[0]] = 0;
+            const earned = logsRes.data.reduce((sum, l) => {
+                if (l.payment_type === 'fixed') {
+                    return sum + Number(l.fixed_amount || 0);
+                }
+                const rate = l.hourly_rate_snapshot || profile.hourly_rate || 0;
+                return sum + (Number(l.hours) * rate);
+            }, 0);
+            
+            const weekDays = [];
+            const tempDate = new Date(monday);
+            for(let i = 0; i < 7; i++) {
+                const dateStr = getLocalDateISO(tempDate);
+                const dayLogs = (weekLogsRes.data || []).filter(l => l.date === dateStr);
+                const dayHours = dayLogs.reduce((s, l) => s + Number(l.hours), 0);
+                
+                weekDays.push({
+                    date: dateStr,
+                    dayNum: tempDate.getDate(),
+                    label: tempDate.toLocaleDateString('sk-SK', { weekday: 'short' }),
+                    hours: dayHours,
+                    isToday: dateStr === todayStr
+                });
+                tempDate.setDate(tempDate.getDate() + 1);
             }
-            logsRes.data.forEach(l => {
-                if (historyMap[l.date] !== undefined) historyMap[l.date] += Number(l.hours);
-            });
-            const historyArr = Object.entries(historyMap).map(([date, hours]) => ({ date, hours })).reverse();
 
-            setStats({ monthHours: totalH, monthEarned: earned, weeklyHistory: historyArr });
+            setStats({ monthHours: totalH, monthEarned: earned, todayHours: todayH, weeklyHistory: weekDays });
         }
     } catch (e) {
         console.error("Chyba pri načítaní dát:", e);
@@ -171,6 +209,27 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
         setLoading(false);
     }
   }, [profile.id, profile.organization_id, profile.hourly_rate]);
+
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
+
+  useEffect(() => {
+      if (showHistory && doneTasks.length === 0) {
+          loadDoneTasks(0);
+      }
+  }, [showHistory]);
+
+  useEffect(() => {
+      if (activeTab === 'history') {
+          setHistoryPage(0);
+          loadHistoryLogs(0, true);
+      }
+  }, [activeTab, historySiteFilter, historyYearFilter]);
+
+  useEffect(() => {
+    if (onTabChange) onTabChange(activeTab);
+  }, [activeTab, onTabChange]);
 
   const loadDoneTasks = async (page = 0) => {
       if (!profile?.id) return;
@@ -199,23 +258,100 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       }
   };
 
-  useEffect(() => {
-    loadAllData();
-  }, [loadAllData]);
+  const loadHistoryLogs = async (page = 0, reset = false) => {
+    if (!profile?.id) return;
+    setLoadingHistory(true);
+    const from = page * HISTORY_PAGE_SIZE;
+    const to = from + HISTORY_PAGE_SIZE - 1;
 
-  // Load history only when tab is active
-  useEffect(() => {
-      if (showHistory && doneTasks.length === 0) {
-          loadDoneTasks(0);
+    try {
+        let query = supabase
+            .from('attendance_logs')
+            .select('*, sites(name)')
+            .eq('user_id', profile.id)
+            .order('date', { ascending: false })
+            .range(from, to);
+        
+        if (historySiteFilter) {
+            query = query.eq('site_id', historySiteFilter);
+        }
+        
+        if (historyYearFilter) {
+            query = query.gte('date', `${historyYearFilter}-01-01`).lte('date', `${historyYearFilter}-12-31`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        if (data) {
+            setHistoryLogs(prev => reset ? data : [...prev, ...data]);
+            setHasMoreHistory(data.length === HISTORY_PAGE_SIZE);
+            
+            if (reset && data.length > 0) {
+                // Auto-expand first month of the new view
+                const firstMonth = new Date(data[0].date).toLocaleString('sk-SK', { month: 'long', year: 'numeric' });
+                setExpandedMonths({ [firstMonth]: true });
+            }
+        }
+
+        if (reset) {
+            // Optimized query for relevant sites
+            const { data: siteIdsData } = await supabase
+                .from('attendance_logs')
+                .select('site_id, sites(name)')
+                .eq('user_id', profile.id)
+                .limit(500); // Limit to recent 500 logs for site extraction to boost perf
+            
+            if (siteIdsData) {
+                const uniqueSitesMap = new Map();
+                siteIdsData.forEach((item: any) => {
+                    if (item.site_id && !uniqueSitesMap.has(item.site_id)) {
+                        uniqueSitesMap.set(item.site_id, item.sites?.name || 'Neznáma stavba');
+                    }
+                });
+                const uniqueSites = Array.from(uniqueSitesMap.entries()).map(([id, name]) => ({ id, name }));
+                setRelevantSites(uniqueSites);
+            }
+        }
+    } catch (e) {
+        console.error("Chyba pri načítaní histórie prác:", e);
+    } finally {
+        setLoadingHistory(false);
+    }
+  };
+
+  const groupedHistory = useMemo(() => {
+      const groups: Record<string, { logs: any[], totalHours: number, totalEarned: number }> = {};
+      historyLogs.forEach(log => {
+          const date = new Date(log.date);
+          const monthKey = date.toLocaleString('sk-SK', { month: 'long', year: 'numeric' });
+          if (!groups[monthKey]) groups[monthKey] = { logs: [], totalHours: 0, totalEarned: 0 };
+          
+          groups[monthKey].logs.push(log);
+          groups[monthKey].totalHours += Number(log.hours || 0);
+          
+          if (log.payment_type === 'fixed') {
+              groups[monthKey].totalEarned += Number(log.fixed_amount || 0);
+          } else {
+              groups[monthKey].totalEarned += Number(log.hours || 0) * (log.hourly_rate_snapshot || profile.hourly_rate || 0);
+          }
+      });
+      return Object.entries(groups);
+  }, [historyLogs, profile.hourly_rate]);
+
+  // Generate years list (from 2024 to current + past years based on profile created_at)
+  const availableYears = useMemo(() => {
+      const currentYear = new Date().getFullYear();
+      const startYear = profile?.created_at ? new Date(profile.created_at).getFullYear() : 2024;
+      const years = [];
+      for(let y = currentYear; y >= Math.min(startYear, 2024); y--) {
+          years.push(y.toString());
       }
-  }, [showHistory]);
-
-  useEffect(() => {
-    if (onTabChange) onTabChange(activeTab);
-  }, [activeTab, onTabChange]);
+      return years;
+  }, [profile?.created_at]);
 
   const taskGroups = useMemo(() => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateISO(new Date());
       return {
           overdue: todoTasks.filter(t => t.start_date?.split('T')[0] < today),
           today: todoTasks.filter(t => t.start_date?.split('T')[0] === today),
@@ -248,6 +384,10 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
     e.preventDefault();
     setActionLoading(true);
     
+    const cleanFixedAmount = logForm.payment_type === 'fixed' 
+        ? parseFloat(String(logForm.fixed_amount).replace(/[^0-9.]/g, '')) || 0
+        : 0;
+
     const [sH, sM] = logForm.start_time.split(':').map(Number);
     const [eH, eM] = logForm.end_time.split(':').map(Number);
     let totalMinutes = (eH * 60 + eM) - (sH * 60 + sM);
@@ -261,19 +401,22 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
         date: logForm.date,
         start_time: logForm.start_time,
         end_time: logForm.end_time,
-        hours: calculatedHours,
+        hours: calculatedHours, 
         description: logForm.description,
-        hourly_rate_snapshot: profile.hourly_rate || 0
+        hourly_rate_snapshot: profile.hourly_rate || 0,
+        payment_type: logForm.payment_type,
+        fixed_amount: cleanFixedAmount
     };
 
     try {
-        if(!logForm.site_id) throw new Error("Vyberte stavbu.");
+        if(!logForm.site_id) throw new Error("Vyberte stavba.");
+        if(logForm.payment_type === 'fixed' && cleanFixedAmount <= 0) throw new Error("Zadajte platnú sumu za úkol.");
         const { error } = await supabase.from('attendance_logs').insert([payload]);
         if(error) throw error;
         setSuccess(true);
         setTimeout(() => {
             setSuccess(false);
-            setLogForm(prev => ({ ...prev, description: '' }));
+            setLogForm(prev => ({ ...prev, description: '', fixed_amount: '', payment_type: 'hourly' }));
             loadAllData();
             setActiveTab('dashboard');
         }, 1500);
@@ -328,9 +471,10 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
           try {
               const blob = await compressAvatar(file);
               const fileName = `avatars/${profile.id}-${Date.now()}.jpg`;
-              const { error: uploadError } = await supabase.storage.from('diary-photos').upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+              const filePath = `photos/${fileName}`;
+              const { error: uploadError } = await supabase.storage.from('diary-photos').upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
               if (uploadError) throw uploadError;
-              const { data: { publicUrl } } = supabase.storage.from('diary-photos').getPublicUrl(fileName);
+              const { data: { publicUrl } } = supabase.storage.from('diary-photos').getPublicUrl(filePath);
               
               await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', profile.id);
               setProfile({ ...profile, avatar_url: publicUrl });
@@ -343,42 +487,9 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       }
   };
 
-  const TaskItem = ({ task }: { task: any }) => {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const taskDateStr = task.start_date?.split('T')[0];
-      const isToday = taskDateStr === todayStr;
-      const isPast = taskDateStr < todayStr && task.status !== 'done';
-      
-      return (
-          <div 
-            onClick={() => setSelectedTask(task)} 
-            className={`bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group cursor-pointer hover:border-orange-300 transition-all active:scale-[0.98] ${isPast ? 'border-l-4 border-l-red-500' : isToday ? 'border-l-4 border-l-orange-500' : ''}`}
-          >
-              <div className="flex gap-3 items-center min-w-0">
-                  <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <h4 className="font-bold text-slate-800 text-sm truncate">{task.title}</h4>
-                        {task.description?.includes(PRIORITY_FLAG) && <AlertCircle size={12} className="text-red-500 shrink-0" />}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-bold truncate uppercase flex items-center gap-1.5">
-                          <Building2 size={10}/> {task.sites?.name}
-                          <span className="text-slate-200">|</span>
-                          <Calendar size={10}/> {formatDate(task.start_date)}
-                      </div>
-                  </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                  {task.status === 'done' ? (
-                      <CheckCircle2 size={18} className="text-green-500" />
-                  ) : (
-                      <ChevronRight className="text-slate-300 group-hover:text-orange-500" size={16}/>
-                  )}
-              </div>
-          </div>
-      );
+  const toggleMonth = (monthKey: string) => {
+      setExpandedMonths(prev => ({ ...prev, [monthKey]: !prev[monthKey] }));
   };
-
-  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-orange-600" size={32}/></div>;
 
   const NavItem = ({ id, label, icon: Icon, count, colorClass }: any) => (
     <button
@@ -403,8 +514,44 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
     </button>
   );
 
+  const TaskItem = ({ task }: { task: any }) => {
+      const todayStr = getLocalDateISO(new Date());
+      const taskDateStr = task.start_date?.split('T')[0];
+      const isToday = taskDateStr === todayStr;
+      const isPast = taskDateStr < todayStr && task.status !== 'done';
+      
+      return (
+          <div 
+            onClick={() => setSelectedTask(task)} 
+            className={`bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group cursor-pointer hover:border-orange-300 transition-all active:scale-[0.98] ${isPast ? 'border-l-4 border-l-red-500' : isToday ? 'border-l-4 border-l-orange-500' : ''}`}
+          >
+              <div className="flex gap-3 items-center min-w-0 flex-1">
+                  <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h4 className="font-bold text-slate-800 text-sm truncate">{task.title}</h4>
+                        {task.description?.includes(PRIORITY_FLAG) && <AlertCircle size={12} className="text-red-500 shrink-0" />}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase truncate uppercase flex items-center gap-1.5 flex-wrap">
+                          <span className="flex items-center gap-1 max-w-[120px] truncate"><Building2 size={10}/> {task.sites?.name}</span>
+                          <span className="text-slate-200">|</span>
+                          <span className="flex items-center gap-1"><Calendar size={10}/> {formatDate(task.start_date)}</span>
+                      </div>
+                  </div>
+              </div>
+              <div className="flex center gap-2 shrink-0 ml-2">
+                  {task.status === 'done' ? (
+                      <CheckCircle2 size={18} className="text-green-500" />
+                  ) : (
+                      <ChevronRight className="text-slate-300 group-hover:text-orange-500" size={16}/>
+                  )}
+              </div>
+          </div>
+      );
+  };
+
   const showWage = profile.show_wage_in_profile ?? true;
   const unfinishedPastCount = taskGroups.overdue.length;
+  const pendingAdvancesTotal = myAdvances.filter(a => a.status === 'pending').reduce((sum, a) => sum + Number(a.amount), 0);
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden pt-safe-top">
@@ -430,6 +577,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
               <NavItem id="dashboard" label="Domov" icon={LayoutGrid} colorClass="text-orange-600" />
               <NavItem id="tasks" label="Moje Úlohy" icon={ListTodo} count={todoTasks.length} colorClass="text-blue-500" />
               <NavItem id="log" label="Zápis Práce" icon={Zap} colorClass="text-emerald-500" />
+              <NavItem id="advances" label="Moje Zálohy" icon={Banknote} colorClass="text-orange-500" />
+              <NavItem id="history" label="Moja História" icon={History} colorClass="text-blue-600" />
               <NavItem id="profile" label="Môj Profil" icon={User} colorClass="text-purple-500" />
           </nav>
 
@@ -452,7 +601,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
 
               {!isSidebarCollapsed && (
                 <button onClick={onLogout} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-500 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50">
-                    <LogOut size={16}/> "Odhlásiť sa"
+                    <LogOut size={16}/> Odhlásiť sa
                 </button>
               )}
           </div>
@@ -462,7 +611,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
           </button>
       </aside>
 
-      <main className="flex-1 overflow-y-auto relative flex flex-col w-full pb-24 md:pb-0 scroll-container">
+      <main ref={mainScrollRef} className="flex-1 overflow-y-auto relative flex flex-col w-full pb-24 md:pb-0 scroll-container">
           
           <div className="md:hidden bg-white border-b border-slate-200 p-4 px-6 flex justify-between items-center sticky top-0 z-30 shadow-sm">
                <div className="flex items-center gap-2">
@@ -500,7 +649,6 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                           <div className="lg:col-span-2 space-y-4">
                               
-                              {/* OVERDUE ALERT */}
                               {unfinishedPastCount > 0 && (
                                   <div 
                                     onClick={() => setActiveTab('tasks')}
@@ -514,6 +662,22 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                           </div>
                                       </div>
                                       <ArrowRight size={18} className="text-red-400 group-hover:translate-x-1 transition-transform"/>
+                                  </div>
+                              )}
+
+                              {pendingAdvancesTotal > 0 && (
+                                  <div 
+                                    onClick={() => setActiveTab('advances')}
+                                    className="bg-orange-50 border border-orange-200 p-4 rounded-xl flex items-center justify-between cursor-pointer group hover:bg-orange-100 transition animate-in zoom-in"
+                                  >
+                                      <div className="flex items-center gap-3">
+                                          <div className="bg-orange-500 text-white p-2 rounded-lg shadow-sm"><Banknote size={18}/></div>
+                                          <div>
+                                              <p className="text-xs font-black text-orange-700 uppercase tracking-tight">Nevyrovnané zálohy</p>
+                                              <p className="text-sm font-bold text-orange-900">Aktuálne čerpáte zálohy v hodnote <span className="font-black">{formatMoney(pendingAdvancesTotal)}</span>.</p>
+                                          </div>
+                                      </div>
+                                      <ChevronRight size={18} className="text-orange-400"/>
                                   </div>
                               )}
 
@@ -537,19 +701,38 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                   )}
                               </div>
 
-                              <Card className="p-4 border-slate-200 mt-6">
-                                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Týždenná aktivita</h3>
-                                  <div className="flex items-end justify-between h-24 gap-2 px-2">
-                                      {stats.weeklyHistory.map((h, i) => {
+                              <Card className="p-5 border-slate-200 mt-6 shadow-sm overflow-hidden">
+                                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-10 flex items-center gap-2">
+                                      <Activity size={14} className="text-orange-500"/> Týždenná aktivita (Po - Ne)
+                                  </h3>
+                                  <div className="flex items-end justify-between h-32 gap-2 md:gap-4 px-1">
+                                      {stats.weeklyHistory.map((h) => {
                                           const maxH = Math.max(...stats.weeklyHistory.map(x => x.hours), 8);
                                           const height = (h.hours / maxH) * 100;
-                                          const isToday = i === 6;
                                           return (
-                                              <div key={h.date} className="flex-1 flex flex-col items-center gap-1.5">
-                                                  <div className={`w-full rounded-t-md transition-all duration-500 ${isToday ? 'bg-orange-500' : 'bg-slate-100'}`} style={{ height: `${height}%` }}></div>
-                                                  <span className={`text-[9px] font-bold uppercase ${isToday ? 'text-orange-600' : 'text-slate-400'}`}>
-                                                      {new Date(h.date).toLocaleDateString('sk-SK', { weekday: 'short' }).substring(0, 2)}
-                                                  </span>
+                                              <div key={h.date} className="flex-1 flex flex-col items-center gap-2 group">
+                                                  <div className="relative w-full flex flex-col justify-end items-center h-full">
+                                                      <div className={`absolute bottom-[calc(100%+4px)] text-[9px] md:text-[10px] font-black transition-all ${h.hours > 0 ? 'opacity-100 scale-100 text-slate-800' : 'opacity-40 scale-90 text-slate-300'}`}>
+                                                          {h.hours > 0 ? `${h.hours.toFixed(1)}h` : '0h'}
+                                                      </div>
+                                                      <div 
+                                                          className={`w-full max-w-[32px] rounded-t-xl transition-all duration-1000 min-h-[4px] relative ${
+                                                              h.isToday 
+                                                              ? 'bg-gradient-to-t from-orange-600 to-orange-400 shadow-lg shadow-orange-200' 
+                                                              : h.hours > 0 ? 'bg-slate-200 group-hover:bg-orange-200' : 'bg-slate-50'
+                                                          }`} 
+                                                          style={{ height: `${Math.max(4, height)}%` }}
+                                                      >
+                                                      </div>
+                                                  </div>
+                                                  <div className="flex flex-col items-center">
+                                                      <span className={`text-[10px] font-black uppercase tracking-tighter ${h.isToday ? 'text-orange-600' : 'text-slate-400'}`}>
+                                                          {h.label}
+                                                      </span>
+                                                      <span className={`text-[8px] font-bold leading-none mt-1 ${h.isToday ? 'text-orange-400' : 'text-slate-300'}`}>
+                                                          {h.dayNum}.
+                                                      </span>
+                                                  </div>
                                               </div>
                                           );
                                       })}
@@ -561,20 +744,81 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 px-2">
                                   <Clock size={16} className="text-blue-500"/> Posledné záznamy
                                </h3>
-                               <div className="space-y-2">
+                               <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar px-1">
                                    {lastLogs.map(log => (
-                                       <div key={log.id} className="bg-white p-3 rounded-xl border border-slate-200 text-xs shadow-sm">
+                                       <div key={log.id} className="bg-white p-3 rounded-xl border border-slate-200 text-xs shadow-sm mb-2 last:mb-0">
                                            <div className="font-bold text-slate-800 truncate">{log.sites?.name}</div>
                                            <div className="flex justify-between items-center mt-1">
                                                <span className="text-slate-400 font-bold uppercase text-[9px]">{formatDate(log.date)}</span>
-                                               <span className="font-black text-slate-900 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{formatDuration(Number(log.hours))}</span>
+                                               <span className="font-black text-slate-900 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                                  {log.payment_type === 'fixed' ? (showWage ? formatMoney(log.fixed_amount) : 'Úkol') : formatDuration(Number(log.hours))}
+                                               </span>
                                            </div>
                                        </div>
                                    ))}
+                                   {lastLogs.length === 0 && (
+                                       <div className="text-center py-8 text-slate-300 text-[10px] font-bold uppercase border-2 border-dashed border-slate-100 rounded-xl">Žiadne záznamy</div>
+                                   )}
                                </div>
-                               <Button variant="secondary" fullWidth onClick={() => setActiveTab('log')} className="h-10 text-[10px] font-black uppercase tracking-widest border-slate-200">
+                               <Button variant="secondary" fullWidth onClick={() => setActiveTab('log')} className="h-10 text-[10px] font-black uppercase tracking-widest border-slate-200 shadow-sm">
                                    <Zap size={14}/> Zapísať prácu
                                </Button>
+                          </div>
+                      </div>
+                  </div>
+              )}
+
+              {activeTab === 'advances' && (
+                  <div className="animate-in slide-in-from-right-2 space-y-6">
+                      <div className="text-center py-4">
+                         <h2 className="text-2xl font-black text-slate-900 flex items-center justify-center gap-2">
+                            <Banknote className="text-orange-600" size={28} /> Moje Zálohy
+                         </h2>
+                         <p className="text-xs text-slate-400 font-bold uppercase mt-1">Prehľad vyčerpaných a vyrovnaných záloh</p>
+                      </div>
+
+                      <Card className="bg-white border-orange-100 shadow-sm p-6 text-center relative overflow-hidden">
+                          <div className="relative z-10">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Aktuálne čerpáte (nevyrovnané)</p>
+                              <p className="text-4xl font-black text-orange-600 tracking-tight">{formatMoney(pendingAdvancesTotal)}</p>
+                          </div>
+                          <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12">
+                              <Banknote size={100} />
+                          </div>
+                      </Card>
+
+                      <div className="space-y-4">
+                          <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
+                              <History size={14} className="text-blue-500"/> História čerpania
+                          </h3>
+                          
+                          <div className="grid grid-cols-1 gap-3">
+                              {myAdvances.length === 0 ? (
+                                  <div className="py-20 text-center text-slate-300 border-2 border-dashed border-slate-200 rounded-2xl font-bold uppercase text-[10px]">
+                                      Zatiaľ ste nečerpali žiadne zálohy.
+                                  </div>
+                              ) : (
+                                  myAdvances.map(adv => (
+                                      <div key={adv.id} className={`bg-white p-4 rounded-xl border shadow-sm flex items-center justify-between transition-all ${adv.status === 'settled' ? 'opacity-60 border-slate-200' : 'border-orange-200'}`}>
+                                          <div>
+                                              <div className="font-black text-slate-900 flex items-center gap-2">
+                                                  {formatMoney(adv.amount)}
+                                                  {adv.status === 'settled' ? (
+                                                      <span className="text-[8px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full uppercase">Vyrovnaná</span>
+                                                  ) : (
+                                                      <span className="text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full uppercase">Čaká na dorovnanie</span>
+                                                  )}
+                                              </div>
+                                              <div className="text-[10px] text-slate-400 font-bold uppercase mt-1 flex items-center gap-1">
+                                                  <Calendar size={10}/> {formatDate(adv.date)}
+                                              </div>
+                                          </div>
+                                          <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300">
+                                              <Banknote size={20} />
+                                          </div>
+                                      </div>
+                                  ))
+                              )}
                           </div>
                       </div>
                   </div>
@@ -598,8 +842,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                       </div>
                       
                       <div className="space-y-8">
-                          {/* OVERDUE SECTION */}
-                          {taskGroups.overdue.length > 0 && !showHistory && (
+                          {unfinishedPastCount > 0 && !showHistory && (
                               <div className="space-y-3">
                                   <h3 className="text-[11px] font-black text-red-600 uppercase tracking-[0.2em] flex items-center gap-2">
                                       <AlertCircle size={14}/> Zmeškané úlohy ({taskGroups.overdue.length})
@@ -610,7 +853,6 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                               </div>
                           )}
 
-                          {/* TODAY SECTION */}
                           {!showHistory && (
                             <div className="space-y-3">
                                 <h3 className="text-[11px] font-black text-orange-600 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -626,7 +868,6 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                             </div>
                           )}
 
-                          {/* UPCOMING SECTION */}
                           {!showHistory && taskGroups.upcoming.length > 0 && (
                             <div className="space-y-3">
                                 <h3 className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -638,7 +879,6 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                             </div>
                           )}
 
-                          {/* HISTORY SECTION (WITH PAGINATION) */}
                           {showHistory && (
                               <div className="space-y-3 animate-in slide-in-from-bottom-4">
                                   <h3 className="text-[11px] font-black text-green-600 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -676,6 +916,144 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                   </div>
               )}
 
+              {activeTab === 'history' && (
+                  <div className="animate-in slide-in-from-bottom-2 space-y-6">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                          <div className="flex-1">
+                            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                            <History className="text-blue-600" size={24}/> Moja História
+                            </h2>
+                            <p className="text-xs text-slate-400 font-bold uppercase mt-1">Archív všetkých vašich výkonov</p>
+                          </div>
+                          
+                          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                              <div className="relative">
+                                  <select 
+                                    value={historyYearFilter} 
+                                    onChange={e => setHistoryYearFilter(e.target.value)}
+                                    className="w-full sm:w-28 pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition shadow-sm appearance-none"
+                                  >
+                                      {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                                  </select>
+                                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+                                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14}/>
+                              </div>
+
+                              <div className="relative">
+                                  <select 
+                                    value={historySiteFilter} 
+                                    onChange={e => setHistorySiteFilter(e.target.value)}
+                                    className="w-full sm:w-56 pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition shadow-sm appearance-none"
+                                  >
+                                      <option value="">Všetky stavby</option>
+                                      {relevantSites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                  </select>
+                                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+                                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14}/>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="space-y-4 pb-12">
+                          {groupedHistory.map(([month, data]) => {
+                              const isExpanded = expandedMonths[month];
+                              return (
+                                  <div key={month} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+                                      <button 
+                                          onClick={() => toggleMonth(month)}
+                                          className={`w-full flex items-center justify-between p-4 text-left transition-colors ${isExpanded ? 'bg-slate-50 border-b border-slate-200' : 'hover:bg-slate-50'}`}
+                                      >
+                                          <div className="flex items-center gap-3">
+                                              <div className={`p-2 rounded-lg ${isExpanded ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                  <Calendar size={18} />
+                                              </div>
+                                              <div>
+                                                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">{month}</h3>
+                                                  <div className="flex items-center gap-3 mt-0.5">
+                                                      <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                                                          <Clock size={10}/> {formatDuration(data.totalHours)}
+                                                      </span>
+                                                      {showWage && (
+                                                          <span className="text-[10px] font-bold text-green-600 flex items-center gap-1">
+                                                              <Wallet size={10}/> {formatMoney(data.totalEarned)}
+                                                          </span>
+                                                      )}
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          {isExpanded ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
+                                      </button>
+                                      
+                                      {isExpanded && (
+                                          <div className="divide-y divide-slate-100 animate-in slide-in-from-top-1">
+                                              {data.logs.map(log => (
+                                                  <div key={log.id} className="p-4 hover:bg-slate-50 transition-colors group">
+                                                      <div className="flex justify-between items-start gap-4">
+                                                          <div className="min-w-0 flex-1">
+                                                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                                  <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
+                                                                      {new Date(log.date).getDate()}. {new Date(log.date).toLocaleString('sk-SK', { month: 'short' })}
+                                                                  </span>
+                                                                  <div className="font-bold text-slate-800 truncate text-xs">{log.sites?.name}</div>
+                                                                  {log.payment_type === 'fixed' && (
+                                                                      <span className="text-[8px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-md font-black uppercase tracking-tighter">Úkol</span>
+                                                                  )}
+                                                              </div>
+                                                              <div className="text-[9px] text-slate-400 font-bold uppercase flex items-center gap-2">
+                                                                  <Clock size={9}/> {log.start_time} - {log.end_time}
+                                                              </div>
+                                                              {log.description && (
+                                                                  <p className="text-[11px] text-slate-500 mt-2 italic leading-tight line-clamp-2">
+                                                                      {log.description}
+                                                                  </p>
+                                                              )}
+                                                          </div>
+                                                          <div className="text-right shrink-0">
+                                                              <div className="text-sm font-black text-slate-900">{formatDuration(Number(log.hours))}</div>
+                                                              {showWage && (
+                                                                  <div className={`text-[10px] font-black ${log.payment_type === 'fixed' ? 'text-orange-600' : 'text-green-600'}`}>
+                                                                      {log.payment_type === 'fixed' ? formatMoney(log.fixed_amount) : `+${formatMoney(Number(log.hours) * (log.hourly_rate_snapshot || profile.hourly_rate || 0))}`}
+                                                                  </div>
+                                                              )}
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              ))}
+                                          </div>
+                                      )}
+                                  </div>
+                              );
+                          })}
+
+                          {historyLogs.length === 0 && !loadingHistory && (
+                              <div className="py-20 text-center">
+                                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 opacity-50">
+                                      <Search size={32} className="text-slate-400"/>
+                                  </div>
+                                  <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Pre rok {historyYearFilter} sa nenašli žiadne záznamy.</p>
+                              </div>
+                          )}
+
+                          {hasMoreHistory && (
+                              <div className="flex justify-center pt-6">
+                                  <Button 
+                                    variant="secondary" 
+                                    loading={loadingHistory}
+                                    onClick={() => {
+                                        const next = historyPage + 1;
+                                        setHistoryPage(next);
+                                        loadHistoryLogs(next);
+                                    }}
+                                    className="bg-white border-slate-200 shadow-sm min-w-[200px] h-11 text-[10px] font-black uppercase tracking-widest"
+                                  >
+                                      Načítať ďalšie z {historyYearFilter}
+                                  </Button>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              )}
+
               {activeTab === 'log' && (
                   <div className="animate-in zoom-in-95 max-w-xl mx-auto space-y-6">
                       <div className="text-center">
@@ -697,15 +1075,20 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                           <form onSubmit={handleLogSubmit} className="space-y-4">
                               <Card className="shadow-sm border-slate-200">
                                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Kde ste dnes pracovali?</label>
-                                  <select 
-                                      value={logForm.site_id} 
-                                      onChange={e => setLogForm({...logForm, site_id: e.target.value})} 
-                                      required 
-                                      className="w-full p-3 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 appearance-none outline-none focus:border-orange-500 transition"
-                                  >
-                                      <option value="">-- Vyberte stavbu --</option>
-                                      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                  </select>
+                                  <div className="relative">
+                                      <select 
+                                          value={logForm.site_id} 
+                                          onChange={e => setLogForm({...logForm, site_id: e.target.value})} 
+                                          required 
+                                          className="w-full p-4 pr-10 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 appearance-none outline-none focus:border-orange-500 focus:bg-white focus:ring-2 focus:ring-orange-500/10 transition shadow-inner"
+                                      >
+                                          <option value="">-- Vyberte stavba --</option>
+                                          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                      </select>
+                                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                          <MapPin size={18}/>
+                                      </div>
+                                  </div>
                               </Card>
 
                               <Card className="shadow-sm border-slate-200">
@@ -713,25 +1096,71 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                       <Input label="Príchod" type="time" value={logForm.start_time} onChange={(e:any) => setLogForm({...logForm, start_time: e.target.value})} required className="text-center font-bold" />
                                       <Input label="Odchod" type="time" value={logForm.end_time} onChange={(e:any) => setLogForm({...logForm, end_time: e.target.value})} required className="text-center font-bold" />
                                   </div>
-                                  <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 flex items-center justify-between">
-                                      <span className="text-xs font-bold text-orange-700">Odpracované trvanie:</span>
-                                      <span className="text-lg font-black text-orange-800">{readableDuration}</span>
-                                  </div>
+                                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between"><span className="text-xs font-bold text-slate-500">Čas strávený na stavbe:</span><span className="text-lg font-black text-slate-700">{readableDuration}</span></div>
                               </Card>
 
                               <Card className="shadow-sm border-slate-200">
-                                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Stručný popis činnosti</label>
+                                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Spôsob odmeňovania</label>
+                                  <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
+                                      <button 
+                                          type="button" 
+                                          onClick={() => setLogForm({...logForm, payment_type: 'hourly'})} 
+                                          className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${logForm.payment_type === 'hourly' ? 'bg-white shadow-sm text-orange-600 border border-orange-100' : 'text-slate-500 border border-transparent'}`}
+                                      >
+                                          <Clock size={14}/> Hodinovka
+                                      </button>
+                                      <button 
+                                          type="button" 
+                                          onClick={() => setLogForm({...logForm, payment_type: 'fixed'})} 
+                                          className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${logForm.payment_type === 'fixed' ? 'bg-white shadow-sm text-orange-600 border border-orange-100' : 'text-slate-500 border border-transparent'}`}
+                                      >
+                                          <Briefcase size={14}/> Úkol (Fixná suma)
+                                      </button>
+                                  </div>
+                                  
+                                  {logForm.payment_type === 'fixed' ? (
+                                      <div className="animate-in slide-in-from-top-2">
+                                          {showWage ? (
+                                              <Input 
+                                                  label="Dohodnutá suma za prácu (€)" 
+                                                  type="text" 
+                                                  value={logForm.fixed_amount} 
+                                                  onChange={(e:any) => setLogForm({...logForm, fixed_amount: e.target.value})} 
+                                                  required 
+                                                  placeholder="Napr. 500.00" 
+                                              />
+                                          ) : (
+                                              <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl text-xs font-bold text-orange-800 text-center">
+                                                  Práca zapísaná ako úkol (fixná odmena).
+                                              </div>
+                                          )}
+                                          <p className="text-[10px] text-slate-400 font-medium italic mt-1 leading-tight">Suma bude započítaná do nákladov stavby ako fixná položka. Hodiny budú taktiež zapísané do dochádzky k stavbe.</p>
+                                      </div>
+                                  ) : (
+                                      <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-[11px] text-blue-700 font-medium flex items-start gap-2">
+                                          <Info size={14} className="shrink-0 mt-0.5" />
+                                          {showWage ? (
+                                              <span>Suma bude vypočítaná automaticky podľa vašej hodinovej sadzby <strong>{formatMoney(profile.hourly_rate)}/h</strong>.</span>
+                                          ) : (
+                                              <span>Suma bude vypočítaná automaticky podľa vašej dohodnutej sadzby.</span>
+                                          )}
+                                      </div>
+                                  )}
+                              </Card>
+
+                              <Card className="shadow-sm border-slate-200">
+                                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Popis vykonanej činnosti</label>
                                   <textarea 
                                     value={logForm.description} 
                                     onChange={e => setLogForm({...logForm, description: e.target.value})} 
-                                    placeholder="Napr. Murovanie, betónovanie, armovanie..." 
-                                    className="w-full p-3 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-800 outline-none focus:border-orange-500 transition h-24" 
+                                    placeholder="Čo sa dnes na stavbe urobilo..." 
+                                    className="w-full p-4 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-800 outline-none focus:border-orange-500 focus:bg-white transition h-28 shadow-inner" 
                                     required
                                   ></textarea>
                               </Card>
 
-                              <Button type="submit" fullWidth size="lg" loading={actionLoading} className="h-14 font-black shadow-lg shadow-orange-100">
-                                  <Send size={18} className="mr-2"/> ODOSLAŤ VÝKAZ
+                              <Button type="submit" fullWidth size="lg" loading={actionLoading} className="h-14 font-black shadow-lg shadow-orange-100 uppercase tracking-widest">
+                                  <Send size={18} className="mr-2"/> Odoslať dnešný výkaz
                               </Button>
                           </form>
                       )}
@@ -749,9 +1178,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                 {uploadingAvatar ? <Loader2 className="animate-spin text-orange-600" size={32}/> : profile?.avatar_url ? (
                                     <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                                 ) : profile?.full_name?.charAt(0)}
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Camera className="text-white" size={24}/>
-                                </div>
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera className="text-white" size={24}/></div>
                             </div>
                             <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAvatarUpload} />
                             <div className="absolute bottom-2 right-0 bg-orange-600 text-white p-1.5 rounded-full border-2 border-white shadow-md">
@@ -777,7 +1204,6 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                           </Card>
                       </form>
 
-                      {/* PASSWORD CHANGE FOR WORKER */}
                       <form onSubmit={handlePasswordChange} className="space-y-4">
                           <Card className="border-slate-200 shadow-sm">
                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Shield size={14} className="text-blue-500"/> Zabezpečenie účtu</h3>
@@ -810,12 +1236,22 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                           <Button variant="danger" fullWidth onClick={onLogout} className="h-11 rounded-xl font-bold text-xs uppercase tracking-widest">
                               <LogOut size={16} className="mr-2"/> Odhlásiť sa
                           </Button>
-                          <p className="text-center text-[10px] text-slate-300 font-bold uppercase">Aplikácia MojaStavba v3.1.7</p>
+                          <p className="text-center text-[10px] text-slate-300 font-bold uppercase">Aplikácia MojaStavba v3.2.1</p>
                       </div>
                   </div>
               )}
           </div>
       </main>
+
+      {/* Floating Back to Top Button */}
+      {showScrollTop && (
+          <button 
+            onClick={scrollToTop}
+            className="fixed bottom-20 md:bottom-8 right-4 md:right-8 bg-slate-800 text-white p-3 rounded-full shadow-2xl z-[60] animate-in zoom-in slide-in-from-bottom-4 transition-all hover:bg-orange-600 active:scale-90"
+          >
+              <ArrowUp size={24} />
+          </button>
+      )}
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 safe-area-pb shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.1)]">
           <div className="flex w-full justify-around h-16 items-center">
@@ -823,6 +1259,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                   { id: 'dashboard', icon: LayoutGrid, colorClass: 'text-orange-600' },
                   { id: 'tasks', icon: ListTodo, count: todoTasks.length, colorClass: 'text-blue-500' },
                   { id: 'log', icon: Zap, colorClass: 'text-emerald-500' },
+                  { id: 'advances', icon: Banknote, colorClass: 'text-orange-500' },
+                  { id: 'history', icon: History, colorClass: 'text-blue-600' },
                   { id: 'profile', icon: User, colorClass: 'text-purple-500' },
               ].map(tab => (
                   <button 
@@ -864,7 +1302,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                   {selectedTask.description && (
                       <div>
                           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Pokyny k práci</div>
-                          <p className="text-sm text-slate-700 bg-orange-50/50 p-4 rounded-xl border border-orange-100 italic leading-relaxed">
+                          <p className="text-sm text-slate-700 bg-orange-50/50 p-4 rounded-xl border border-orange-100 italic leading-relaxed shadow-inner">
                               {selectedTask.description.replace(PRIORITY_FLAG, '').trim()}
                           </p>
                       </div>

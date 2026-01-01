@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase, UserProfile } from './lib/supabase';
 import { Button, ConfirmModal, LegalModal } from './components/UI';
@@ -11,13 +12,15 @@ import { SettingsScreen } from './features/Settings';
 import { SubscriptionScreen } from './features/Subscription';
 import { DiaryScreen } from './features/Diary';
 import { AttendanceScreen } from './features/Attendance';
+import { AdvancesScreen } from './features/Advances';
 import { SupportWidget } from './components/SupportWidget';
+import { AIAssistantWidget } from './components/AIAssistantWidget';
 import { LandingScreen, LoginScreen } from './features/Auth';
 import { SuperAdminScreen } from './features/SuperAdmin';
 
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote
 } from 'lucide-react';
 
 import { App as CapApp } from '@capacitor/app';
@@ -175,7 +178,12 @@ export const App = () => {
            return (
                <>
                 <WorkerModeScreen profile={profile} onLogout={handleLogout} onTabChange={setWorkerTab} />
-                {workerTab === 'dashboard' && <SupportWidget profile={profile} organization={organization} />}
+                {workerTab === 'dashboard' && (
+                    <>
+                        <SupportWidget profile={profile} organization={organization} />
+                        <AIAssistantWidget profile={profile} organization={organization} />
+                    </>
+                )}
                </>
            );
       }
@@ -269,6 +277,7 @@ export const App = () => {
                     <AdminNavItem id="projects" label="Zákazky " icon={Building2} />
                     <AdminNavItem id="attendance" label="Dochádzky" icon={FileCheck} />
                     <AdminNavItem id="diary" label="Stavebný Denník" icon={BookOpen} />
+                    <AdminNavItem id="advances" label="Zálohy" icon={Banknote} />
                     <AdminNavItem id="calendar" label="Kalendár" icon={Calendar} />
                     <AdminNavItem id="team" label="Tím" icon={Users} />
                     <AdminNavItem id="analytics" label="Analytika" icon={BarChart3} />
@@ -313,7 +322,7 @@ export const App = () => {
                  </button>
              </aside>
 
-             <main className="flex-1 overflow-y-auto scroll-container relative flex flex-col w-full pb-24 md:pb-0">
+             <main className="flex-1 overflow-y-auto scroll-container relative flex flex-col w-full pb-24 md:mb-0">
                  <div className="md:hidden bg-white border-b border-slate-200 p-3 px-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
                      <div className="font-bold text-slate-900 flex items-center gap-2">
                         <img 
@@ -355,6 +364,7 @@ export const App = () => {
                               { id: 'projects', label: 'Stavby', icon: Building2 },
                               { id: 'attendance', label: 'Dochádzky', icon: FileCheck },
                               { id: 'diary', label: 'Denník', icon: BookOpen },
+                              { id: 'advances', label: 'Zálohy', icon: Banknote },
                               { id: 'calendar', label: 'Kalendár', icon: Calendar },
                               { id: 'team', label: 'Tím', icon: Users },
                               { id: 'analytics', label: 'Analytika', icon: BarChart3 },
@@ -379,6 +389,7 @@ export const App = () => {
                       {activeScreen === 'projects' && <ProjectsScreen profile={profile} organization={organization} onSelect={setSelectedSiteId} selectedSiteId={selectedSiteId} />}
                       {activeScreen === 'diary' && <DiaryScreen profile={profile} organization={organization} />}
                       {activeScreen === 'attendance' && <AttendanceScreen profile={profile} organization={organization} />}
+                      {activeScreen === 'advances' && <AdvancesScreen profile={profile} />}
                       {activeScreen === 'calendar' && <CalendarScreen profile={profile} onNavigate={handleNavigate} />}
                       {activeScreen === 'team' && <TeamScreen profile={profile} />}
                       {activeScreen === 'analytics' && <AnalyticsScreen profile={profile} />}
@@ -386,7 +397,12 @@ export const App = () => {
                       {activeScreen === 'subscription' && <SubscriptionScreen profile={profile} organization={organization} onSuccess={() => { fetchProfile(profile.id); setActiveScreen('dashboard'); }} onLogout={handleLogout} />}
                  </div>
                  
-                 {activeScreen === 'dashboard' && <SupportWidget profile={profile} organization={organization} />}
+                 {activeScreen === 'dashboard' && (
+                     <>
+                        <SupportWidget profile={profile} organization={organization} />
+                        <AIAssistantWidget profile={profile} organization={organization} />
+                     </>
+                 )}
              </main>
 
              {showLegalModal && <LegalModal type={showLegalModal} onClose={() => setShowLegalModal(null)} />}

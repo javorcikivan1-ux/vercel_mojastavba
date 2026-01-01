@@ -79,14 +79,14 @@ const TeamList = ({ profile, onSelect }: any) => {
         const from = reset ? 0 : page * TEAM_PAGE_SIZE;
         const to = from + TEAM_PAGE_SIZE - 1;
 
-        const { data, error } = await query
+        const { data: workerData, error } = await query
             .order('full_name', { ascending: true })
             .range(from, to);
 
         if (error) throw error;
-        if (data) {
-            setWorkers(prev => reset ? data : [...prev, ...data]);
-            setHasMore(data.length === TEAM_PAGE_SIZE);
+        if (workerData) {
+            setWorkers(prev => reset ? workerData : [...prev, ...workerData]);
+            setHasMore(workerData.length === TEAM_PAGE_SIZE);
         }
     } catch (e: any) {
         console.error(e);
@@ -479,11 +479,16 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
         return matchesSite && matchesMonth;
     });
 
+    // FIX: Prepracovaný výpočet sumáru s podporou úkolu
     const stats = filteredLogs.reduce((acc, log) => {
         const hours = Number(log.hours);
-        const cost = hours * Number(log.hourly_rate_snapshot || emp?.hourly_rate || 0);
+        // Ak je to úkol, pripočítame fixnú sumu, inak hodinovku
+        const entryCost = log.payment_type === 'fixed' 
+            ? Number(log.fixed_amount || 0) 
+            : hours * Number(log.hourly_rate_snapshot || emp?.hourly_rate || 0);
+        
         acc.hours += hours;
-        acc.earned += cost;
+        acc.earned += entryCost;
         return acc;
     }, { hours: 0, earned: 0 });
 
@@ -593,41 +598,47 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 </h3>
 
                 <div className="grid grid-cols-1 gap-3">
-                    {filteredLogs.map((log: any) => (
-                        <div key={log.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-orange-200 transition group">
-                            <div className="flex flex-col md:flex-row justify-between gap-4">
-                                <div className="flex-1 space-y-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="bg-slate-50 text-slate-700 px-3 py-1 rounded-full text-xs font-bold border border-slate-100 flex items-center gap-2">
-                                            <Calendar size={14} className="text-orange-500"/>
-                                            {formatDate(log.date)}
+                    {filteredLogs.map((log: any) => {
+                        const isFixed = log.payment_type === 'fixed';
+                        return (
+                            <div key={log.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-orange-200 transition group">
+                                <div className="flex flex-col md:flex-row justify-between gap-4">
+                                    <div className="flex-1 space-y-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className="bg-slate-50 text-slate-700 px-3 py-1 rounded-full text-xs font-bold border border-slate-100 flex items-center gap-2">
+                                                <Calendar size={14} className="text-orange-500"/>
+                                                {formatDate(log.date)}
+                                            </div>
+                                            <div className="text-slate-900 font-bold flex items-center gap-1.5">
+                                                <Building2 size={16} className="text-blue-500"/>
+                                                {log.sites?.name || 'Všeobecné'}
+                                                {isFixed && <span className="ml-2 bg-orange-600 text-white px-2 py-0.5 rounded-full text-[8px] font-black uppercase flex items-center gap-1"><Briefcase size={8}/> Úkol</span>}
+                                            </div>
                                         </div>
-                                        <div className="text-slate-900 font-bold flex items-center gap-1.5">
-                                            <Building2 size={16} className="text-blue-500"/>
-                                            {log.sites?.name || 'Všeobecné'}
+                                        <div className="text-sm text-slate-700 font-medium leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-100 italic">
+                                            {log.description || <span className="text-slate-300">Bez popisu práce...</span>}
+                                        </div>
+                                        <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                            <span className="flex items-center gap-1"><Clock size={12}/> {log.start_time || '--:--'} - {log.end_time || '--:--'}</span>
+                                            {!isFixed && <span className="flex items-center gap-1"><Wallet size={12}/> {formatMoney(log.hourly_rate_snapshot || emp?.hourly_rate || 0)} / hod</span>}
                                         </div>
                                     </div>
-                                    <div className="text-sm text-slate-700 font-medium leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-100 italic">
-                                        {log.description || <span className="text-slate-300">Bez popisu práce...</span>}
-                                    </div>
-                                    <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                                        <span className="flex items-center gap-1"><Clock size={12}/> {log.start_time || '--:--'} - {log.end_time || '--:--'}</span>
-                                        <span className="flex items-center gap-1"><Wallet size={12}/> {formatMoney(log.hourly_rate_snapshot)} / hod</span>
-                                    </div>
-                                </div>
-                                <div className="flex md:flex-col justify-between items-end gap-2 shrink-0">
-                                    <div className="text-right">
-                                        <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Dĺžka práce</div>
-                                        <div className="text-2xl font-black text-slate-900">{formatDuration(Number(log.hours))}</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Suma za deň</div>
-                                        <div className="text-xl font-black text-green-600">{formatMoney(Number(log.hours) * Number(log.hourly_rate_snapshot))}</div>
+                                    <div className="flex md:flex-col justify-between items-end gap-2 shrink-0">
+                                        <div className="text-right">
+                                            <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Dĺžka práce</div>
+                                            <div className="text-2xl font-black text-slate-900">{formatDuration(Number(log.hours))}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Suma za deň</div>
+                                            <div className={`text-xl font-black ${isFixed ? 'text-orange-600' : 'text-green-600'}`}>
+                                                {isFixed ? formatMoney(log.fixed_amount) : formatMoney(Number(log.hours) * Number(log.hourly_rate_snapshot || emp?.hourly_rate || 0))}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
 
                     {filteredLogs.length === 0 && (
                         <div className="py-20 text-center text-slate-400 italic bg-white rounded-2xl border-2 border-dashed border-slate-200">

@@ -5,11 +5,21 @@ import { Card, Button, Input, Select, AlertModal, CustomLogo } from '../componen
 import { 
   BookOpen, Calendar, Cloud, Sun, CloudRain, Wind, Thermometer, Truck, 
   Users, Package, Save, FileDown, ArrowLeft, Plus, PenTool, ArrowRight, 
-  Copy, Lock, Camera, CheckCircle2, AlertCircle, Loader2, X, RefreshCw, Unlock, Printer, Search, Building2, Info
+  Copy, Lock, Camera, CheckCircle2, AlertCircle, Loader2, X, RefreshCw, Unlock, Printer, Search, Building2, Info, ListChecks
 } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
+
+/**
+ * Bezpečné formátovanie dátumu na YYYY-MM-DD bez posunu časového pásma.
+ */
+const getLocalDateString = (date: Date) => {
+    const y = date.getFullYear();
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
 
 /**
  * Optimalizovaná funkcia pre kompresiu obrazu.
@@ -170,7 +180,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
   };
 
   const fetchDayData = async (day: Date, siteId: string) => {
-      const dateStr = day.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(day);
       const [record, attendance, materials] = await Promise.all([
           supabase.from('diary_records').select('*').eq('site_id', siteId).eq('date', dateStr).maybeSingle(),
           supabase.from('attendance_logs').select('*, profiles(full_name)').eq('site_id', siteId).eq('date', dateStr),
@@ -182,29 +192,21 @@ export const DiaryScreen = ({ profile, organization }: any) => {
   const handleDaySelect = async (day: Date) => {
       if(!selectedSiteId) return;
       setSelectedDay(day);
-      setPreviewDay(null); // Close preview
+      setPreviewDay(null); 
       setLoading(true);
       setDiaryEntry(null); 
       
       try {
           const { record, attendance, materials } = await fetchDayData(day, selectedSiteId);
 
-          let initialNotes = record?.notes || '';
-          const attendanceNotes = (attendance || [])
-              .filter((l: any) => l.description && l.description.trim() !== '')
-              .map((l: any) => `• ${l.profiles?.full_name}: ${l.description}`)
-              .join('\n');
-
-          if (!initialNotes && attendanceNotes) {
-              initialNotes = "Vykonané práce (z dochádzky):\n" + attendanceNotes;
-          }
-
+          // Čistý prístup: Ak záznam neexistuje, poznámky sú PRÁZDNE. 
+          // Žiadne automatické sranie do DB.
           setDiaryEntry(record || { 
               weather: 'Slnečno', 
               temperature_morning: '', 
               temperature_noon: '', 
               mechanisms: '', 
-              notes: initialNotes,
+              notes: '',
               status: 'draft',
               photos: []
           });
@@ -219,7 +221,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
   };
 
   const handleLongPress = (day: Date, stats: any, x: number, y: number) => {
-      setPreviewPos({ x, y: y - 10 }); // Slight offset up
+      setPreviewPos({ x, y: y - 10 }); 
       setPreviewDay({ date: day, stats });
   };
 
@@ -235,7 +237,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
       if (!touchStartPos.current) return;
       const touch = e.touches[0];
       const dist = Math.sqrt(Math.pow(touch.clientX - touchStartPos.current.x, 2) + Math.pow(touch.clientY - touchStartPos.current.y, 2));
-      if (dist > 10) { // If finger moved more than 10px, cancel long press (scrolling)
+      if (dist > 10) { 
           if (longPressTimer.current) clearTimeout(longPressTimer.current);
       }
   };
@@ -247,7 +249,6 @@ export const DiaryScreen = ({ profile, organization }: any) => {
 
   const handleMouseEnter = (day: Date, stats: any, e: React.MouseEvent) => {
       if (window.innerWidth < 768) return;
-      // Use clientY with a fixed offset to avoid popover being right under the cursor
       setPreviewPos({ x: e.clientX, y: e.clientY - 20 });
       setPreviewDay({ date: day, stats });
   };
@@ -266,6 +267,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
           .map((l: any) => `• ${l.profiles?.full_name}: ${l.description}`);
 
       newLines.forEach((line: string) => {
+          // Ochrana duplicity: Vložíme len ak riadok v poznámkach presne v tejto forme ešte nie je
           if (!currentNotes.includes(line)) {
               currentNotes += (currentNotes ? "\n" : "") + line;
               addedCount++;
@@ -274,9 +276,9 @@ export const DiaryScreen = ({ profile, organization }: any) => {
 
       if (addedCount > 0) {
           setDiaryEntry({ ...diaryEntry, notes: currentNotes });
-          setAlert({ open: true, message: `Pridaných ${addedCount} nových záznamov z dochádzky.`, type: 'success' });
+          setAlert({ open: true, message: `Pridaných ${addedCount} nových záznamov prác.`, type: 'success' });
       } else {
-          setAlert({ open: true, message: 'Všetky záznamy z dochádzky už sú v denníku zapísané.', type: 'success' });
+          setAlert({ open: true, message: 'Všetky záznamy prác sú už v denníku zahrnuté.', type: 'success' });
       }
   };
 
@@ -294,7 +296,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
               temperature_morning: record.temperature_morning,
               temperature_noon: record.temperature_noon
           }));
-          setAlert({ open: true, message: 'Dáta z predchádzajúceho dňa boli skopírované (okrem popisu prác).', type: 'success' });
+          setAlert({ open: true, message: 'Dáta z predchádzajúceho dňa boli skopírované.', type: 'success' });
       } else {
           setAlert({ open: true, message: 'Pre predchádzajúci deň sa nenašiel žiadny záznam.', type: 'error' });
       }
@@ -304,7 +306,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
   const handleSave = async (e?: React.FormEvent, status = 'draft') => {
       if(e) e.preventDefault();
       if(!selectedDay || !selectedSiteId || !diaryEntry) return;
-      const dateStr = selectedDay.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(selectedDay);
       const payload = {
           site_id: selectedSiteId,
           organization_id: profile.organization_id,
@@ -324,7 +326,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
               setIsLocked(true);
               setAlert({ open: true, message: 'Denník bol uzavretý a podpísaný.', type: 'success' });
           } else {
-              setAlert({ open: true, message: 'Uložené.', type: 'success' });
+              setAlert({ open: true, message: 'Denník bol uložený.', type: 'success' });
           }
           fetchMonthOverview();
       } catch (err: any) {
@@ -339,7 +341,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
           await supabase.from('diary_records').update({ status: 'draft' }).eq('id', diaryEntry.id);
           setDiaryEntry({ ...diaryEntry, status: 'draft' });
           setIsLocked(false);
-          setAlert({ open: true, message: 'Záznam bol odomknutý. Môžete ho upravovať.', type: 'success' });
+          setAlert({ open: true, message: 'Záznam bol odomknutý pre úpravy.', type: 'success' });
           fetchMonthOverview();
       } catch (err: any) {
           setAlert({ open: true, message: err.message, type: 'error' });
@@ -377,7 +379,6 @@ export const DiaryScreen = ({ profile, organization }: any) => {
               console.error(err);
               setAlert({ open: true, message: "Nepodarilo sa nahrať fotku: " + err.message, type: 'error' });
           } finally {
-              // Senior fix: Reset values to allow uploading the same file if deleted and re-selected
               e.target.value = '';
               setLoading(false);
           }
@@ -598,7 +599,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
 
       {!selectedSiteId ? (
           <div className="p-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white shadow-sm">
-              Vyberte stavbu pre zobrazenie denníka cez vyhľadávacie pole vyššie.
+              Vyberte stavba pre zobrazenie denníka cez vyhľadávacie pole vyššie.
           </div>
       ) : selectedDay ? (
           (loading || !diaryEntry) ? (
@@ -770,33 +771,41 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                           </div>
                       </div>
 
-                      <Card className="bg-white border-slate-200 shadow-sm">
-                          <SectionHeader icon={Users} title="Pracovníci" sub="Z dochádzky" />
-                          {dailyAttendance.length === 0 ? <div className="text-sm text-slate-400 italic py-2 text-center">Nikto sa nezapísal.</div> : (
-                              <div className="space-y-2">
+                      <Card className="bg-white border-slate-200 shadow-sm p-4">
+                          <SectionHeader icon={ListChecks} title="Dostupné práce" sub="Z dnešnej dochádzky" />
+                          {dailyAttendance.length === 0 ? <div className="text-sm text-slate-400 italic py-2 text-center">Žiadne záznamy.</div> : (
+                              <div className="space-y-3">
                                   {dailyAttendance.map(log => (
-                                      <div key={log.id} className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm flex justify-between items-center group hover:border-blue-200 transition">
-                                          <div>
-                                              <div className="font-bold text-slate-800">{log.profiles?.full_name}</div>
-                                              <div className="text-xs text-slate-500 italic truncate max-w-[120px]">{log.description || 'Bez popisu'}</div>
+                                      <div key={log.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs shadow-sm hover:border-blue-200 transition group relative overflow-hidden">
+                                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400"></div>
+                                          <div className="flex justify-between items-start mb-1">
+                                              <span className="font-black text-slate-800 uppercase tracking-tighter text-[9px]">{log.profiles?.full_name}</span>
+                                              <span className="font-mono font-bold text-blue-600">{Number(log.hours).toFixed(1)}h</span>
                                           </div>
-                                          <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded">{Number(log.hours).toFixed(1)}h</span>
+                                          <p className="text-slate-600 italic font-medium leading-relaxed">
+                                              {log.description || '(Bez popisu práce)'}
+                                          </p>
+                                          {diaryEntry?.notes && diaryEntry.notes.includes(log.description) ? (
+                                              <div className="mt-2 flex items-center gap-1 text-green-600 font-bold text-[8px] uppercase">
+                                                  <CheckCircle2 size={10}/> Importované do denníka
+                                              </div>
+                                          ) : null}
                                       </div>
                                   ))}
                               </div>
                           )}
                       </Card>
 
-                      <Card className="bg-white border-slate-200 shadow-sm">
-                          <SectionHeader icon={Package} title="Materiál" sub="Z nákupov" />
-                          {dailyMaterials.length === 0 ? <div className="text-sm text-slate-400 italic py-2 text-center">Žiadny nákup.</div> : (
+                      <Card className="bg-white border-slate-200 shadow-sm p-4">
+                          <SectionHeader icon={Package} title="Nákupy materiálu" sub="Z dnešných nákladov" />
+                          {dailyMaterials.length === 0 ? <div className="text-sm text-slate-400 italic py-2 text-center">Žiadne nákupy.</div> : (
                               <div className="space-y-2">
                                   {dailyMaterials.map(mat => (
-                                      <div key={mat.id} className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm hover:border-orange-200 transition">
+                                      <div key={mat.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs hover:border-orange-200 transition">
                                           <div className="font-bold text-slate-800">{mat.name}</div>
-                                          <div className="text-xs text-slate-500 flex justify-between mt-1">
-                                              <span className="font-bold">{mat.quantity} {mat.unit}</span>
-                                              <span>{mat.supplier}</span>
+                                          <div className="text-[10px] text-slate-500 flex justify-between mt-1">
+                                              <span className="font-bold text-orange-600">{mat.quantity} {mat.unit}</span>
+                                              <span className="uppercase">{mat.supplier || '-'}</span>
                                           </div>
                                       </div>
                                   ))}
@@ -917,7 +926,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                   
                   {getDaysInMonth(currentDate).map(day => {
                       const isToday = day.toDateString() === new Date().toDateString();
-                      const dateKey = day.toISOString().split('T')[0];
+                      const dateKey = getLocalDateString(day);
                       const stats = monthStats[dateKey];
                       const hasContent = stats?.hasRecord || (stats?.logs && stats.logs.length > 0);
 

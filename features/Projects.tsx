@@ -11,6 +11,11 @@ const PAGE_SIZE = 12;
 
 const UNIT_OPTIONS = ['ks', 'm', 'm2', 'm3', 'kg', 't', 'l', 'bal', 'paleta', 'hod', 'súbor', 'km'];
 
+// Pomocná funkcia pre presné finančné zaokrúhľovanie
+const roundFin = (num: number): number => {
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 const EmptyState = ({ message }: { message: string }) => (
     <div className="col-span-full py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white shadow-sm w-full">
         <FolderOpen size={48} className="mx-auto mb-4 opacity-20" />
@@ -157,11 +162,11 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
 
             const enriched = sitesData.map(site => {
                 const s = statsRes?.find(st => st.site_id === site.id);
-                const income = Number(s?.total_income || 0);
-                const totalCost = Number(s?.total_direct_expenses || 0) + Number(s?.total_material_cost || 0) + Number(s?.total_labor_cost || 0);
+                const income = roundFin(Number(s?.total_income || 0));
+                const totalCost = roundFin(Number(s?.total_direct_expenses || 0) + Number(s?.total_material_cost || 0) + Number(s?.total_labor_cost || 0));
                 return {
                     ...site,
-                    profit: income - totalCost,
+                    profit: roundFin(income - totalCost),
                     income,
                     totalCost,
                     costPercent: site.budget > 0 ? (totalCost / site.budget) * 100 : 0
@@ -201,8 +206,9 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
 
   const calculateTotalWithVat = (items: any[], hasVat: boolean, rate: number) => {
     const subtotal = items.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0);
-    if (!hasVat) return subtotal;
-    return subtotal * (1 + rate / 100);
+    if (!hasVat) return roundFin(subtotal);
+    const vatAmount = roundFin(subtotal * (rate / 100));
+    return roundFin(subtotal + vatAmount);
   };
 
   const addBudgetLine = () => {
@@ -253,7 +259,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
         const payload = { 
             ...formData, 
             notes: finalNotes,
-            budget: Math.max(0, Number(formData.budget)) || 0,
+            budget: roundFin(Math.max(0, Number(formData.budget)) || 0),
             organization_id: profile.organization_id 
         };
         
@@ -488,7 +494,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
             <div className="space-y-4 mt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="relative">
-                  <Input label="Rozpočet (€)" type="number" value={formData.budget === 0 ? '' : formData.budget} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormData({...formData, budget: Math.max(0, parseFloat(e.target.value) || 0)})} placeholder="0.00" disabled={showBreakdown} />
+                  <Input label="Rozpočet (€)" type="number" value={formData.budget === 0 ? '' : formData.budget} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormData({...formData, budget: roundFin(Math.max(0, parseFloat(e.target.value) || 0))})} placeholder="0.00" disabled={showBreakdown} />
                   {showBreakdown && <div className="absolute inset-0 bg-slate-50/10 cursor-not-allowed rounded-xl z-10" title="Suma sa počíta z rozpisu"></div>}
                 </div>
                 <Select label="Status" value={formData.status} onChange={(e: any) => setFormData({...formData, status: e.target.value})}>
@@ -618,8 +624,9 @@ const IntegratedCalculator = () => {
             setEquation('');
         } else if (val === '=') {
             try {
+                // Striktné vyhodnotenie cez eval pre jednoduchú kalkulačku
                 const res = eval(equation + display);
-                setDisplay(String(Number(res).toFixed(2)).replace('.00', ''));
+                setDisplay(String(roundFin(Number(res))));
                 setEquation('');
             } catch {
                 setDisplay('Chyba');
@@ -701,7 +708,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     };
 
     const handleUpdateBudget = async (val: number) => {
-        const cleanVal = Math.max(0, val);
+        const cleanVal = roundFin(Math.max(0, val));
         await supabase.from('sites').update({ budget: cleanVal }).eq('id', siteId);
         setLead({ ...lead, budget: cleanVal });
     };
@@ -714,13 +721,13 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
         setCalcRows(calcRows.map(r => r.id === id ? { ...r, [field]: finalVal } : r));
     };
 
-    const totalCost = calcRows.reduce((acc, r) => acc + (r.qty * r.unit_cost), 0);
-    const totalPrice = calcRows.reduce((acc, r) => {
+    const totalCost = roundFin(calcRows.reduce((acc, r) => acc + (r.qty * r.unit_cost), 0));
+    const totalPrice = roundFin(calcRows.reduce((acc, r) => {
         const cost = r.qty * r.unit_cost;
         const price = cost / ((100 - r.margin) / 100);
         return acc + (r.margin < 100 ? price : cost);
-    }, 0);
-    const totalProfit = totalPrice - totalCost;
+    }, 0));
+    const totalProfit = roundFin(totalPrice - totalCost);
 
     if(!lead) return <div className="p-8 text-center"><Loader2 className="animate-spin text-orange-600 mx-auto"/></div>;
 
@@ -729,7 +736,9 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     return (
         <div className="space-y-6 pb-20">
             <div className="flex justify-between items-center">
-                <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-wider flex items-center gap-1 transition"><ArrowLeft size={14}/> Späť</button>
+                <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-sm flex items-center gap-1 hover:text-slate-900 transition">
+                    <ArrowLeft size={16}/> Späť
+                </button>
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setShowConvertModal(true)}><CheckCircle2 size={16}/> Začať realizáciu</Button>
                 </div>
@@ -767,7 +776,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                     {activeTab === 'info' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in">
                             <div className="space-y-6">
-                                <div>
+                                <div className="space-y-2">
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Poznámky k dopytu</label>
                                     <textarea 
                                         className="w-full h-64 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 resize-none font-medium text-slate-700 leading-relaxed"
@@ -841,8 +850,8 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                           </thead>
                                           <tbody className="divide-y divide-slate-100">
                                               {calcRows.map((row, i) => {
-                                                  const rowCost = row.qty * row.unit_cost;
-                                                  const rowPrice = rowCost / ((100 - row.margin) / 100);
+                                                  const rowCost = roundFin(row.qty * row.unit_cost);
+                                                  const rowPrice = roundFin(rowCost / ((100 - row.margin) / 100));
                                                   return (
                                                       <tr key={row.id} className="group hover:bg-slate-50 transition">
                                                           <td className="p-3 text-center text-slate-300 font-mono">{i+1}</td>
@@ -954,12 +963,13 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
         setTableItems(newItems);
     };
 
-    const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-    const totalVat = items.reduce((sum, item) => {
+    // Robustnejší výpočet súčtov so zaokrúhľovaním
+    const subtotal = roundFin(items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0));
+    const totalVat = roundFin(items.reduce((sum, item) => {
         const itemSubtotal = item.quantity * item.unit_price;
-        return sum + (header.has_vat ? itemSubtotal * (item.vat_rate / 100) : 0);
-    }, 0);
-    const total = subtotal + totalVat;
+        return sum + (header.has_vat ? roundFin(itemSubtotal * (item.vat_rate / 100)) : 0);
+    }, 0));
+    const total = roundFin(subtotal + totalVat);
 
     const handleSave = async () => {
         setSaving(true);
@@ -979,15 +989,15 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
             if (qErr) throw qErr;
 
             const itemsPayload = items.map(i => {
-                const itemSubtotal = i.quantity * i.unit_price;
-                const itemVat = header.has_vat ? itemSubtotal * (i.vat_rate / 100) : 0;
+                const itemSubtotal = roundFin(i.quantity * i.unit_price);
+                const itemVat = header.has_vat ? roundFin(itemSubtotal * (i.vat_rate / 100)) : 0;
                 return {
                     quote_id: quote.id,
                     description: i.description,
                     quantity: i.quantity,
                     unit: i.unit,
                     unit_price: i.unit_price,
-                    total_price: itemSubtotal + itemVat,
+                    total_price: roundFin(itemSubtotal + itemVat),
                     vat_rate: header.has_vat ? i.vat_rate : 0
                 };
             });
@@ -1054,9 +1064,9 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {items.map((item, i) => {
-                                    const itemSubtotal = item.quantity * item.unit_price;
-                                    const itemVat = header.has_vat ? itemSubtotal * (item.vat_rate / 100) : 0;
-                                    const itemTotal = itemSubtotal + itemVat;
+                                    const itemSub = roundFin(Number(item.quantity) * Number(item.unit_price));
+                                    const itemVat = header.has_vat ? roundFin(itemSub * (item.vat_rate / 100)) : 0;
+                                    const itemTotal = roundFin(itemSub + itemVat);
                                     return (
                                         <tr key={i} className="group hover:bg-slate-50 transition">
                                             <td className="p-2 pl-4"><input className="w-full bg-transparent outline-none font-bold text-slate-700" placeholder="Názov položky..." value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} /></td>
@@ -1106,17 +1116,17 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
         setSelectedQuote(quote);
     };
 
-    const quoteSubtotal = items.reduce((s: number, i: any) => {
-        const sub = Number(i.quantity) * Number(i.unit_price);
+    const quoteSubtotal = roundFin(items.reduce((s: number, i: any) => {
+        const sub = roundFin(Number(i.quantity) * Number(i.unit_price));
         return s + sub;
-    }, 0);
+    }, 0));
     
-    const quoteVatTotal = items.reduce((s: number, i: any) => {
-        const sub = Number(i.quantity) * Number(i.unit_price);
-        return s + (sub * ((i.vat_rate || 0) / 100));
-    }, 0);
+    const quoteVatTotal = roundFin(items.reduce((s: number, i: any) => {
+        const sub = roundFin(Number(i.quantity) * Number(i.unit_price));
+        return s + roundFin(sub * ((i.vat_rate || 0) / 100));
+    }, 0));
 
-    const totalStored = Number(selectedQuote?.total_amount || 0);
+    const totalStored = roundFin(Number(selectedQuote?.total_amount || 0));
 
     const generatePDF = async () => {
         if (!printRef.current) return;
@@ -1207,8 +1217,8 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {items.map((item, i) => {
-                                        const itemSub = Number(item.quantity) * Number(item.unit_price);
-                                        const itemVat = itemSub * ((item.vat_rate || 0) / 100);
+                                        const itemSub = roundFin(Number(item.quantity) * Number(item.unit_price));
+                                        const itemVat = roundFin(itemSub * ((item.vat_rate || 0) / 100));
                                         return (
                                             <tr key={i}>
                                                 <td className="p-3 font-medium text-slate-800">{item.description}</td>
@@ -1224,7 +1234,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                             <div className="flex justify-end mb-20">
                                 <div className="w-64 bg-slate-50 p-4 rounded-xl border border-slate-100">
                                     <div className="flex justify-between items-center mb-2 text-slate-500 text-xs">
-                                        <span>Základ dane</span>
+                                        <span>Základ dane celkom</span>
                                         <span>{formatMoney(quoteSubtotal)}</span>
                                     </div>
                                     {quoteVatTotal > 0 && (
@@ -1234,7 +1244,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                                         </div>
                                     )}
                                     <div className="flex justify-between items-center text-xl font-extrabold text-slate-900 border-t border-slate-200 pt-2 mt-2">
-                                        <span>SPOLU</span>
+                                        <span>SPOLU k úhrade</span>
                                         <span>{formatMoney(totalStored)}</span>
                                     </div>
                                 </div>
@@ -1292,15 +1302,18 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
     const summary = logs.reduce((acc: any, log: any) => {
         const name = log.profiles?.full_name || 'Neznámy';
         if (!acc[name]) acc[name] = { hours: 0, cost: 0, count: 0 };
-        acc[name].hours += Number(log.hours);
+        acc[name].hours += Number(log.hours || 0);
         const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
-        acc[name].cost += (Number(log.hours) * rate);
+        
+        const entryCost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : (Number(log.hours || 0) * rate);
+        
+        acc[name].cost = roundFin(acc[name].cost + entryCost);
         acc[name].count += 1;
         return acc;
     }, {});
 
     const totalHours = Object.values(summary).reduce<number>((acc, item: any) => acc + Number(item.hours), 0);
-    const totalCost = Object.values(summary).reduce<number>((acc, item: any) => acc + Number(item.cost), 0);
+    const totalCost = roundFin(Object.values(summary).reduce<number>((acc, item: any) => acc + Number(item.cost), 0));
 
     return (
         <div className="bg-orange-50/50 rounded-2xl border border-orange-100 overflow-hidden mb-6 shadow-sm">
@@ -1313,7 +1326,7 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
             <div className="overflow-x-auto custom-scrollbar">
                 <table className="w-full text-sm text-left min-w-[450px]">
                     <thead className="bg-orange-50 text-orange-600 font-bold border-b border-orange-100 uppercase text-[10px] tracking-wider">
-                        <tr><th className="p-4">Meno</th><th className="p-4 text-right">Hodiny</th><th className="p-4 text-right">Cena Práce</th><th className="p-4 text-right">Ø Sadzba</th></tr>
+                        <tr><th className="p-4">Meno</th><th className="p-4 text-right">Odpracovaný Čas</th><th className="p-4 text-right">Náklady na prácu</th><th className="p-4 text-right">Podiel</th></tr>
                     </thead>
                     <tbody className="divide-y divide-orange-100/50">
                         {Object.entries(summary).map(([name, data]: any) => (
@@ -1321,7 +1334,7 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
                                 <td className="p-4 font-bold text-slate-700">{name}</td>
                                 <td className="p-4 text-right font-mono text-slate-600">{formatDuration(Number(data.hours))}</td>
                                 <td className="p-4 text-right font-black text-slate-900">{formatMoney(Number(data.cost))}</td>
-                                <td className="p-4 text-right text-[10px] text-slate-500 font-bold">{data.hours > 0 ? formatMoney(data.cost / data.hours) : '-'} / h</td>
+                                <td className="p-4 text-right text-[10px] text-slate-500 font-bold">{((data.cost / (totalCost || 1)) * 100).toFixed(0)} %</td>
                             </tr>
                         ))}
                          <tr className="bg-orange-100/40 font-black text-orange-950 border-t-2 border-orange-200">
@@ -1339,6 +1352,7 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
 
 const LogDetailModal = ({ log, onClose }: { log: any, onClose: () => void }) => {
     if (!log) return null;
+    const cost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : roundFin(Number(log.hours) * (log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0));
     return (
         <Modal title="Detail Práce" onClose={onClose} maxWidth="max-w-md">
             <div className="space-y-6">
@@ -1354,8 +1368,16 @@ const LogDetailModal = ({ log, onClose }: { log: any, onClose: () => void }) => 
                         <div className="font-bold text-slate-900">{log.profiles?.full_name || 'Neznámy'}</div>
                     </div>
                     <div className="bg-orange-50 p-3 rounded-lg border border-orange-100">
-                        <div className="text-xs text-orange-700 font-bold uppercase mb-1">Odpracované</div>
+                        <div className="text-xs text-orange-700 font-bold uppercase mb-1">Druh odmeny</div>
+                        <div className="font-bold text-slate-900">{log.payment_type === 'fixed' ? 'Úkol' : 'Hodiny'}</div>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <div className="text-xs text-slate-500 font-bold uppercase mb-1">Čas na stavbe</div>
                         <div className="font-bold text-slate-900">{formatDuration(Number(log.hours))}</div>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+                        <div className="text-xs text-green-700 font-bold uppercase mb-1">Cena práce</div>
+                        <div className="font-black text-green-800">{formatMoney(cost)}</div>
                     </div>
                 </div>
                 <div className="flex justify-center pt-2">
@@ -1372,7 +1394,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   const [site, setSite] = useState<any>(null);
   const [data, setData] = useState<any>({ tasks: [], transactions: [], materials: [], logs: [] });
   const [employees, setEmployees] = useState<any[]>([]); 
-  const [stats, setStats] = useState<any>({ paid: 0, totalCost: 0, profit: 0, laborHours: 0, materialCost: 0 });
+  const [stats, setStats] = useState<any>({ paid: 0, totalCost: 0, profit: 0, laborHours: 0, materialCost: 0, laborCost: 0 });
   const [modals, setModals] = useState({ log: false, transaction: false, export: false }); 
   const [exportSettings, setExportSettings] = useState({ type: 'client' as 'client' | 'owner', includeFinancials: false });
   const [formState, setFormState] = useState<any>({});
@@ -1395,16 +1417,20 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
     ]);
 
     if(s.data) {
-      const expenses = tr.data?.filter(x => x.type === 'expense').reduce((sum, x) => sum + Number(x.amount), 0) || 0;
-      const paid = tr.data?.filter(x => x.type === 'invoice' && x.is_paid).reduce((sum, x) => sum + Number(x.amount), 0) || 0;
-      const matCost = m.data?.reduce((sum, x) => sum + Number(x.total_price), 0) || 0;
-      const laborCost = l.data?.reduce((sum, log: any) => {
+      const expenses = roundFin(tr.data?.filter(x => x.type === 'expense').reduce((sum, x) => sum + Number(x.amount), 0) || 0);
+      const paid = roundFin(tr.data?.filter(x => x.type === 'invoice' && x.is_paid).reduce((sum, x) => sum + Number(x.amount), 0) || 0);
+      const matCost = roundFin(m.data?.reduce((sum, x) => sum + Number(x.total_price), 0) || 0);
+      
+      const laborCost = roundFin(l.data?.reduce((sum, log: any) => {
+        if (log.payment_type === 'fixed') {
+            return sum + Number(log.fixed_amount || 0);
+        }
         const hours = Number(log.hours) || 0;
         const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
         return sum + (hours * rate);
-      }, 0) || 0;
+      }, 0) || 0);
 
-      const totalCost = expenses + matCost + laborCost;
+      const totalCost = roundFin(expenses + matCost + laborCost);
 
       setSite(s.data);
       setData({ tasks: t.data, transactions: tr.data, materials: m.data, logs: l.data });
@@ -1412,8 +1438,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       setStats({ 
         paid, 
         totalCost, 
-        profit: paid - totalCost,
-        laborHours: l.data?.reduce((sum, x) => sum + Number(x.hours), 0) || 0,
+        profit: roundFin(paid - totalCost),
+        laborHours: l.data?.reduce((sum, x) => sum + Number(x.hours || 0), 0) || 0,
         materialCost: matCost,
         laborCost: laborCost
       });
@@ -1481,8 +1507,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                   name: formState.description || formState.category,
                   quantity: Math.max(0, formState.quantity),
                   unit: formState.unit,
-                  unit_price: Math.max(0, formState.unit_price),
-                  total_price: Math.max(0, formState.amount), 
+                  unit_price: roundFin(Math.max(0, formState.unit_price)),
+                  total_price: roundFin(Math.max(0, formState.amount)), 
                   purchase_date: formState.date,
                   supplier: formState.supplier
               };
@@ -1493,7 +1519,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                   ...common,
                   type: formState.type, 
                   category: formState.category,
-                  amount: Math.max(0, formState.amount),
+                  amount: roundFin(Math.max(0, formState.amount)),
                   date: formState.date,
                   description: formState.description,
                   is_paid: formState.is_paid
@@ -1540,7 +1566,9 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
           end_time: log.end_time,
           hours: log.hours,
           hourly_rate_snapshot: log.hourly_rate_snapshot,
-          description: log.description
+          description: log.description,
+          payment_type: log.payment_type || 'hourly',
+          fixed_amount: log.fixed_amount || 0
       });
       setModals({...modals, log: true});
   };
@@ -1566,7 +1594,9 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between gap-4">
-        <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-wider flex items-center gap-1 transition"><ArrowLeft size={14}/> Späť</button>
+        <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition group">
+            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform"/> Späť
+        </button>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" onClick={() => setModals({...modals, export: true})}><FileDown size={16}/> Stiahnuť PDF</Button>
         </div>
@@ -1634,7 +1664,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                     </div>
                     <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
                         <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Materiál & Iné</span>
-                        <span className="font-black text-red-700 text-xl">-{formatMoney(stats.totalCost - stats.laborCost)}</span>
+                        <span className="font-black text-red-700 text-xl">-{formatMoney(roundFin(stats.totalCost - stats.laborCost))}</span>
                     </div>
                     <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
                         <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Práca (Mzdy)</span>
@@ -1693,11 +1723,11 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                                 <>
                                     <div className="flex gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         <span>Základ bez DPH:</span>
-                                        <span>{formatMoney(budgetItems.reduce((acc, i) => acc + Number(i.amount), 0))}</span>
+                                        <span>{formatMoney(roundFin(budgetItems.reduce((acc, i) => acc + Number(i.amount), 0)))}</span>
                                     </div>
                                     <div className="flex gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         <span>DPH ({vatRate}%):</span>
-                                        <span>{formatMoney(site.budget - budgetItems.reduce((acc, i) => acc + Number(i.amount), 0))}</span>
+                                        <span>{formatMoney(roundFin(site.budget - budgetItems.reduce((acc, i) => acc + Number(i.amount), 0)))}</span>
                                     </div>
                                 </>
                             )}
@@ -1794,14 +1824,16 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-extrabold text-xl text-slate-900">Denník prác (História)</h3>
                 <button 
-                  onClick={() => { setFormState({ date: new Date().toISOString().split('T')[0], start_time: '07:00', end_time: '15:30' }); setModals({...modals, log: true}); }}
+                  onClick={() => { setFormState({ date: new Date().toISOString().split('T')[0], start_time: '07:00', end_time: '15:30', payment_type: 'hourly', fixed_amount: 0 }); setModals({...modals, log: true}); }}
                   className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-xl hover:bg-slate-900 transition font-bold text-sm shadow-sm"
                 >
                   <Clock size={16}/> Zapísať dochádzku
                 </button>
               </div>
               <div className="space-y-4">
-                  {data.logs.map((l: any) => (
+                  {data.logs.map((l: any) => {
+                      const cost = l.payment_type === 'fixed' ? Number(l.fixed_amount || 0) : roundFin(Number(l.hours || 0) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
+                      return (
                       <div 
                         key={l.id} 
                         onClick={() => setSelectedLog(l)}
@@ -1811,25 +1843,30 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                               <div className="font-black text-slate-900 flex items-center gap-2 group-hover:text-orange-600 transition">
                                 <User size={14} className="text-orange-500"/>
                                 {l.profiles?.full_name || 'Neznámy'}
+                                {l.payment_type === 'fixed' && <span className="text-[8px] bg-orange-600 text-white px-1.5 py-0.5 rounded font-black uppercase">Úkol</span>}
                               </div>
                               <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1 mt-2 font-medium">
-                                  <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-black uppercase text-slate-500 tracking-tighter">{formatDate(l.date)}</span>
+                                  <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-black uppercase text-slate-500 tracking-tight whitespace-nowrap">{formatDate(l.date)}</span>
                                   {l.description && <span className="italic truncate max-w-[200px] text-slate-400">"{l.description}"</span>}
                               </div>
                               <div className="text-[10px] font-bold text-slate-400 font-mono mt-2 flex items-center gap-1.5">
                                 <Clock size={12} className="text-slate-300"/>
-                                {l.start_time || '--:--'} - {l.end_time || '--:--'} • Cena práce: <span className="text-slate-600 font-black">{formatMoney(Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0))}</span>
+                                {l.start_time || '--:--'} - {l.end_time || '--:--'} ({formatDuration(Number(l.hours || 0))})
+                                • Cena práce: <span className="text-slate-600 font-black">{formatMoney(cost)}</span>
                               </div>
                           </div>
                           <div className="text-right flex items-center gap-4 ml-6">
-                              <div className="font-black text-slate-900 text-2xl tracking-tighter">{formatDuration(Number(l.hours))}</div>
+                              <div className="font-black text-slate-900 text-2xl tracking-tighter">
+                                {l.payment_type === 'fixed' ? <Briefcase className="text-orange-300" size={24}/> : formatDuration(Number(l.hours || 0))}
+                              </div>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button onClick={(e) => { e.stopPropagation(); handleEditLog(l); }} className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-[0.90]"><Pencil size={18}/></button>
                                 <button onClick={(e) => { e.stopPropagation(); requestDelete('attendance_logs', l.id); }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition active:scale-[0.90]"><Trash2 size={18}/></button>
                               </div>
                           </div>
                       </div>
-                  ))}
+                      );
+                  })}
                   {data.logs.length === 0 && <div className="text-center py-16 text-slate-400 italic bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">Zatiaľ žiadne záznamy v denníku prác pre tento projekt.</div>}
               </div>
             </div>
@@ -1887,28 +1924,41 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 <option value="">-- Vyberte pracovníka --</option>
                 {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
             </Select>
+
+            <div className="bg-slate-100 p-1 rounded-xl flex gap-1 mb-6 border border-slate-200">
+                <button type="button" onClick={() => setFormState({...formState, payment_type: 'hourly'})} className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${formState.payment_type === 'hourly' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-500'}`}><Clock size={14}/> Hodinovka</button>
+                <button type="button" onClick={() => setFormState({...formState, payment_type: 'fixed'})} className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${formState.payment_type === 'fixed' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-500'}`}><Briefcase size={14}/> Úkol (fixná)</button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Dátum" type="date" value={formState.date || ''} onChange={(e: any) => setFormState({...formState, date: e.target.value})} required />
+                
                 <div className="grid grid-cols-2 gap-2">
                     <Input label="Čas od" type="time" value={formState.start_time || ''} onChange={(e: any) => setFormState({...formState, start_time: e.target.value})} required />
                     <Input label="Čas do" type="time" value={formState.end_time || ''} onChange={(e: any) => setFormState({...formState, end_time: e.target.value})} required />
                 </div>
             </div>
             
+            {formState.payment_type === 'fixed' && (
+                <Input label="Fixná suma za úkol (€)" type="number" step="0.01" value={formState.fixed_amount || ''} onChange={(e: any) => setFormState({...formState, fixed_amount: roundFin(parseFloat(e.target.value) || 0)})} required placeholder="0.00" />
+            )}
+            
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex flex-col justify-center shadow-inner">
                     <span className="text-[10px] font-black text-orange-400 uppercase block mb-1 tracking-widest">Trvanie prác</span>
                     <span className="text-2xl font-black text-slate-800 tracking-tight">{formatDuration(calculateSmartHours(formState.start_time, formState.end_time))}</span>
                 </div>
-                <Input 
-                    label="Hodinová Sadzba (€/hod)" 
-                    type="number" 
-                    step="0.01" 
-                    value={formState.hourly_rate_snapshot || 0} 
-                    onFocus={(e:any) => e.target.select()}
-                    onChange={(e: any) => setFormState({...formState, hourly_rate_snapshot: Math.max(0, parseFloat(e.target.value) || 0)})} 
-                    required 
-                />
+                {formState.payment_type === 'hourly' && (
+                    <Input 
+                        label="Hodinová Sadzba (€/hod)" 
+                        type="number" 
+                        step="0.01" 
+                        value={formState.hourly_rate_snapshot || 0} 
+                        onFocus={(e:any) => e.target.select()}
+                        onChange={(e: any) => setFormState({...formState, hourly_rate_snapshot: roundFin(Math.max(0, parseFloat(e.target.value) || 0))})} 
+                        required 
+                    />
+                )}
             </div>
 
             <Input label="Popis činnosti" value={formState.description || ''} onChange={(e: any) => setFormState({...formState, description: e.target.value})} placeholder="Napr. Obkladanie kúpeľne, 2. poschodie" />
@@ -1937,13 +1987,19 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 <>
                     <Input label="Názov materiálu" value={formState.description || ''} onChange={(e: any) => setFormState({...formState, description: e.target.value, category: 'Materiál'})} required autoFocus placeholder="Napr. Cement 25kg, SDK Profily..." />
                     <div className="grid grid-cols-2 gap-4">
-                        <Input label="Množstvo" type="number" step="0.01" value={formState.quantity} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, quantity: Math.max(0, parseFloat(e.target.value)), amount: (Math.max(0, parseFloat(e.target.value)) * (formState.unit_price || 0)) })} required />
+                        <Input label="Množstvo" type="number" step="0.01" value={formState.quantity} onFocus={(e:any) => e.target.select()} onChange={(e: any) => {
+                            const qty = Math.max(0, parseFloat(e.target.value));
+                            setFormState({...formState, quantity: qty, amount: roundFin(qty * (formState.unit_price || 0)) });
+                        }} required />
                         <Select label="Jednotka" value={formState.unit} onChange={(e: any) => setFormState({...formState, unit: e.target.value})}>
                             {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                         </Select>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <Input label="Cena za jednotku €" type="number" step="0.01" value={formState.unit_price || ''} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, unit_price: Math.max(0, parseFloat(e.target.value)), amount: (Math.max(0, parseFloat(e.target.value)) * (formState.quantity || 0)) })} required />
+                        <Input label="Cena za jednotku €" type="number" step="0.01" value={formState.unit_price || ''} onFocus={(e:any) => e.target.select()} onChange={(e: any) => {
+                            const up = Math.max(0, parseFloat(e.target.value));
+                            setFormState({...formState, unit_price: up, amount: roundFin(up * (formState.quantity || 0)) });
+                        }} required />
                         <div>
                             <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Spolu €</label>
                             <div className="p-3 bg-slate-100 rounded-xl text-slate-700 font-black text-lg border border-slate-200">{formatMoney(formState.amount)}</div>
@@ -1954,7 +2010,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             ) : (
                 <>
                     <Input label="Kategória / Hlavný popis" value={formState.category || ''} onChange={(e: any) => setFormState({...formState, category: e.target.value})} required autoFocus placeholder="Napr. Zálohová platba, Odvoz odpadu..." />
-                    <Input label="Celková Suma €" type="number" step="0.01" value={formState.amount || ''} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, amount: Math.max(0, parseFloat(e.target.value))})} required />
+                    <Input label="Celková Suma €" type="number" step="0.01" value={formState.amount || ''} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, amount: roundFin(Math.max(0, parseFloat(e.target.value)))})} required />
                     <Input label="Detailná poznámka (Voliteľné)" value={formState.description || ''} onChange={(e: any) => setFormState({...formState, description: e.target.value})} />
                 </>
             )}
@@ -2075,9 +2131,10 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                               <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
                                   <td className="border border-slate-200 p-2 align-top font-bold text-slate-700">{formatDate(log.date)}</td>
                                   <td className="border border-slate-200 p-2 align-top italic text-slate-600">
+                                      {log.payment_type === 'fixed' && <span className="text-[8px] bg-orange-100 text-orange-600 px-1 py-0.5 rounded font-bold mr-2 uppercase">Úkol</span>}
                                       {log.description || '(Bez popisu prác)'}
                                   </td>
-                                  <td className="border border-slate-200 p-2 align-top text-right font-bold text-slate-800">{formatDuration(Number(log.hours))}</td>
+                                  <td className="border border-slate-200 p-2 align-top text-right font-bold text-slate-800">{formatDuration(Number(log.hours || 0))}</td>
                               </tr>
                           ))}
                       </tbody>
@@ -2135,12 +2192,15 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                               {Object.entries(data.logs.reduce((acc: any, log: any) => {
                                   const name = log.profiles?.full_name || 'Neznámy';
                                   if (!acc[name]) acc[name] = { h: 0, c: 0 };
-                                  acc[name].h += Number(log.hours);
-                                  acc[name].c += Number(log.hours) * (log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0);
+                                  acc[name].h += Number(log.hours || 0);
+                                  
+                                  const entryCost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : roundFin(Number(log.hours || 0) * (log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0));
+                                  acc[name].c = roundFin(acc[name].c + entryCost);
+                                  
                                   return acc;
                               }, {})).map(([name, stats]: any, idx: number) => (
                                   <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
-                                      <td className="border border-slate-200 p-2 align-top font-bold text-slate-800">{name}</td>
+                                      <td className="border border-slate-200 p-2 align-top font-bold text-slate-700">{name}</td>
                                       <td className="border border-slate-200 p-2 align-top text-right">{formatDuration(stats.h)}</td>
                                       <td className="border border-slate-200 p-2 align-top text-right font-black text-slate-900">{formatMoney(stats.c)}</td>
                                   </tr>

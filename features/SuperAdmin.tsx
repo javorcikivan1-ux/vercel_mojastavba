@@ -2,10 +2,20 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Badge } from '../components/UI';
-import { ShieldAlert, MessageSquare, Trash2, CheckCircle2, Building2, User, Loader2, X, Mail, PhoneCall, ChevronDown } from 'lucide-react';
-import { formatDate } from '../lib/utils';
+import { 
+  ShieldAlert, MessageSquare, Trash2, CheckCircle2, Building2, User, 
+  Loader2, X, Mail, PhoneCall, ChevronDown, Database, HardDrive, 
+  Users, Activity, RefreshCw, AlertTriangle, BarChart3, Info, ArrowUpRight, Server
+} from 'lucide-react';
+import { formatDate, formatMoney } from '../lib/utils';
 
 const PAGE_SIZE = 20;
+
+// Limity pre výpočet percent (Supabase Free Tier)
+const LIMITS = {
+    DB: 500, // MB
+    STORAGE: 1000, // MB
+};
 
 export const SuperAdminScreen = () => {
     const [requests, setRequests] = useState<any[]>([]);
@@ -13,13 +23,30 @@ export const SuperAdminScreen = () => {
     const [loadingMore, setLoadingMore] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [page, setPage] = useState(0);
-    const [filter, setFilter] = useState<'all' | 'delete' | 'support'>('all');
+    const [filter, setFilter] = useState<'all' | 'delete' | 'support' | 'system'>('all');
+
+    const [systemStats, setSystemStats] = useState({
+        dbSize: 0, 
+        storageSize: 0, 
+        totalUsers: 0,
+        totalOrganizations: 0
+    });
 
     const loadRequests = async (reset = false) => {
-        if (reset) setLoading(true);
-        else setLoadingMore(true);
+        if (filter === 'system') {
+            await loadSystemStats();
+            return;
+        }
 
-        const from = reset ? 0 : page * PAGE_SIZE;
+        if (reset) {
+            setLoading(true);
+            setPage(0);
+        } else {
+            setLoadingMore(true);
+        }
+
+        const currentPage = reset ? 0 : page;
+        const from = currentPage * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
         let query = supabase
@@ -45,57 +72,198 @@ export const SuperAdminScreen = () => {
         setLoadingMore(false);
     };
 
+    const loadSystemStats = async () => {
+        setLoading(true);
+        try {
+            // Odhad DB podľa riadkov
+            const tables = ['attendance_logs', 'tasks', 'profiles', 'organizations', 'sites', 'advances', 'support_requests'];
+            const counts = await Promise.all(tables.map(async (table) => {
+                const { count } = await supabase.from(table).select('*', { count: 'exact', head: true });
+                return count || 0;
+            }));
+
+            const totalRows = counts.reduce((acc, curr) => acc + curr, 0);
+            const estimatedDbMb = (totalRows * 350) / (1024 * 1024);
+
+            // Storage (fotky)
+            const { data: avatarFiles } = await supabase.storage.from('diary-photos').list('photos/avatars');
+            const avatarsSize = (avatarFiles || []).reduce((acc, file) => acc + (file.metadata?.size || 0), 0);
+            
+            const { count: orgCount } = await supabase.from('organizations').select('*', { count: 'exact', head: true });
+            const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+
+            setSystemStats({
+                dbSize: estimatedDbMb,
+                storageSize: avatarsSize / (1024 * 1024),
+                totalUsers: userCount || 0,
+                totalOrganizations: orgCount || 0
+            });
+        } catch (err) {
+            console.error("Monitoring error:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        setPage(0);
         loadRequests(true);
     }, [filter]);
 
+    const handleLoadMore = () => {
+        const nextPage = page + 1;
+        setPage(nextPage);
+        // Musíme použiť timeout alebo useEffect aby sme počkali na update setPage ak nepoužijeme funkcionálny update
+    };
+
+    // Sledovanie zmeny strany pre lazy loading
     useEffect(() => {
-        if (page > 0) loadRequests(false);
+        if (page > 0 && filter !== 'system') {
+            loadRequests(false);
+        }
     }, [page]);
 
     const markAsResolved = async (id: string) => {
         try {
-            // Optimistická aktualizácia v UI pre okamžitú odozvu
             setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'resolved' } : r));
-            
-            const { error } = await supabase
-                .from('support_requests')
-                .update({ status: 'resolved' })
-                .eq('id', id);
-            
-            if (error) throw error;
+            await supabase.from('support_requests').update({ status: 'resolved' }).eq('id', id);
         } catch (err) {
-            alert("Chyba pri aktualizácii statusu.");
-            // Ak zlyhá, vrátime pôvodný stav (v tomto zjednodušenom prípade reloadom)
-            loadRequests(true);
+            console.error(err);
         }
     };
 
     const deleteRequest = async (id: string) => {
-        if(!confirm("Naozaj zmazať tento záznam z histórie?")) return;
+        if(!confirm("Zmazať záznam?")) return;
         setRequests(prev => prev.filter(r => r.id !== id));
         await supabase.from('support_requests').delete().eq('id', id);
     };
 
+    const getProgressColor = (val: number, limit: number) => {
+        const pct = (val / limit) * 100;
+        if (pct > 90) return 'bg-red-500';
+        if (pct > 70) return 'bg-orange-500';
+        return 'bg-blue-500';
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-            <div>
-                <h2 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-                    <ShieldAlert className="text-red-600" size={32} />
-                    Centrálny Management
-                </h2>
-                <p className="text-slate-500 font-medium mt-1 text-sm uppercase tracking-widest">Prehľad systémových požiadaviek od klientov</p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h2 className="text-3xl font-black text-slate-900 flex items-center gap-3">
+                        <ShieldAlert className="text-red-600" size={32} />
+                        SuperAdmin Panel
+                    </h2>
+                    <p className="text-slate-500 font-medium mt-1 text-sm uppercase tracking-widest">Prehľad požiadaviek a stavu systému</p>
+                </div>
             </div>
 
-            <div className="flex gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit overflow-x-auto no-scrollbar max-w-full">
-                <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition whitespace-nowrap ${filter === 'all' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>Všetko</button>
-                <button onClick={() => setFilter('delete')} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition whitespace-nowrap ${filter === 'delete' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:bg-red-50'}`}>Zmazanie účtov</button>
-                <button onClick={() => setFilter('support')} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition whitespace-nowrap ${filter === 'support' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-blue-50'}`}>Technická podpora</button>
+            {/* Hlavná navigácia - 4 bunky */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar p-1.5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                <button 
+                    onClick={() => setFilter('all')} 
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase transition whitespace-nowrap flex items-center gap-2 ${filter === 'all' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50'}`}
+                >
+                    <MessageSquare size={14}/> Všetko
+                </button>
+                <button 
+                    onClick={() => setFilter('delete')} 
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase transition whitespace-nowrap flex items-center gap-2 ${filter === 'delete' ? 'bg-red-50 text-red-600' : 'text-slate-400 hover:bg-slate-50'}`}
+                >
+                    <Trash2 size={14}/> Zmazanie účtov
+                </button>
+                <button 
+                    onClick={() => setFilter('support')} 
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase transition whitespace-nowrap flex items-center gap-2 ${filter === 'support' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-50'}`}
+                >
+                    <Mail size={14}/> Podpora
+                </button>
+                <button 
+                    onClick={() => setFilter('system')} 
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase transition whitespace-nowrap flex items-center gap-2 ${filter === 'system' ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'text-slate-400 hover:bg-slate-50'}`}
+                >
+                    <Server size={14}/> Infraštruktúra
+                </button>
             </div>
 
-            {loading ? (
+            {loading && filter !== 'system' ? (
                 <div className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-600" size={40}/></div>
+            ) : filter === 'system' ? (
+                <div className="space-y-6 animate-in slide-in-from-bottom-4">
+                    {/* INFRA ŠTATISTIKY */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="p-8 border-slate-200 shadow-sm">
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SQL Databáza</p>
+                                    <h3 className="text-2xl font-black text-slate-800">{systemStats.dbSize.toFixed(1)} MB</h3>
+                                </div>
+                                <Database className="text-blue-100" size={40} />
+                            </div>
+                            <div className="space-y-2">
+                                <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-50">
+                                    <div 
+                                        className={`h-full transition-all duration-1000 ${getProgressColor(systemStats.dbSize, LIMITS.DB)}`}
+                                        style={{ width: `${Math.min(100, (systemStats.dbSize / LIMITS.DB) * 100)}%` }}
+                                    ></div>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase">
+                                    <span>Využité: {((systemStats.dbSize / LIMITS.DB) * 100).toFixed(1)}%</span>
+                                    <span>Limit: {LIMITS.DB} MB</span>
+                                </div>
+                            </div>
+                        </Card>
+
+                        <Card className="p-8 border-slate-200 shadow-sm">
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Úložisko fotiek</p>
+                                    <h3 className="text-2xl font-black text-slate-800">{systemStats.storageSize.toFixed(1)} MB</h3>
+                                </div>
+                                <HardDrive className="text-emerald-100" size={40} />
+                            </div>
+                            <div className="space-y-2">
+                                <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-50">
+                                    <div 
+                                        className={`h-full transition-all duration-1000 ${getProgressColor(systemStats.storageSize, LIMITS.STORAGE)}`}
+                                        style={{ width: `${Math.min(100, (systemStats.storageSize / LIMITS.STORAGE) * 100)}%` }}
+                                    ></div>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase">
+                                    <span>Využité: {((systemStats.storageSize / LIMITS.STORAGE) * 100).toFixed(1)}%</span>
+                                    <span>Limit: 1 GB</span>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    {/* JEMNEJŠIE KARTY PRE UŽÍVATEĽOV */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5 transition hover:border-blue-200">
+                            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
+                                <Users size={28}/>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Registrovaní Užívatelia</p>
+                                <p className="text-2xl font-black text-slate-800">{systemStats.totalUsers.toLocaleString()}</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5 transition hover:border-orange-200">
+                            <div className="w-14 h-14 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+                                <Building2 size={28}/>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aktívne Firmy</p>
+                                <p className="text-2xl font-black text-slate-800">{systemStats.totalOrganizations.toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center pt-4">
+                         <button onClick={loadSystemStats} className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400 hover:text-orange-600 transition">
+                            <RefreshCw size={14} className={loading ? 'animate-spin' : ''}/> Prepočítať aktuálny stav
+                         </button>
+                    </div>
+                </div>
             ) : (
                 <div className="grid grid-cols-1 gap-4">
                     {requests.map(req => {
@@ -111,7 +279,7 @@ export const SuperAdminScreen = () => {
                                             <div>
                                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{formatDate(req.created_at)}</div>
                                                 <h3 className={`font-black text-lg ${isDelete ? 'text-red-700' : 'text-slate-800'}`}>
-                                                    {isDelete ? 'ŽIADOSŤ O ZMAZANIE ÚČTU' : 'Nová správa z centra podpory'}
+                                                    {isDelete ? 'ŽIADOSŤ O ZMAZANIE ÚČTU' : 'Nová správa z podpory'}
                                                 </h3>
                                             </div>
                                             {req.status === 'resolved' && <Badge status="completed" />}
@@ -130,21 +298,15 @@ export const SuperAdminScreen = () => {
                                                 <User size={16} className="text-slate-400"/>
                                                 <span className="font-bold">Odoslal:</span> {req.user_name}
                                             </div>
-                                            
-                                            {/* KONTAKTNÉ ÚDAJE PRE IVANA */}
                                             <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                                                 <a href={`mailto:${req.user_email || req.user_id}`} className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 hover:bg-blue-100 transition">
                                                     <Mail size={16}/>
-                                                    <span className="text-xs font-black truncate">{req.user_email || 'Email nie je zadaný'}</span>
+                                                    <span className="text-[10px] font-black truncate">{req.user_email || 'Email nie je zadaný'}</span>
                                                 </a>
                                                 <a href={`tel:${req.user_phone}`} className="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-xl border border-green-100 hover:bg-green-100 transition">
                                                     <PhoneCall size={16}/>
-                                                    <span className="text-xs font-black">{req.user_phone || 'Telefón nie je zadaný'}</span>
+                                                    <span className="text-[10px] font-black">{req.user_phone || 'Telefón nie je zadaný'}</span>
                                                 </a>
-                                            </div>
-
-                                            <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400 break-all bg-slate-50 p-2 rounded col-span-full">
-                                                ID Firmy: {req.organization_id}
                                             </div>
                                         </div>
                                     </div>
@@ -156,7 +318,7 @@ export const SuperAdminScreen = () => {
                                             </Button>
                                         )}
                                         <Button variant="secondary" onClick={() => deleteRequest(req.id)} className="text-slate-400 hover:text-red-600">
-                                            <X size={16}/> Odstrániť záznam
+                                            <X size={16}/> Odstrániť
                                         </Button>
                                     </div>
                                 </div>
@@ -164,17 +326,17 @@ export const SuperAdminScreen = () => {
                         );
                     })}
 
-                    {hasMore && (
-                        <div className="pt-6 flex justify-center">
-                            <Button variant="secondary" loading={loadingMore} onClick={() => setPage(p => p + 1)}>
-                                <ChevronDown size={18}/> Načítať ďalšie požiadavky
+                    {hasMore && requests.length > 0 && (
+                        <div className="pt-8 flex justify-center">
+                            <Button variant="secondary" loading={loadingMore} onClick={handleLoadMore} className="min-w-[200px] border-slate-200 shadow-sm text-[10px] font-black uppercase tracking-widest">
+                                <ChevronDown size={18}/> Načítať ďalšie záznamy
                             </Button>
                         </div>
                     )}
 
                     {requests.length === 0 && !loading && (
-                        <div className="py-20 text-center text-slate-400 italic bg-white rounded-3xl border-2 border-dashed">
-                            Žiadne nové požiadavky v tejto kategórii.
+                        <div className="text-center py-24 text-slate-300 font-bold uppercase tracking-widest border-2 border-dashed border-slate-100 rounded-3xl">
+                            Žiadne požiadavky
                         </div>
                     )}
                 </div>

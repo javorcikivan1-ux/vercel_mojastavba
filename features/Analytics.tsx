@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card } from '../components/UI';
@@ -94,7 +95,15 @@ export const AnalyticsScreen = ({ profile }: any) => {
       const income = transactions.filter(t => t.type === 'invoice').reduce((s, t) => s + Number(t.amount), 0);
       const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
       const matCost = materials.reduce((s, m) => s + Number(m.total_price), 0);
-      const laborCost = logs.reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+      
+      // LOGIKA ÚKOLU V GLOBÁLNEJ ANALYTIKE
+      const laborCost = logs.reduce((s, l: any) => {
+          if (l.payment_type === 'fixed') {
+              return s + Number(l.fixed_amount || 0);
+          }
+          return s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
+      }, 0);
+      
       const totalCost = expenses + matCost + laborCost;
 
       // Zistenie štartu (najstarší záznam alebo vznik firmy)
@@ -124,7 +133,14 @@ export const AnalyticsScreen = ({ profile }: any) => {
               const mInc = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'invoice').reduce((s,t) => s + Number(t.amount), 0);
               const mExp = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
               const mMat = materials.filter(m => m.purchase_date && m.purchase_date.substring(0, 7) === monthKey).reduce((s,m) => s + Number(m.total_price), 0);
-              const mLabor = logs.filter(l => l.date.substring(0, 7) === monthKey).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+              
+              // MESAČNÁ LOGIKA ÚKOLU
+              const mLabor = logs.filter(l => l.date.substring(0, 7) === monthKey).reduce((s, l: any) => {
+                  if (l.payment_type === 'fixed') {
+                      return s + Number(l.fixed_amount || 0);
+                  }
+                  return s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
+              }, 0);
 
               months.push({
                   label: current.toLocaleDateString('sk-SK', { month: 'short' }),
@@ -162,7 +178,15 @@ export const AnalyticsScreen = ({ profile }: any) => {
       const income = transactions.filter(t => t.type === 'invoice').reduce((s, t) => s + Number(t.amount), 0);
       const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
       const matCost = materials.reduce((s, m) => s + Number(m.total_price), 0);
-      const laborCost = logs.reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+      
+      // LOGIKA ÚKOLU V PROJEKTOVEJ ANALYTIKE
+      const laborCost = logs.reduce((s, l: any) => {
+          if (l.payment_type === 'fixed') {
+              return s + Number(l.fixed_amount || 0);
+          }
+          return s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
+      }, 0);
+
       const totalCost = expenses + matCost + laborCost;
 
       const dataPoints: any[] = [];
@@ -186,7 +210,14 @@ export const AnalyticsScreen = ({ profile }: any) => {
               const dayInc = transactions.filter(t => t.date === dayStr && t.type === 'invoice').reduce((s,t) => s + Number(t.amount), 0);
               const dayExp = transactions.filter(t => t.date === dayStr && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
               const dayMat = materials.filter(m => m.purchase_date === dayStr).reduce((s,m) => s + Number(m.total_price), 0);
-              const dayLabor = logs.filter(l => l.date === dayStr).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+              
+              // DENNÁ KUMULATÍVNA LOGIKA ÚKOLU
+              const dayLabor = logs.filter(l => l.date === dayStr).reduce((s, l: any) => {
+                  if (l.payment_type === 'fixed') {
+                      return s + Number(l.fixed_amount || 0);
+                  }
+                  return s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
+              }, 0);
 
               runningIncome += dayInc;
               runningCost += (dayExp + dayMat + dayLabor);
@@ -214,7 +245,14 @@ export const AnalyticsScreen = ({ profile }: any) => {
               const mInc = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'invoice').reduce((s,t) => s + Number(t.amount), 0);
               const mExp = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
               const mMat = materials.filter(m => m.purchase_date && m.purchase_date.substring(0, 7) === monthKey).reduce((s,m) => s + Number(m.total_price), 0);
-              const mLabor = logs.filter(l => l.date.substring(0, 7) === monthKey).reduce((s, l: any) => s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0)), 0);
+              
+              // MESAČNÁ PROJEKTOVÁ LOGIKA ÚKOLU
+              const mLabor = logs.filter(l => l.date.substring(0, 7) === monthKey).reduce((s, l: any) => {
+                  if (l.payment_type === 'fixed') {
+                      return s + Number(l.fixed_amount || 0);
+                  }
+                  return s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
+              }, 0);
               
               dataPoints.push({ 
                 label: current.toLocaleDateString('sk-SK', { month: 'short' }), 
@@ -237,8 +275,12 @@ export const AnalyticsScreen = ({ profile }: any) => {
           const name = log.profiles?.full_name || 'Neznámy';
           if (!acc[name]) acc[name] = { hours: 0, cost: 0 };
           const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
+          
+          // TABUĽKOVÁ LOGIKA ÚKOLU PRE PRACOVNÍKA
+          const entryCost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : (Number(log.hours) * rate);
+          
           acc[name].hours += Number(log.hours);
-          acc[name].cost += (Number(log.hours) * rate);
+          acc[name].cost += entryCost;
           return acc;
       }, {});
 

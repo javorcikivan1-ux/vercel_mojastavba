@@ -2,9 +2,18 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Modal, Card } from '../components/UI';
-import { Users, AlertCircle, Calendar, LayoutGrid, MapPin, User, Plus, BookOpen, CheckCircle2, Loader2, Clock, XCircle, ChevronRight, Search, Activity } from 'lucide-react';
+import { Users, AlertCircle, Calendar, LayoutGrid, MapPin, User, Plus, BookOpen, CheckCircle2, Loader2, Clock, XCircle, ChevronRight, Search, Activity, Briefcase } from 'lucide-react';
+import { formatMoney } from '../lib/utils';
 
 const PRIORITY_FLAG = "#PRIORITY";
+
+// Fix: Added missing helper function to check if a date string represents today's date
+const isDateToday = (dateStr: string) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  const today = new Date();
+  return d.toDateString() === today.toDateString();
+};
 
 export const DashboardScreen = ({ profile, organization, onNavigate }: { profile: UserProfile, organization: any, onNavigate: (view: string) => void }) => {
   const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
@@ -19,35 +28,36 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
   const fetchDashboardData = useCallback(async () => {
     if (!profile.organization_id) return;
     
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    now.setHours(0, 0, 0, 0); 
-    const todayStartIso = now.toISOString();
-
-    const futureDate = new Date(now);
-    futureDate.setDate(now.getDate() + 4); 
-    futureDate.setHours(23, 59, 59, 999);
-    const futureEndIso = futureDate.toISOString();
+    // Používame lokálny dátum bez UTC posunu
+    const nowLocal = new Date();
+    const todayStr = `${nowLocal.getFullYear()}-${(nowLocal.getMonth() + 1).toString().padStart(2, '0')}-${nowLocal.getDate().toString().padStart(2, '0')}`;
+    
+    const startOfToday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate(), 0, 0, 0, 0).toISOString();
+    const endOfFuture = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate() + 4, 23, 59, 59, 999).toISOString();
 
     const [overdue, upcoming, workers, logs] = await Promise.all([
-      supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').lt('start_date', todayStartIso).order('start_date'),
-      supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').gte('start_date', todayStartIso).lte('start_date', futureEndIso).order('start_date'),
+      supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').lt('start_date', startOfToday).order('start_date'),
+      supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').gte('start_date', startOfToday).lte('start_date', endOfFuture).order('start_date'),
       supabase.from('profiles').select('id, full_name').eq('organization_id', profile.organization_id).eq('is_active', true).eq('role', 'employee'),
-      supabase.from('attendance_logs').select('*, sites(name)').eq('organization_id', profile.organization_id).eq('date', todayStr)
+      supabase.from('attendance_logs').select('*, sites(name)').eq('organization_id', profile.organization_id).eq('date', todayStr).order('start_time', { ascending: true })
     ]);
     
     if(overdue.data) setOverdueTasks(overdue.data);
     if(upcoming.data) setUpcomingTasks(upcoming.data);
     
     if (workers.data) {
-        const loggedMap = new Map();
-        (logs.data || []).forEach(l => loggedMap.set(l.user_id, l));
+        // Zoskupovanie logov pod zamestnanca (aby sa neprepísali, ak ich má viac)
+        const logsByUser = new Map();
+        (logs.data || []).forEach(l => {
+            if (!logsByUser.has(l.user_id)) logsByUser.set(l.user_id, []);
+            logsByUser.get(l.user_id).push(l);
+        });
         
         const logged = workers.data
-            .filter(w => loggedMap.has(w.id))
-            .map(w => ({ ...w, log: loggedMap.get(w.id) }));
+            .filter(w => logsByUser.has(w.id))
+            .map(w => ({ ...w, logs: logsByUser.get(w.id) }));
         
-        const missing = workers.data.filter(w => !loggedMap.has(w.id));
+        const missing = workers.data.filter(w => !logsByUser.has(w.id));
         setAttendanceStatus({ logged, missing });
     }
 
@@ -72,12 +82,6 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
     }
   };
 
-  const isDateToday = (isoString: string) => {
-    const d = new Date(isoString);
-    const today = new Date();
-    return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-  };
-
   const formatTimeRange = (startIso: string, endIso: string) => {
       const start = new Date(startIso);
       const end = new Date(endIso);
@@ -86,6 +90,10 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
 
   const filteredLogged = attendanceStatus.logged.filter(w => w.full_name.toLowerCase().includes(attendanceSearch.toLowerCase()));
   const filteredMissing = attendanceStatus.missing.filter(w => w.full_name.toLowerCase().includes(attendanceSearch.toLowerCase()));
+
+  const hasAnyFixedToday = useMemo(() => {
+      return attendanceStatus.logged.some(w => w.logs.some((l: any) => l.payment_type === 'fixed'));
+  }, [attendanceStatus.logged]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
@@ -118,7 +126,6 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
           </button>
       </div>
 
-      {/* COMPACT ATTENDANCE SUMMARY CARD */}
       <Card 
         onClick={() => setShowAttendanceModal(true)}
         className="bg-white border-slate-200 shadow-sm overflow-hidden p-4 cursor-pointer hover:border-orange-400 transition-all group"
@@ -156,10 +163,16 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
           </div>
       </Card>
 
-      {/* ATTENDANCE DETAIL MODAL */}
       {showAttendanceModal && (
           <Modal title="Detail dochádzky (Dnes)" onClose={() => setShowAttendanceModal(false)} maxWidth="max-w-2xl">
               <div className="space-y-6">
+                  {hasAnyFixedToday && (
+                      <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-[11px] text-orange-800 font-bold flex items-center gap-2 animate-in slide-in-from-top-2">
+                          <AlertCircle size={14} className="text-orange-600"/> 
+                          Dnes boli zaznamenané práce s fixnou (úkolovou) odmenou.
+                      </div>
+                  )}
+
                   <div className="relative">
                       <input 
                         type="text" 
@@ -172,27 +185,45 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
                   </div>
 
                   <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
-                      {/* LOGGED SECTION */}
                       {filteredLogged.length > 0 && (
                           <div>
                               <h4 className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-3 flex items-center gap-2">
                                   <CheckCircle2 size={14}/> Zapísaní zamestnanci ({filteredLogged.length})
                               </h4>
-                              <div className="grid grid-cols-1 gap-2">
+                              <div className="grid grid-cols-1 gap-4">
                                   {filteredLogged.map(w => (
-                                      <div key={w.id} className="bg-green-50/50 p-3 rounded-xl border border-green-100 flex justify-between items-center">
+                                      <div key={w.id} className="p-4 rounded-2xl border border-slate-100 bg-white shadow-sm space-y-3">
                                           <div className="flex items-center gap-3">
-                                              <div className="w-10 h-10 rounded-full bg-white border border-green-200 flex items-center justify-center font-black text-green-700 text-sm shadow-sm">{w.full_name?.charAt(0)}</div>
+                                              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center font-black text-orange-600 text-sm border border-orange-200 shadow-sm">
+                                                  {w.full_name?.charAt(0)}
+                                              </div>
                                               <div>
                                                   <div className="font-bold text-slate-800 text-sm">{w.full_name}</div>
-                                                  <div className="text-[10px] text-slate-500 flex items-center gap-1 font-bold">
-                                                      <MapPin size={10} className="text-orange-500"/> {w.log?.sites?.name || 'Všeobecné'}
-                                                  </div>
+                                                  <div className="text-[10px] text-slate-400 font-bold uppercase">{w.logs.length} zápisy dnes</div>
                                               </div>
                                           </div>
-                                          <div className="text-right">
-                                              <div className="text-sm font-black text-slate-800">{w.log?.hours} h</div>
-                                              <div className="text-[9px] text-slate-400 font-bold uppercase">{w.log?.start_time} - {w.log?.end_time}</div>
+                                          
+                                          <div className="space-y-2">
+                                              {w.logs.map((l: any, idx: number) => {
+                                                  const isFixed = l.payment_type === 'fixed';
+                                                  return (
+                                                      <div key={l.id} className={`p-3 rounded-xl border flex justify-between items-center transition ${isFixed ? 'bg-orange-50/30 border-orange-100' : 'bg-slate-50 border-slate-100'}`}>
+                                                          <div className="min-w-0">
+                                                              <div className="text-[10px] text-slate-500 flex items-center gap-1 font-bold mb-0.5">
+                                                                  <MapPin size={10} className="text-orange-500"/> {l.sites?.name || 'Všeobecné'}
+                                                                  {isFixed && <span className="ml-2 bg-orange-500 text-white px-1.5 py-0.5 rounded text-[7px] font-black uppercase">Úkol</span>}
+                                                              </div>
+                                                              <div className="text-xs font-bold text-slate-700 truncate pr-2">{l.description || 'Bez popisu...'}</div>
+                                                          </div>
+                                                          <div className="text-right shrink-0">
+                                                              <div className={`text-xs font-black ${isFixed ? 'text-orange-600' : 'text-slate-800'}`}>
+                                                                  {isFixed ? formatMoney(l.fixed_amount) : `${l.hours} h`}
+                                                              </div>
+                                                              <div className="text-[8px] text-slate-400 font-bold uppercase">{l.start_time} - {l.end_time}</div>
+                                                          </div>
+                                                      </div>
+                                                  );
+                                              })}
                                           </div>
                                       </div>
                                   ))}
@@ -200,7 +231,6 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
                           </div>
                       )}
 
-                      {/* MISSING SECTION */}
                       {filteredMissing.length > 0 && (
                           <div>
                               <h4 className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -218,10 +248,6 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
                                   ))}
                               </div>
                           </div>
-                      )}
-
-                      {filteredLogged.length === 0 && filteredMissing.length === 0 && (
-                          <div className="text-center py-10 text-slate-400 font-bold uppercase text-xs italic">Nenašli sa žiadni zamestnanci.</div>
                       )}
                   </div>
 
