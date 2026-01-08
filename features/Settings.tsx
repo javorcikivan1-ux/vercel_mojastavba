@@ -9,6 +9,7 @@ import {
   Camera, Loader2, FileSignature, AlertTriangle, MapPin, CreditCard
 } from 'lucide-react';
 import { UpdatesScreen } from './Updates';
+import { Capacitor } from '@capacitor/core';
 
 // Pastel palette for task categories
 const PASTEL_COLORS = [
@@ -87,9 +88,19 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stampInputRef = useRef<HTMLInputElement>(null);
 
+  // Detekcia či sme v natívnej aplikácii (Electron alebo Mobil)
+  const isCapacitor = Capacitor.isNativePlatform();
+  const isElectron = navigator.userAgent.toLowerCase().includes('electron');
+  const isApp = isCapacitor || isElectron;
+
   useEffect(() => {
-      setActiveTab(initialTab);
-  }, [initialTab]);
+      // Ak by bol nastavený tab updates ale sme na webe, prepneme na general
+      if (initialTab === 'updates' && !isApp) {
+          setActiveTab('general');
+      } else {
+          setActiveTab(initialTab);
+      }
+  }, [initialTab, isApp]);
 
   const [orgData, setOrgData] = useState({
       name: organization?.name || '',
@@ -296,7 +307,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                 <TabButton id="categories" label="Kategórie úloh" icon={Tags} />
                 <TabButton id="security" label="Zabezpečenie" icon={Shield} />
                 <TabButton id="team" label="Tím" icon={Users} />
-                <TabButton id="updates" label="Aktualizácie" icon={RefreshCw} />
+                {isApp && <TabButton id="updates" label="Aktualizácie" icon={RefreshCw} />}
              </div>
         </div>
 
@@ -371,7 +382,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                                     <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2"><Bell className="text-orange-600" size={20}/> Notifikácie</h4>
                                     <div className="space-y-3">
                                         <label className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition"><div className="flex items-center gap-3"><div className="bg-blue-50 text-blue-600 p-2 rounded-lg"><Clock size={18}/></div><div><div className="font-bold text-slate-700 text-sm">Blížiace sa úlohy</div><div className="text-xs text-slate-500">Upozorniť 1 hodinu a 15 minút pred termínom.</div></div></div><input type="checkbox" checked={notifications.notify_tasks} onChange={(e) => setNotifications({...notifications, notify_tasks: e.target.checked})} className="w-6 h-6 text-orange-600 rounded-lg focus:ring-orange-500 border-slate-300"/></label>
-                                        <label className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition"><div className="flex items-center gap-3"><div className="bg-green-50 text-green-600 p-2 rounded-lg"><CheckCircle2 size={18}/></div><div><div className="font-bold text-slate-700 text-sm">Nové výkazy práce</div><div className="text-xs text-slate-500">Upozorniť, keď zamestnanec nahrá hodiny.</div></div></div><input type="checkbox" checked={notifications.notify_logs} onChange={(e) => setNotifications({...notifications, notify_logs: e.target.checked})} className="w-6 h-6 text-orange-600 rounded-lg focus:ring-orange-500 border-slate-300"/></label>
+                                        <label className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition"><div className="flex items-center gap-3"><div className="bg-green-50 text-green-600 p-2 rounded-lg"><CheckCircle2 size={18}/></div><div><div className="font-bold text-slate-700 text-sm">Nové výkazy práce</div><div className="text-xs text-slate-500">Upozorniť, kedy zamestnanec nahrá hodiny.</div></div></div><input type="checkbox" checked={notifications.notify_logs} onChange={(e) => setNotifications({...notifications, notify_logs: e.target.checked})} className="w-6 h-6 text-orange-600 rounded-lg focus:ring-orange-500 border-slate-300"/></label>
                                     </div>
                                 </div>
                                 <div className="pt-4"><Button type="submit" loading={loading} fullWidth size="lg">Uložiť všetky nastavenia</Button></div>
@@ -416,7 +427,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                     </div>
                 )}
 
-                {activeTab === 'updates' && (
+                {activeTab === 'updates' && isApp && (
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                         <UpdatesScreen />
                     </div>

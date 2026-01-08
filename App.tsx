@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase, UserProfile } from './lib/supabase';
-import { Button, ConfirmModal, LegalModal } from './components/UI';
+import { Button, ConfirmModal, LegalModal, Modal } from './components/UI';
 import { DashboardScreen } from './features/Dashboard';
 import { ProjectsScreen } from './features/Projects';
 import { CalendarScreen } from './features/Calendar';
@@ -18,10 +18,11 @@ import { SupportWidget } from './components/SupportWidget';
 import { AIAssistantWidget } from './components/AIAssistantWidget';
 import { LandingScreen, LoginScreen } from './features/Auth';
 import { SuperAdminScreen } from './features/SuperAdmin';
+import { UpdatesScreen } from './features/Updates';
 
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle
 } from 'lucide-react';
 
 import { App as CapApp } from '@capacitor/app';
@@ -46,15 +47,35 @@ export const App = () => {
   const [initialLoginView, setInitialLoginView] = useState('login');
   const [workerTab, setWorkerTab] = useState('dashboard');
   
+  // State pre auto-update upozornenie
+  const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
+
   // State pre rozbalenie financií v sidebare
   const [isFinanceOpen, setIsFinanceOpen] = useState(() => {
     const active = localStorage.getItem('ms_active_screen');
     return active === 'finance' || active === 'analytics' || active === 'advances';
   });
 
+  // --- AUTO UPDATE LISTENER (GLOBÁLNY) ---
+  useEffect(() => {
+    const isElectron = !Capacitor.isNativePlatform() && navigator.userAgent.toLowerCase().includes('electron');
+    if (isElectron) {
+      try {
+        // @ts-ignore
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.on('update-status', (_: any, status: string, version?: string) => {
+          if (status === 'available' && version) {
+            setUpdateAvailable(version);
+          }
+        });
+      } catch (e) {
+        console.error("IPC update listener failed", e);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('ms_active_screen', activeScreen);
-    // Ak preklikneme na finančnú podstránku, automaticky otvoríme menu
     if (['finance', 'analytics', 'advances'].includes(activeScreen)) {
         setIsFinanceOpen(true);
     }
@@ -148,16 +169,17 @@ export const App = () => {
       localStorage.removeItem('ms_selected_site_id');
   };
 
-  const handleProfileUpdate = (updatedProfile: UserProfile) => {
-      setProfile(updatedProfile);
-  };
-
   const handleNavigate = (screen: string, params?: any) => {
       if (screen === 'settings' && params?.tab) {
           setInitialSettingsTab(params.tab);
       }
       setActiveScreen(screen);
       setSelectedSiteId(null);
+  };
+
+  // Fix: Added missing handleProfileUpdate function to update the user profile state in the App component
+  const handleProfileUpdate = (updatedProfile: UserProfile) => {
+      setProfile(updatedProfile);
   };
 
   const isTrialExpired = () => {
@@ -224,6 +246,26 @@ export const App = () => {
                         <AIAssistantWidget profile={profile} organization={organization} />
                     </>
                 )}
+                
+                {updateAvailable && (
+                    <Modal title="Nová verzia aplikácie!" onClose={() => setUpdateAvailable(null)} maxWidth="max-w-sm">
+                        <div className="text-center py-4">
+                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-sm animate-bounce">
+                                <ArrowUpCircle size={32}/>
+                            </div>
+                            <h3 className="text-lg font-black text-slate-900">Dostupná verzia v{updateAvailable}</h3>
+                            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                                Vydali sme novú aktualizáciu MojaStavba. Stiahnite si ju teraz pre plynulý chod aplikácie.
+                            </p>
+                            <div className="mt-6 flex flex-col gap-2">
+                                <Button fullWidth onClick={() => { setActiveScreen('settings'); setInitialSettingsTab('updates'); setUpdateAvailable(null); }}>
+                                    Prejsť k aktualizácii
+                                </Button>
+                                <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
+                            </div>
+                        </div>
+                    </Modal>
+                )}
                </>
            );
       }
@@ -259,24 +301,22 @@ export const App = () => {
       return (
         <div className="flex h-screen bg-slate-50 overflow-hidden pt-safe-top relative">
              <aside className={`hidden md:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}>
-                 <div className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} transition-all`}>
-                     <div className="flex items-center gap-2.5">
-                        <img 
-                          src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
-                          alt="Logo" 
-                          className="w-11 h-11 object-contain shrink-0" 
-                        />
-                         {!isSidebarCollapsed && (
-                             <div className="min-w-0 transition-opacity duration-300">
-                               <div className="font-extrabold text-xl tracking-tight text-slate-800">
-                                 Moja<span className="text-orange-600">Stavba</span>
-                               </div>
-                               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">
-                                 {organization.name}
-                               </div>
-                             </div>
-                         )}
-                     </div>
+                 <div className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-start'} gap-2.5 transition-all`}>
+                     <img 
+                       src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
+                       alt="Logo" 
+                       className="w-11 h-11 object-contain shrink-0" 
+                     />
+                     {!isSidebarCollapsed && (
+                         <div className="min-w-0 transition-opacity duration-300">
+                           <div className="font-extrabold text-xl tracking-tight text-slate-800">
+                             Moja<span className="text-orange-600">Stavba</span>
+                           </div>
+                           <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">
+                             {organization.name}
+                           </div>
+                         </div>
+                     )}
                  </div>
 
                  {organization.subscription_status !== 'active' && profile?.email !== SUPER_ADMIN_EMAIL && profile?.role !== 'admin' && (
@@ -320,7 +360,6 @@ export const App = () => {
                     <AdminNavItem id="calendar" label="Kalendár" icon={Calendar} />
                     <AdminNavItem id="team" label="Tím" icon={Users} />
                     
-                    {/* SKUPINA FINANCIE */}
                     <div className="pt-2">
                         <button
                             onClick={() => setIsFinanceOpen(!isFinanceOpen)}
@@ -472,6 +511,26 @@ export const App = () => {
                      </>
                  )}
              </main>
+
+             {updateAvailable && (
+                 <Modal title="Nová verzia aplikácie!" onClose={() => setUpdateAvailable(null)} maxWidth="max-w-sm">
+                     <div className="text-center py-4">
+                         <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-orange-100 shadow-sm animate-bounce">
+                             <ArrowUpCircle size={32}/>
+                         </div>
+                         <h3 className="text-lg font-black text-slate-900">Dostupná verzia v{updateAvailable}</h3>
+                         <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                             Vydali sme novú aktualizáciu MojaStavba. Stiahnite si ju teraz pre plynulý chod aplikácie.
+                         </p>
+                         <div className="mt-6 flex flex-col gap-2">
+                             <Button fullWidth onClick={() => { setActiveScreen('settings'); setInitialSettingsTab('updates'); setUpdateAvailable(null); }}>
+                                 Prejsť k aktualizácii
+                             </Button>
+                             <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
+                         </div>
+                     </div>
+                 </Modal>
+             )}
 
              {showLegalModal && <LegalModal type={showLegalModal} onClose={() => setShowLegalModal(null)} />}
              
