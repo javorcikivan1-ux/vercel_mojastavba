@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card } from '../components/UI';
+import { Card, Modal, Button } from '../components/UI';
 import { formatMoney, formatDuration } from '../lib/utils';
 import { 
     TrendingUp, Wallet, BarChart3, 
@@ -40,6 +40,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [laborBreakdown, setLaborBreakdown] = useState<any[]>([]);
   const [organization, setOrganization] = useState<any>(null);
+  const [showAIModal, setShowAIModal] = useState(false);
 
   useEffect(() => {
     loadSitesAndOrg();
@@ -595,7 +596,10 @@ export const AnalyticsScreen = ({ profile }: any) => {
                                   </p>
                               </div>
                           </div>
-                          <button className="relative z-10 bg-slate-900 text-white px-10 py-4 rounded-[1.5rem] font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-orange-600 hover:-translate-y-1 transition-all active:scale-95 whitespace-nowrap w-full md:w-auto border-b-4 border-black/20">
+                          <button 
+                            onClick={() => setShowAIModal(true)}
+                            className="relative z-10 bg-slate-900 text-white px-10 py-4 rounded-[1.5rem] font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-orange-600 hover:-translate-y-1 transition-all active:scale-95 whitespace-nowrap w-full md:w-auto border-b-4 border-black/20"
+                          >
                               Spustiť analýzu
                           </button>
                       </div>
@@ -608,6 +612,24 @@ export const AnalyticsScreen = ({ profile }: any) => {
               )}
           </div>
       </div>
+
+      {showAIModal && (
+          <Modal title="AI Analýza v príprave" onClose={() => setShowAIModal(false)} maxWidth="max-w-md">
+              <div className="text-center py-6 space-y-6">
+                  <div className="text-6xl animate-bounce">😢</div>
+                  <h3 className="text-xl font-black text-slate-800 tracking-tight">Pracujeme na tom!</h3>
+                  <p className="text-slate-600 font-medium leading-relaxed px-2">
+                      Pokročilá AI analýza projektov je momentálne vo vývoji. Usilovne pracujeme na tom, aby sme vám priniesli tie najlepšie prehľady.
+                  </p>
+                  <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100 text-xs text-blue-800 font-bold leading-relaxed shadow-inner">
+                      Zatiaľ môžete využiť nášho <span className="text-orange-600">AI poradcu na nástenke,<br></br></span>ktorý vás prevedie aplikáciou a odpovie na všetky vaše otázky.
+                  </div>
+                  <div className="pt-2">
+                    <Button fullWidth onClick={() => setShowAIModal(false)} className="h-12 uppercase tracking-widest font-black text-[10px]">Rozumiem</Button>
+                  </div>
+              </div>
+          </Modal>
+      )}
     </div>
   );
 };

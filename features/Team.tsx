@@ -447,6 +447,7 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
     
     const [filterSite, setFilterSite] = useState('');
     const [searchSiteQuery, setSearchSiteQuery] = useState('');
+    const [showSiteDropdown, setShowSiteDropdown] = useState(false);
     const [filterMonth, setFilterMonth] = useState(() => {
         const now = new Date();
         return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -468,6 +469,32 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
 
     useEffect(() => { loadData(); }, [empId]);
 
+    // Zatvorenie dropdownu pri kliknutí mimo alebo Escape
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as Element;
+            if (!target.closest('.site-search-container')) {
+                setShowSiteDropdown(false);
+            }
+        };
+
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setShowSiteDropdown(false);
+            }
+        };
+
+        if (showSiteDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('keydown', handleEscape);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [showSiteDropdown]);
+
     const filteredSitesList = sites.filter(s => 
         s.name.toLowerCase().includes(searchSiteQuery.toLowerCase())
     );
@@ -478,6 +505,9 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
         const matchesMonth = filterMonth === '' || logMonth === filterMonth;
         return matchesSite && matchesMonth;
     });
+
+    // Nájdenie názvu vybranej stavby pre zobrazenie
+    const selectedSiteName = filterSite ? sites.find(s => s.id === filterSite)?.name : null;
 
     // FIX: Prepracovaný výpočet sumáru s podporou úkolu
     const stats = filteredLogs.reduce((acc, log) => {
@@ -526,18 +556,19 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
                             <Search size={12}/> Hľadať stavbu
                         </label>
-                        <div className="relative group">
+                        <div className="relative group site-search-container">
                             <input 
                                 type="text"
                                 placeholder="Všetky stavby..."
                                 value={searchSiteQuery}
+                                onFocus={() => setShowSiteDropdown(true)}
                                 onChange={(e) => setSearchSiteQuery(e.target.value)}
                                 className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-orange-500 transition shadow-sm"
                             />
-                            {searchSiteQuery && (
+                            {showSiteDropdown && searchSiteQuery && (
                                 <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
                                     <button 
-                                        onClick={() => { setFilterSite(''); setSearchSiteQuery(''); }}
+                                        onClick={() => { setFilterSite(''); setSearchSiteQuery(''); setShowSiteDropdown(false); }}
                                         className="w-full text-left p-3 text-sm hover:bg-slate-50 font-bold border-b border-slate-50"
                                     >
                                         Zrušiť filter stavby
@@ -545,7 +576,7 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                                     {filteredSitesList.map(s => (
                                         <button 
                                             key={s.id}
-                                            onClick={() => { setFilterSite(s.id); setSearchSiteQuery(s.name); }}
+                                            onClick={() => { setFilterSite(s.id); setSearchSiteQuery(s.name); setShowSiteDropdown(false); }}
                                             className={`w-full text-left p-3 text-sm hover:bg-orange-50 transition font-bold flex items-center gap-2 ${filterSite === s.id ? 'bg-orange-50 text-orange-600' : 'text-slate-700'}`}
                                         >
                                             <Building2 size={14} className="opacity-40"/> {s.name}
@@ -596,6 +627,12 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                     Detailný výkaz prác
                     <span className="ml-2 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-400 text-xs font-bold">{filteredLogs.length} záznamov</span>
                 </h3>
+                {selectedSiteName && (
+                    <div className="flex items-center gap-2 text-sm text-slate-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-100">
+                        <Building2 size={16} className="text-blue-500"/>
+                        <span className="font-medium">Filtrované podľa stavby: <strong className="text-blue-700">{selectedSiteName}</strong></span>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-3">
                     {filteredLogs.map((log: any) => {

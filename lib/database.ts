@@ -27,7 +27,7 @@ create table organizations (
   stamp_url text,
   subscription_plan text default 'free_trial', 
   subscription_status text default 'trialing',
-  trial_ends_at timestamp with time zone default (now() + interval '14 days'),
+  trial_ends_at timestamp with time zone default (now() + interval '30 days'),
   stripe_customer_id text,
   stripe_subscription_id text,
   ico text,

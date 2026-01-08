@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select, AlertModal, CustomLogo } from '../components/UI';
-import { FileCheck, Calendar, User, FileDown, Printer, Loader2, Clock, MapPin, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Coffee, Pencil, Eye, EyeOff, Briefcase, Info } from 'lucide-react';
+import { FileCheck, Calendar, User, FileDown, Printer, Loader2, Clock, MapPin, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Coffee, Pencil, Eye, EyeOff, Briefcase, Info, RotateCcw } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -108,14 +108,17 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
       }
   };
 
-  useEffect(() => {
+  const resetToDatabase = () => {
       if (!logs) return;
+      processLogs(logs);
+  };
+
+  const processLogs = (sourceLogs: any[]) => {
       let processed: any[] = [];
       if (exportOptions.viewMode === 'summarized') {
           const groupMap: Record<string, any> = {};
-          logs.forEach(l => {
+          sourceLogs.forEach(l => {
               const siteId = l.site_id || 'none';
-              // Kľúč obsahuje aj informáciu, či ide o úkol, aby sa v súhrne nemiešali riadky úkolov a hodín
               const groupKey = `${l.date}_${siteId}_${l.payment_type || 'hourly'}`;
               
               if (!groupMap[groupKey]) {
@@ -149,7 +152,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                 : (d.start_time && d.end_time ? `${d.start_time} - ${d.end_time}` : '---')
           })).sort((a, b) => a.date.localeCompare(b.date));
       } else {
-          processed = logs.map(l => ({
+          processed = sourceLogs.map(l => ({
               ...l,
               hours: parseFloat(l.hours || 0).toFixed(1),
               siteName: l.sites?.name,
@@ -160,6 +163,12 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
           }));
       }
       setEditableLogs(processed);
+  };
+
+  useEffect(() => {
+    if (logs.length > 0) {
+        processLogs(logs);
+    }
   }, [logs, exportOptions]);
 
   const stats = useMemo(() => {
@@ -315,24 +324,25 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                  </div>
              </div>
              
-             <div className="flex gap-4">
-                <div className="bg-white border-2 border-slate-100 px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm group hover:border-orange-100 transition-colors">
-                    <div className="text-right">
+             {/* Opravený vizuál bannerov pre mobil: flex-wrap a justify-end pre správne zarovnanie */}
+             <div className="flex flex-wrap sm:flex-nowrap justify-end gap-2 sm:gap-4 w-full sm:w-auto">
+                <div className="bg-white border-2 border-slate-100 px-3 sm:px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm group hover:border-orange-100 transition-colors flex-1 sm:flex-none">
+                    <div className="text-right flex-1 sm:flex-none">
                         <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-300 block leading-none mb-1">Hodinový fond</span>
-                        <span className="text-xl font-black text-slate-800">{stats.hourlyHours.toFixed(1)} <span className="text-xs font-medium text-slate-400 uppercase">hod</span></span>
+                        <span className="text-lg sm:text-xl font-black text-slate-800 whitespace-nowrap">{stats.hourlyHours.toFixed(1)} <span className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase">hod</span></span>
                     </div>
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-orange-500 shrink-0">
-                        <Clock size={20}/>
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-50 flex items-center justify-center text-orange-500 shrink-0">
+                        <Clock size={18}/>
                     </div>
                 </div>
 
-                <div className="bg-orange-50 border-2 border-orange-100 px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm group hover:border-orange-200 transition-colors">
-                    <div className="text-right">
+                <div className="bg-orange-50 border-2 border-orange-100 px-3 sm:px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm group hover:border-orange-200 transition-colors flex-1 sm:flex-none">
+                    <div className="text-right flex-1 sm:flex-none">
                         <span className="text-[8px] font-black uppercase tracking-[0.2em] text-orange-300 block leading-none mb-1">Úkolové práce</span>
-                        <span className="text-xl font-black text-orange-700">{stats.fixedCount} <span className="text-xs font-medium opacity-60 uppercase">ks</span></span>
+                        <span className="text-lg sm:text-xl font-black text-orange-700 whitespace-nowrap">{stats.fixedCount} <span className="text-[10px] sm:text-xs font-medium opacity-60 uppercase">ks</span></span>
                     </div>
-                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-orange-600 shrink-0">
-                        <Briefcase size={20}/>
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white flex items-center justify-center text-orange-600 shrink-0">
+                        <Briefcase size={18}/>
                     </div>
                 </div>
              </div>

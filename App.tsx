@@ -13,6 +13,7 @@ import { SubscriptionScreen } from './features/Subscription';
 import { DiaryScreen } from './features/Diary';
 import { AttendanceScreen } from './features/Attendance';
 import { AdvancesScreen } from './features/Advances';
+import { FinanceScreen } from './features/Finance';
 import { SupportWidget } from './components/SupportWidget';
 import { AIAssistantWidget } from './components/AIAssistantWidget';
 import { LandingScreen, LoginScreen } from './features/Auth';
@@ -20,7 +21,7 @@ import { SuperAdminScreen } from './features/SuperAdmin';
 
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart
 } from 'lucide-react';
 
 import { App as CapApp } from '@capacitor/app';
@@ -32,20 +33,42 @@ export const App = () => {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [organization, setOrganization] = useState<any>(null);
-  const [view, setView] = useState('landing'); 
-  const [activeScreen, setActiveScreen] = useState('dashboard'); 
+  const [view, setView] = useState('loading');
+  
+  const [activeScreen, setActiveScreen] = useState(() => localStorage.getItem('ms_active_screen') || 'dashboard'); 
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(() => localStorage.getItem('ms_selected_site_id'));
+  
   const [loading, setLoading] = useState(true);
-  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false); 
   const [initialSettingsTab, setInitialSettingsTab] = useState('general');
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
   const [initialLoginView, setInitialLoginView] = useState('login');
   const [workerTab, setWorkerTab] = useState('dashboard');
+  
+  // State pre rozbalenie financií v sidebare
+  const [isFinanceOpen, setIsFinanceOpen] = useState(() => {
+    const active = localStorage.getItem('ms_active_screen');
+    return active === 'finance' || active === 'analytics' || active === 'advances';
+  });
 
-  // NATIVE BACK BUTTON HANDLER - FINAL STABLE VERSION
   useEffect(() => {
-    // Registrujeme listener len ak sme na mobile a profil je admin (worker má vlastný)
+    localStorage.setItem('ms_active_screen', activeScreen);
+    // Ak preklikneme na finančnú podstránku, automaticky otvoríme menu
+    if (['finance', 'analytics', 'advances'].includes(activeScreen)) {
+        setIsFinanceOpen(true);
+    }
+  }, [activeScreen]);
+
+  useEffect(() => {
+    if (selectedSiteId) {
+      localStorage.setItem('ms_selected_site_id', selectedSiteId);
+    } else {
+      localStorage.removeItem('ms_selected_site_id');
+    }
+  }, [selectedSiteId]);
+
+  useEffect(() => {
     if (Capacitor.isNativePlatform() && profile && profile.role === 'admin') {
       const initBackListener = async () => {
         const handler = await CapApp.addListener('backButton', () => {
@@ -71,12 +94,18 @@ export const App = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchProfile(session.user.id);
-      else setLoading(false);
+      else {
+          setView('landing');
+          setLoading(false);
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (session) fetchProfile(session.user.id);
+      if (session) {
+          const isSilentFetch = !!profile; 
+          fetchProfile(session.user.id, isSilentFetch);
+      }
       else {
           setProfile(null);
           setOrganization(null);
@@ -86,19 +115,27 @@ export const App = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [profile?.id]);
 
-  const fetchProfile = async (userId: string) => {
-      setLoading(true);
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      if(prof) {
-          setProfile(prof);
-          const { data: org } = await supabase.from('organizations').select('*').eq('id', prof.organization_id).single();
-          setOrganization(org);
-          setView('app');
-          setActiveScreen('dashboard');
+  const fetchProfile = async (userId: string, silent = false) => {
+      if (!silent) setLoading(true);
+      
+      try {
+          const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).single();
+          if(prof) {
+              setProfile(prof);
+              const { data: org } = await supabase.from('organizations').select('*').eq('id', prof.organization_id).single();
+              setOrganization(org);
+              setView('app');
+          } else {
+              setView('landing');
+          }
+      } catch (e) {
+          console.error("Fetch profile failed", e);
+          setView('landing');
+      } finally {
+          if (!silent) setLoading(false);
       }
-      setLoading(false);
   };
 
   const handleLogout = async () => {
@@ -107,6 +144,8 @@ export const App = () => {
       setProfile(null);
       setOrganization(null);
       setShowLogoutConfirm(false);
+      localStorage.removeItem('ms_active_screen');
+      localStorage.removeItem('ms_selected_site_id');
   };
 
   const handleProfileUpdate = (updatedProfile: UserProfile) => {
@@ -123,6 +162,7 @@ export const App = () => {
 
   const isTrialExpired = () => {
       if (profile?.email === SUPER_ADMIN_EMAIL) return false;
+      if (profile?.role === 'employee') return false;
       if(!organization) return false;
       if(organization.subscription_status === 'active') return false;
       const ends = new Date(organization.trial_ends_at);
@@ -140,7 +180,7 @@ export const App = () => {
       );
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-orange-600" size={40}/></div>;
+  if (loading && !profile) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-orange-600" size={40}/></div>;
 
   if (view === 'landing') return (
     <LandingScreen 
@@ -188,22 +228,22 @@ export const App = () => {
            );
       }
 
-      const AdminNavItem = ({ id, label, icon: Icon, color = "text-orange-600" }: any) => (
+      const AdminNavItem = ({ id, label, icon: Icon, color = "text-orange-600", isSubItem = false }: any) => (
         <button
           onClick={() => { setActiveScreen(id); setSelectedSiteId(null); }}
           title={isSidebarCollapsed ? label : ''}
-          className={`group w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium relative shrink-0
+          className={`group w-full flex items-center gap-3 rounded-xl transition-all font-bold relative shrink-0
             ${activeScreen === id
-              ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100'
+              ? (isSubItem ? 'bg-orange-100/50 text-orange-800' : 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100')
               : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
             }
-            ${isSidebarCollapsed ? 'justify-center px-0' : ''}
+            ${isSidebarCollapsed ? 'justify-center px-0 py-3' : (isSubItem ? 'px-4 py-2 ml-2 w-[calc(100%-8px)]' : 'px-4 py-2.5')}
             md:shrink
           `}
         >
           <div className={`${activeScreen === id ? 'scale-110 transition-transform' : ''}`}>
               <Icon
-                size={24}
+                size={isSubItem ? 18 : 22}
                 className={`transition-colors shrink-0
                   ${activeScreen === id
                     ? color
@@ -211,7 +251,7 @@ export const App = () => {
                   }`}
               />
           </div>
-          {!isSidebarCollapsed && <span className="md:inline hidden">{label}</span>}
+          {!isSidebarCollapsed && <span className={`${isSubItem ? 'text-xs' : 'text-sm'}`}>{label}</span>}
           <span className="md:hidden text-[10px] mt-1 font-medium truncate w-full text-center block">{label}</span>
         </button>
       );
@@ -231,7 +271,7 @@ export const App = () => {
                                <div className="font-extrabold text-xl tracking-tight text-slate-800">
                                  Moja<span className="text-orange-600">Stavba</span>
                                </div>
-                               <div className="text-xs text-slate-500 font-medium truncate">
+                               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">
                                  {organization.name}
                                </div>
                              </div>
@@ -239,7 +279,7 @@ export const App = () => {
                      </div>
                  </div>
 
-                 {organization.subscription_status !== 'active' && profile.email !== SUPER_ADMIN_EMAIL && (
+                 {organization.subscription_status !== 'active' && profile?.email !== SUPER_ADMIN_EMAIL && profile?.role !== 'admin' && (
                     <div className="mx-4 mb-3 transition-all duration-300">
                         {isSidebarCollapsed ? (
                             <button
@@ -271,18 +311,45 @@ export const App = () => {
                     </div>
                  )}
 
-                 <nav className="flex-1 px-3 space-y-1 overflow-y-auto py-2 custom-scrollbar">
+                 <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto py-2 custom-scrollbar">
                     {isSuperAdmin && <AdminNavItem id="superadmin" label="ADMIN PANEL" icon={ShieldAlert} color="text-red-600" />}
                     <AdminNavItem id="dashboard" label="Nástenka" icon={LayoutGrid} />
-                    <AdminNavItem id="projects" label="Zákazky " icon={Building2} />
+                    <AdminNavItem id="projects" label="Zákazky" icon={Building2} />
                     <AdminNavItem id="attendance" label="Dochádzky" icon={FileCheck} />
                     <AdminNavItem id="diary" label="Stavebný Denník" icon={BookOpen} />
-                    <AdminNavItem id="advances" label="Zálohy" icon={Banknote} />
                     <AdminNavItem id="calendar" label="Kalendár" icon={Calendar} />
                     <AdminNavItem id="team" label="Tím" icon={Users} />
-                    <AdminNavItem id="analytics" label="Analytika" icon={BarChart3} />
-                    <AdminNavItem id="settings" label="Nastavenia" icon={Settings} />
-                    {!isSuperAdmin && <AdminNavItem id="subscription" label="Predplatné" icon={CreditCard} />}
+                    
+                    {/* SKUPINA FINANCIE */}
+                    <div className="pt-2">
+                        <button
+                            onClick={() => setIsFinanceOpen(!isFinanceOpen)}
+                            className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all font-bold text-sm
+                                ${(['finance', 'analytics', 'advances'].includes(activeScreen) && !isFinanceOpen) ? 'bg-orange-50 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}
+                            `}
+                        >
+                            <div className="flex items-center gap-3">
+                                <Wallet size={22} className={['finance', 'analytics', 'advances'].includes(activeScreen) ? 'text-orange-600' : 'text-slate-400'} />
+                                {!isSidebarCollapsed && <span>Financie</span>}
+                            </div>
+                            {!isSidebarCollapsed && (
+                                <ChevronDown size={16} className={`transition-transform duration-300 ${isFinanceOpen ? 'rotate-180' : ''}`} />
+                            )}
+                        </button>
+                        
+                        {(isFinanceOpen && !isSidebarCollapsed) && (
+                            <div className="mt-1 space-y-0.5 animate-in slide-in-from-top-2 duration-200">
+                                <AdminNavItem id="finance" label="Firemná analytika" icon={PieChart} isSubItem={true} />
+                                <AdminNavItem id="analytics" label="Analytika zákaziek" icon={BarChart3} isSubItem={true} />
+                                <AdminNavItem id="advances" label="Zálohy" icon={Banknote} isSubItem={true} />
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="pt-2">
+                        <AdminNavItem id="settings" label="Nastavenia" icon={Settings} />
+                        {!isSuperAdmin && profile?.role === 'admin' && <AdminNavItem id="subscription" label="Predplatné" icon={CreditCard} />}
+                    </div>
                  </nav>
 
                  <div className="p-4 pb-4 border-t border-slate-100 bg-slate-50/50">
@@ -297,7 +364,7 @@ export const App = () => {
                         {!isSidebarCollapsed && (
                             <div className="truncate flex-1">
                               <p className="text-sm font-bold text-slate-800 truncate">{profile.full_name}</p>
-                              <p className="text-xs text-slate-500 truncate">{profile.email}</p>
+                              <p className="text-[10px] text-slate-500 truncate font-medium">{profile.email}</p>
                             </div>
                         )}
                     </div>
@@ -337,7 +404,7 @@ export const App = () => {
                          {isSuperAdmin && (
                              <button onClick={() => setActiveScreen('superadmin')} className="text-red-600 p-1"><ShieldAlert size={20}/></button>
                          )}
-                         {organization?.subscription_status !== 'active' && profile.email !== SUPER_ADMIN_EMAIL && (
+                         {organization?.subscription_status !== 'active' && profile?.email !== SUPER_ADMIN_EMAIL && profile?.role !== 'admin' && (
                              <button
                                  onClick={() => setActiveScreen('subscription')}
                                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 active:bg-slate-100 transition-colors"
@@ -364,11 +431,11 @@ export const App = () => {
                               { id: 'projects', label: 'Stavby', icon: Building2 },
                               { id: 'attendance', label: 'Dochádzky', icon: FileCheck },
                               { id: 'diary', label: 'Denník', icon: BookOpen },
+                              { id: 'finance', label: 'Firemná analytika', icon: PieChart },
+                              { id: 'analytics', label: 'Analytika zákaziek', icon: BarChart3 },
                               { id: 'advances', label: 'Zálohy', icon: Banknote },
                               { id: 'calendar', label: 'Kalendár', icon: Calendar },
                               { id: 'team', label: 'Tím', icon: Users },
-                              { id: 'analytics', label: 'Analytika', icon: BarChart3 },
-                              ...(isSuperAdmin ? [] : [{ id: 'subscription', label: 'Pro', icon: CreditCard }]),
                               { id: 'settings', label: 'Nastavenia', icon: Settings },
                           ].map(item => (
                               <button 
@@ -390,6 +457,7 @@ export const App = () => {
                       {activeScreen === 'diary' && <DiaryScreen profile={profile} organization={organization} />}
                       {activeScreen === 'attendance' && <AttendanceScreen profile={profile} organization={organization} />}
                       {activeScreen === 'advances' && <AdvancesScreen profile={profile} />}
+                      {activeScreen === 'finance' && <FinanceScreen profile={profile} />}
                       {activeScreen === 'calendar' && <CalendarScreen profile={profile} onNavigate={handleNavigate} />}
                       {activeScreen === 'team' && <TeamScreen profile={profile} />}
                       {activeScreen === 'analytics' && <AnalyticsScreen profile={profile} />}

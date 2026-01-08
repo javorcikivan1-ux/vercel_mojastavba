@@ -1,11 +1,12 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, CustomLogo } from '../components/UI';
-import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus } from 'lucide-react';
+import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus, Fuel } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
+// @ts-ignore
+import { ProjectPHM } from './ProjectPHM';
 
 const PAGE_SIZE = 12;
 
@@ -96,7 +97,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
   
   const [showModal, setShowModal] = useState(false);
   const [editingSite, setEditingSite] = useState<any>(null);
-  const [formData, setFormData] = useState<any>({ name: '', address: '', client_name: '', budget: 0, status: 'lead', lead_stage: 'new', notes: '', hasVat: false, vatRate: 23 });
+  const [formData, setFormData] = useState<any>({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 23 });
   const [budgetBreakdown, setBudgetBreakdown] = useState<{id: string, label: string, amount: number}[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
   
@@ -682,8 +683,8 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     const [showConvertModal, setShowConvertModal] = useState(false);
     
     const [calcRows, setCalcRows] = useState<CalcRow[]>([
-        { id: '1', description: 'Materiál (Tehla/Betón)', unit: 'ks', qty: 0, unit_cost: 0, margin: 20 },
-        { id: '2', description: 'Práca (Murári)', unit: 'hod', qty: 0, unit_cost: 15, margin: 30 }
+        { id: '1', description: 'Položka č.1', unit: 'ks', qty: 0, unit_cost: 0, margin: 20 },
+        { id: '2', description: 'Práca', unit: 'hod', qty: 0, unit_cost: 15, margin: 30 }
     ]);
 
     const load = async () => {
@@ -1076,6 +1077,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                                                     {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                                                 </select>
                                             </td>
+                                            {/* Fix: use 'item.unit_price' instead of 'item_price' */}
                                             <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none font-mono text-right" value={item.unit_price === 0 ? '' : item.unit_price} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'unit_price', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
                                             {header.has_vat && (
                                                 <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-center font-bold text-orange-600" value={item.vat_rate} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'vat_rate', Math.max(0, parseFloat(e.target.value) || 0))} /></td>
@@ -1392,9 +1394,9 @@ const LogDetailModal = ({ log, onClose }: { log: any, onClose: () => void }) => 
 const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [site, setSite] = useState<any>(null);
-  const [data, setData] = useState<any>({ tasks: [], transactions: [], materials: [], logs: [] });
+  const [data, setData] = useState<any>({ tasks: [], transactions: [], materials: [], logs: [], fuel: [] });
   const [employees, setEmployees] = useState<any[]>([]); 
-  const [stats, setStats] = useState<any>({ paid: 0, totalCost: 0, profit: 0, laborHours: 0, materialCost: 0, laborCost: 0 });
+  const [stats, setStats] = useState<any>({ paid: 0, totalCost: 0, profit: 0, laborHours: 0, materialCost: 0, laborCost: 0, fuelCost: 0 });
   const [modals, setModals] = useState({ log: false, transaction: false, export: false }); 
   const [exportSettings, setExportSettings] = useState({ type: 'client' as 'client' | 'owner', includeFinancials: false });
   const [formState, setFormState] = useState<any>({});
@@ -1407,19 +1409,21 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const loadData = async () => {
-    const [s, t, tr, m, l, emps] = await Promise.all([
+    const [s, t, tr, m, l, emps, f] = await Promise.all([
       supabase.from('sites').select('*').eq('id', siteId).single(),
       supabase.from('tasks').select('*').eq('site_id', siteId).order('start_date', {ascending: true}),
       supabase.from('transactions').select('*').eq('site_id', siteId).order('date', {ascending: false}),
       supabase.from('materials').select('*').eq('site_id', siteId).order('purchase_date', {ascending: false}),
       supabase.from('attendance_logs').select('*, profiles(full_name, hourly_rate)').eq('site_id', siteId).order('date', {ascending: false}), 
-      supabase.from('profiles').select('*').eq('organization_id', profile.organization_id).eq('is_active', true) 
+      supabase.from('profiles').select('*').eq('organization_id', profile.organization_id).eq('is_active', true),
+      supabase.from('fuel_logs').select('*').eq('site_id', siteId).order('date', {ascending: false})
     ]);
 
     if(s.data) {
       const expenses = roundFin(tr.data?.filter(x => x.type === 'expense').reduce((sum, x) => sum + Number(x.amount), 0) || 0);
       const paid = roundFin(tr.data?.filter(x => x.type === 'invoice' && x.is_paid).reduce((sum, x) => sum + Number(x.amount), 0) || 0);
       const matCost = roundFin(m.data?.reduce((sum, x) => sum + Number(x.total_price), 0) || 0);
+      const fuelCost = roundFin(f.data?.reduce((sum, x) => sum + Number(x.amount), 0) || 0);
       
       const laborCost = roundFin(l.data?.reduce((sum, log: any) => {
         if (log.payment_type === 'fixed') {
@@ -1430,10 +1434,10 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
         return sum + (hours * rate);
       }, 0) || 0);
 
-      const totalCost = roundFin(expenses + matCost + laborCost);
+      const totalCost = roundFin(expenses + matCost + laborCost + fuelCost);
 
       setSite(s.data);
-      setData({ tasks: t.data, transactions: tr.data, materials: m.data, logs: l.data });
+      setData({ tasks: t.data, transactions: tr.data, materials: m.data, logs: l.data, fuel: f.data });
       setEmployees(emps.data || []);
       setStats({ 
         paid, 
@@ -1441,7 +1445,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
         profit: roundFin(paid - totalCost),
         laborHours: l.data?.reduce((sum, x) => sum + Number(x.hours || 0), 0) || 0,
         materialCost: matCost,
-        laborCost: laborCost
+        laborCost: laborCost,
+        fuelCost: fuelCost
       });
     }
   };
@@ -1633,11 +1638,12 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-[600px]">
-        <div className="flex border-b border-slate-100 bg-slate-50/50 p-1">
+        <div className="flex border-b border-slate-100 bg-slate-50/50 p-1 overflow-x-auto no-scrollbar">
           {[
             { id: 'overview', label: 'Prehľad', icon: BarChart3 },
             { id: 'labor', label: 'Dochádzka', icon: HardHat },
-            { id: 'finance', label: 'Financie', icon: Euro },
+            { id: 'finance', label: 'Príjmy & výdavky', icon: Euro },
+            { id: 'phm', label: 'PHM', icon: Fuel },
           ].map(tab => (
             <button
               key={tab.id}
@@ -1654,6 +1660,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
         <div className="p-4 md:p-8 flex-1">
           {activeTab === 'overview' && (
             <div className="space-y-8 animate-in fade-in">
+             
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <Card className="bg-white border-slate-200 shadow-sm">
                     <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2"><BarChart3 size={20} className="text-orange-500"/> Finančný Rozbor</h3>
@@ -1664,11 +1672,15 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                     </div>
                     <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
                         <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Materiál & Iné</span>
-                        <span className="font-black text-red-700 text-xl">-{formatMoney(roundFin(stats.totalCost - stats.laborCost))}</span>
+                        <span className="font-black text-red-700 text-xl">-{formatMoney(roundFin(stats.totalCost - stats.laborCost - stats.fuelCost))}</span>
                     </div>
                     <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
                         <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Práca (Mzdy)</span>
                         <span className="font-black text-red-700 text-xl">-{formatMoney(stats.laborCost)}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
+                        <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Pohonné Hmoty</span>
+                        <span className="font-black text-red-700 text-xl">-{formatMoney(stats.fuelCost)}</span>
                     </div>
                     <div className="border-t-2 border-dashed border-slate-100 my-4 pt-6">
                         <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-200">
@@ -1756,7 +1768,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
           {activeTab === 'finance' && (
             <div className="animate-in fade-in">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <h3 className="font-extrabold text-xl text-slate-900">História platieb a nákladov</h3>
+                <h3 className="font-extrabold text-xl text-slate-900">História príjmov a nákladov</h3>
                 <Button onClick={() => { 
                     setFormState({ 
                         type: 'expense', 
@@ -1870,6 +1882,10 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                   {data.logs.length === 0 && <div className="text-center py-16 text-slate-400 italic bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">Zatiaľ žiadne záznamy v denníku prác pre tento projekt.</div>}
               </div>
             </div>
+          )}
+
+          {activeTab === 'phm' && (
+              <ProjectPHM siteId={siteId} profile={profile} organization={organization} />
           )}
         </div>
       </div>
@@ -2209,7 +2225,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                           <tfoot>
                               <tr className="bg-slate-100 font-black text-slate-800">
                                   <td className="border border-slate-200 p-3 text-right uppercase text-[10px]">Celkové mzdy</td>
-                                  <td className="border border-slate-200 p-3 text-right">{formatDuration(stats.laborHours)}</td>
+                                  <td className="border border-slate-200 p-3 text-right">{formatDuration(stats.h)}</td>
                                   <td className="border border-slate-200 p-3 text-right">{formatMoney(stats.laborCost)}</td>
                               </tr>
                           </tfoot>

@@ -2,12 +2,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button, Card, AlertModal, Badge, Input, Select, Modal } from '../components/UI';
+// Added missing Check import from lucide-react
 import { 
   HardHat, Building2, Calendar, Clock, CheckCircle2, Send, Loader2, 
   WifiOff, LayoutGrid, ListTodo, User, LogOut, 
   ChevronRight, MapPin, TrendingUp, Wallet, Phone, Lock, Info, Zap,
   Activity, ChevronLeft, Mail, Pencil, Save, Coins, AlertCircle, History, ArrowRight, Camera, KeyRound, Shield, Briefcase, Filter, Search,
-  ChevronDown, Banknote, ChevronUp, ArrowUp
+  ChevronDown, Banknote, ChevronUp, ArrowUp, Check
 } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 
@@ -85,7 +86,10 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
 
   // Advances state
   const [myAdvances, setMyAdvances] = useState<any[]>([]);
-  const [loadingAdvances, setLoadingAdvances] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedForHistory, setSelectedForHistory] = useState<any>(null);
+  const [settlements, setSettlements] = useState<any[]>([]);
+  const [loadingHistorySettle, setLoadingHistorySettle] = useState(false);
 
   const [stats, setStats] = useState({ monthHours: 0, monthEarned: 0, todayHours: 0, weeklyHistory: [] as any[] });
   const [lastLogs, setLastLogs] = useState<any[]>([]);
@@ -491,6 +495,30 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       setExpandedMonths(prev => ({ ...prev, [monthKey]: !prev[monthKey] }));
   };
 
+  const loadSettlementHistory = async (advanceId: string) => {
+      setLoadingHistorySettle(true);
+      try {
+          const { data, error } = await supabase
+              .from('advance_settlements')
+              .select('*')
+              .eq('advance_id', advanceId)
+              .order('date', { ascending: false });
+          if (error) throw error;
+          setSettlements(data || []);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setLoadingHistorySettle(false);
+      }
+  };
+
+  const openAdvanceHistory = (adv: any) => {
+      setSelectedForHistory(adv);
+      setSettlements([]);
+      setShowHistoryModal(true);
+      loadSettlementHistory(adv.id);
+  };
+
   const NavItem = ({ id, label, icon: Icon, count, colorClass }: any) => (
     <button
       onClick={() => { setActiveTab(id); setSuccess(false); }}
@@ -551,7 +579,9 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
 
   const showWage = profile.show_wage_in_profile ?? true;
   const unfinishedPastCount = taskGroups.overdue.length;
-  const pendingAdvancesTotal = myAdvances.filter(a => a.status === 'pending').reduce((sum, a) => sum + Number(a.amount), 0);
+  
+  // FIX: Celková suma zohľadňuje čiastočné splatenie
+  const pendingAdvancesTotal = myAdvances.filter(a => a.status === 'pending').reduce((sum, a) => sum + (Number(a.amount) - Number(a.settled_amount || 0)), 0);
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden pt-safe-top">
@@ -674,7 +704,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                           <div className="bg-orange-500 text-white p-2 rounded-lg shadow-sm"><Banknote size={18}/></div>
                                           <div>
                                               <p className="text-xs font-black text-orange-700 uppercase tracking-tight">Nevyrovnané zálohy</p>
-                                              <p className="text-sm font-bold text-orange-900">Aktuálne čerpáte zálohy v hodnote <span className="font-black">{formatMoney(pendingAdvancesTotal)}</span>.</p>
+                                              <p className="text-sm font-bold text-orange-900">Aktuálne k vráteniu zostáva <span className="font-black text-orange-600">{formatMoney(pendingAdvancesTotal)}</span>.</p>
                                           </div>
                                       </div>
                                       <ChevronRight size={18} className="text-orange-400"/>
@@ -682,7 +712,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                               )}
 
                               <div className="flex items-center justify-between">
-                                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1">
                                       <ListTodo size={16} className="text-orange-600"/> Dnešná Agenda
                                   </h3>
                                   <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase">{taskGroups.today.length} úloh</span>
@@ -760,9 +790,12 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                        <div className="text-center py-8 text-slate-300 text-[10px] font-bold uppercase border-2 border-dashed border-slate-100 rounded-xl">Žiadne záznamy</div>
                                    )}
                                </div>
-                               <Button variant="secondary" fullWidth onClick={() => setActiveTab('log')} className="h-10 text-[10px] font-black uppercase tracking-widest border-slate-200 shadow-sm">
-                                   <Zap size={14}/> Zapísať prácu
-                               </Button>
+                               <button 
+                                  onClick={() => setActiveTab('log')}
+                                  className="w-full flex items-center justify-center gap-2 h-10 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-slate-50 transition"
+                               >
+                                   <Zap size={14} className="text-orange-500" /> Zapísať prácu
+                               </button>
                           </div>
                       </div>
                   </div>
@@ -774,12 +807,12 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                          <h2 className="text-2xl font-black text-slate-900 flex items-center justify-center gap-2">
                             <Banknote className="text-orange-600" size={28} /> Moje Zálohy
                          </h2>
-                         <p className="text-xs text-slate-400 font-bold uppercase mt-1">Prehľad vyčerpaných a vyrovnaných záloh</p>
+                         <p className="text-xs text-slate-400 font-bold uppercase mt-1">Prehľad čerpania a priebehu splácania</p>
                       </div>
 
                       <Card className="bg-white border-orange-100 shadow-sm p-6 text-center relative overflow-hidden">
                           <div className="relative z-10">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Aktuálne čerpáte (nevyrovnané)</p>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Zostáva k vráteniu (celkom)</p>
                               <p className="text-4xl font-black text-orange-600 tracking-tight">{formatMoney(pendingAdvancesTotal)}</p>
                           </div>
                           <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12">
@@ -789,7 +822,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
 
                       <div className="space-y-4">
                           <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
-                              <History size={14} className="text-blue-500"/> História čerpania
+                              <History size={14} className="text-blue-500"/> Zoznam záloh a splátok
                           </h3>
                           
                           <div className="grid grid-cols-1 gap-3">
@@ -798,26 +831,57 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                       Zatiaľ ste nečerpali žiadne zálohy.
                                   </div>
                               ) : (
-                                  myAdvances.map(adv => (
-                                      <div key={adv.id} className={`bg-white p-4 rounded-xl border shadow-sm flex items-center justify-between transition-all ${adv.status === 'settled' ? 'opacity-60 border-slate-200' : 'border-orange-200'}`}>
-                                          <div>
-                                              <div className="font-black text-slate-900 flex items-center gap-2">
-                                                  {formatMoney(adv.amount)}
-                                                  {adv.status === 'settled' ? (
-                                                      <span className="text-[8px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full uppercase">Vyrovnaná</span>
-                                                  ) : (
-                                                      <span className="text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full uppercase">Čaká na dorovnanie</span>
-                                                  )}
+                                  myAdvances.map(adv => {
+                                      const settled = Number(adv.settled_amount || 0);
+                                      const total = Number(adv.amount);
+                                      const remaining = total - settled;
+                                      const percent = (settled / total) * 100;
+                                      
+                                      return (
+                                          <div key={adv.id} onClick={() => openAdvanceHistory(adv)} className={`bg-white p-5 rounded-2xl border shadow-sm transition-all cursor-pointer hover:border-orange-300 ${adv.status === 'settled' ? 'opacity-60 border-slate-200' : 'border-orange-200'}`}>
+                                              <div className="flex justify-between items-start mb-4">
+                                                  <div>
+                                                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1 mb-1">
+                                                          <Calendar size={10}/> {formatDate(adv.date)}
+                                                      </div>
+                                                      <div className="font-black text-slate-900 text-lg">
+                                                          {formatMoney(total)}
+                                                      </div>
+                                                  </div>
+                                                  <div className="text-right">
+                                                      {adv.status === 'settled' ? (
+                                                          <span className="text-[9px] bg-green-100 text-green-700 px-2 py-1 rounded-lg font-black uppercase flex items-center gap-1"><Check size={10}/> Splatené</span>
+                                                      ) : settled > 0 ? (
+                                                          <div className="flex flex-col items-end">
+                                                              <span className="text-[9px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-black uppercase mb-1">V splácaní</span>
+                                                              <span className="text-[10px] font-black text-orange-600">Zostáva: {formatMoney(remaining)}</span>
+                                                          </div>
+                                                      ) : null}
+                                                  </div>
                                               </div>
-                                              <div className="text-[10px] text-slate-400 font-bold uppercase mt-1 flex items-center gap-1">
-                                                  <Calendar size={10}/> {formatDate(adv.date)}
-                                              </div>
+
+                                              {adv.status === 'pending' && (
+                                                  <div className="space-y-2">
+                                                      <div className="flex justify-between text-[8px] font-black uppercase text-slate-400">
+                                                          <span>Splatené {formatMoney(settled)}</span>
+                                                          <span>{Math.round(percent)}%</span>
+                                                      </div>
+                                                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-50">
+                                                          <div 
+                                                              className="h-full bg-orange-500 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(249,115,22,0.3)]"
+                                                              style={{ width: `${percent}%` }}
+                                                          ></div>
+                                                      </div>
+                                                  </div>
+                                              )}
+
+                                              {adv.description && (
+                                                  <p className="text-[11px] text-slate-500 italic mt-3 bg-slate-50 p-2 rounded-xl border border-slate-100">"{adv.description}"</p>
+                                              )}
+                                              <p className="text-[9px] text-slate-300 font-bold uppercase mt-3 tracking-tighter">Kliknite pre zobrazenie histórie splátok</p>
                                           </div>
-                                          <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300">
-                                              <Banknote size={20} />
-                                          </div>
-                                      </div>
-                                  ))
+                                      );
+                                  })
                               )}
                           </div>
                       </div>
@@ -1007,7 +1071,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                                                       {log.description}
                                                                   </p>
                                                               )}
-                                                          </div>
+                           </div>
                                                           <div className="text-right shrink-0">
                                                               <div className="text-sm font-black text-slate-900">{formatDuration(Number(log.hours))}</div>
                                                               {showWage && (
@@ -1279,6 +1343,47 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
               ))}
           </div>
       </nav>
+
+      {/* MODAL: HISTÓRIA SPLÁCANIA ZÁLOHY (PRE ZAMESTNANCA) */}
+      {showHistoryModal && (
+          <Modal title="História splácania" onClose={() => setShowHistoryModal(false)}>
+              <div className="space-y-6">
+                  <div className="flex justify-between items-end border-b border-slate-100 pb-4">
+                      <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Výška zálohy</p>
+                          <h3 className="text-2xl font-black text-slate-900">{formatMoney(Number(selectedForHistory?.amount))}</h3>
+                          <p className="text-xs text-slate-500 font-bold">{formatDate(selectedForHistory?.date)}</p>
+                      </div>
+                      <div className="text-right">
+                          <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">Môj aktuálny dlh</p>
+                          <div className="text-2xl font-black text-orange-600">{formatMoney(Number(selectedForHistory?.amount) - Number(selectedForHistory?.settled_amount || 0))}</div>
+                      </div>
+                  </div>
+
+                  <div className="space-y-3">
+                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><History size={14} className="text-blue-500"/> Zoznam zúčtovaných splátok</h4>
+                      {loadingHistorySettle ? (
+                          <div className="py-10 text-center"><Loader2 className="animate-spin mx-auto text-blue-500" size={24}/></div>
+                      ) : settlements.length === 0 ? (
+                          <div className="py-10 text-center text-slate-300 italic text-sm border-2 border-dashed border-slate-100 rounded-2xl">Zatiaľ žiadne splátky.</div>
+                      ) : (
+                          <div className="space-y-2">
+                              {settlements.map(s => (
+                                  <div key={s.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100 transition hover:border-blue-200">
+                                      <div className="flex items-center gap-3">
+                                          <div className="bg-white p-2 rounded-lg border border-slate-200 text-blue-500 shadow-sm"><Calendar size={16}/></div>
+                                          <div className="text-sm font-black text-slate-800">{formatDate(s.date)}</div>
+                                      </div>
+                                      <div className="text-lg font-black text-green-600">-{formatMoney(s.amount)}</div>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+                  <Button fullWidth onClick={() => setShowHistoryModal(false)} variant="secondary">Zatvoriť</Button>
+              </div>
+          </Modal>
+      )}
 
       {selectedTask && (
           <Modal title="Detail Úlohy" onClose={() => setSelectedTask(null)} maxWidth="max-w-md">

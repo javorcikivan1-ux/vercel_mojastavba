@@ -166,7 +166,7 @@ export const LegalModal = ({ type, onClose }: { type: 'vop' | 'gdpr', onClose: (
                             
                             <p><strong>2. Uzatvorenie zmluvy a registrácia</strong><br/>Zmluva vzniká registráciou firemného účtu. Užívateľ je povinný uviesť pravdivé údaje. Firemný účet (Admin) má právo prizývať zamestnancov (Užívateľov), za ktorých činnosť v systéme nesie plnú zodpovednosť.</p>
                             
-                            <p><strong>3. Platobné podmienky a predplatné</strong><br/>Služba ponúka 14-dňovú skúšobnú lehotu. Po jej uplynutí je služba spoplatnená sumou 15 € s DPH / mesiac za jeden firemný účet (neobmedzený počet zamestnancov). Platba prebieha cez bránu Stripe. Predplatné je bez viazanosti, vypovedateľné kedykoľvek v nastaveniach.</p>
+                            <p><strong>3. Platobné podmienky a predplatné</strong><br/>Služba ponúka 30-dňovú skúšobnú lehotu. Po jej uplynutí je služba spoplatnená sumou 15 € s DPH / mesiac za jeden firemný účet (neobmedzený počet zamestnancov). Platba prebieha cez bránu Stripe. Predplatné je bez viazanosti, vypovedateľné kedykoľvek v nastaveniach.</p>
                             
                             <p><strong>4. Práva a povinnosti užívateľa</strong><br/>Užívateľ sa zaväzuje nezneužívať systém, nezasahovať do jeho bezpečnosti a využívať ho v súlade s platnou legislatívou SR. Užívateľ zodpovedá za legálnosť a správnosť dát vložených do stavebného denníka a evidencie dochádzky.</p>
                             

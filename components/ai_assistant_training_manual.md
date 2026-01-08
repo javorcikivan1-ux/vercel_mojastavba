@@ -326,10 +326,10 @@ Pre každú zákazku vidíš:
 
 ## 🔒 PREDPLATNÉ A PLATBY
 
-**Skúšobná verzia (14 dní zadarmo)**
-- Pri registrácii máš 14 dní na vyskúšanie zadarmo
+**Skúšobná verzia (30 dní zadarmo)**
+- Pri registrácii máš 30 dní na vyskúšanie zadarmo
 - Máš prístup ku všetkým funkciám
-- Po 14 dňoch musíš aktivovať predplatné
+- Po 30 dňoch musíš aktivovať predplatné
 
 **Platené predplatné**
 - **15 € s DPH / mesiac**

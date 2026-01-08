@@ -291,7 +291,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
             <p className="text-base md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed px-2">
               Kompletná správa zákaziek, dochádzky a analytiky v jednej aplikácii.<br/>
-              <span className="font-semibold text-slate-800">Vyskúšajte na 14 dní bez zadávania platobných údajov.</span>
+              <span className="font-semibold text-slate-800">Vyskúšajte na 30 dní bez zadávania platobných údajov.</span>
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 px-4 md:px-0">
@@ -384,7 +384,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                       <span className="font-black text-xl tracking-tight text-white">Moja<span className="text-orange-500">Stavba</span></span>
                     </div>
                     <p className="text-slate-400 text-sm leading-relaxed">
-                      Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 14 dní zadarmo a bez zadávania platobných údajov.
+                      Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 30 dní zadarmo a bez zadávania platobných údajov.
                     </p>
                 </div>
 
@@ -590,7 +590,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                             </div>
                             <div className="z-10">
                                 <div className="font-bold text-slate-800">Firemný Účet (Majiteľ)</div>
-                                <div className="text-xs text-slate-500">Založiť novú firmu + 14 dní zadarmo</div>
+                                <div className="text-xs text-slate-500">Založiť novú firmu + 30 dní zadarmo</div>
                             </div>
                             <ChevronRight className="ml-auto text-slate-300 group-hover:text-orange-400 z-10"/>
                         </button>

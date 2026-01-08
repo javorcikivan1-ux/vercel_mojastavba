@@ -1,7 +1,8 @@
+
 {
   "name": "mojastavba",
   "private": true,
-  "version": "1.0.6",
+  "version": "3.9.9",
   "description": "Aplikácia pre stavebný manažment",
   "author": {
     "name": "MojaStavba",
@@ -10,7 +11,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/javorcikivan1-ux/mojastavba-app"
+    "url": "https://github.com/javorcikivan1-ux/vercel_mojastavba"
   },
   "main": "electron/main.js",
   "scripts": {
@@ -59,7 +60,7 @@
       {
         "provider": "github",
         "owner": "javorcikivan1-ux",
-        "repo": "mojastavba-app"
+        "repo": "vercel_mojastavba"
       }
     ],
     "directories": {
