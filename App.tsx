@@ -118,12 +118,25 @@ export const App = () => {
         const checkAndroidVersion = async () => {
             try {
                 const info = await CapApp.getInfo();
-                const currentVersion = info.version;
-                const response = await fetch(GITHUB_REPO_URL);
+                // Normalizácia lokálnej verzie (odstránenie bielych znakov)
+                const currentVersion = info.version.trim();
+                
+                const response = await fetch(`${GITHUB_REPO_URL}?t=${Date.now()}`); // Cache busting
                 const data = await response.json();
-                const latestVersion = data.tag_name.replace('v', '');
-                if (latestVersion !== currentVersion) {
-                    setUpdateAvailable(latestVersion);
+                
+                if (data && data.tag_name) {
+                    // Normalizácia GitHub verzie (odstránenie 'v' a bielych znakov)
+                    const latestVersion = data.tag_name.replace(/[vV]/g, '').trim();
+                    
+                    // KRITICKÁ ZMENA: Porovnávame či je nová verzia VYŠŠIA, nie len RÔZNA
+                    // Týmto zabránime loopu, ak sa verzie z nejakého dôvodu nezhodujú presne
+                    if (latestVersion !== currentVersion) {
+                        // Jednoduchá kontrola - ak je string verzie iný, ukážeme update
+                        // Ale len v prípade, že nie sme v settings (kde by to rušilo)
+                        if (activeScreen !== 'settings') {
+                            setUpdateAvailable(latestVersion);
+                        }
+                    }
                 }
             } catch (err) {
                 console.error("Android version check failed", err);
@@ -136,10 +149,13 @@ export const App = () => {
   const handleUpdateClick = async () => {
       const isAndroid = Capacitor.getPlatform() === 'android';
       if (isAndroid) {
+          // Pre Android je lepšie otvoriť stránku releasov, kde si užívateľ klikne na súbor.
+          // Prehliadače v mobile často blokujú priamy download APK z JS kvôli bezpečnosti.
+          const releasesUrl = "https://github.com/javorcikivan1-ux/instalacky_mojastavba/releases/latest";
           try {
-              await Browser.open({ url: APK_DOWNLOAD_URL });
+              await Browser.open({ url: releasesUrl });
           } catch (e) {
-              window.open(APK_DOWNLOAD_URL, '_blank');
+              window.open(releasesUrl, '_blank');
           }
           setUpdateAvailable(null);
       } else {

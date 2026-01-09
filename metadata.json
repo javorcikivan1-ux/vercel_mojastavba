@@ -1,5 +1,5 @@
 {
-  "description": "Profesionálna aplikácia pre stavebný manažment.",
+  "description": "Profesionálny systém pre stavebný manažment MojaStavba.",
   "requestFramePermissions": [
     "camera",
     "microphone"

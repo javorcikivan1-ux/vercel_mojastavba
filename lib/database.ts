@@ -1,266 +1,334 @@
-
 export const SETUP_SQL = `
--- ⚠️ UPOZORNENIE: Tento skript najprv VYMAŽE všetky existujúce tabuľky (DROP TABLE CASCADE).
--- Používajte ho len pri prvotnej inštalácii alebo ak chcete začať s čistou databázou.
+-- 1. ÚPLNÝ RESET SCHÉMY
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
 
--- 1. RESET (VYMAZANIE VŠETKÉHO)
--- drop table if exists support_requests cascade;
--- drop table if exists diary_records cascade;
--- drop table if exists quote_items cascade;
--- drop table if exists quotes cascade;
--- drop table if exists attendance_logs cascade;
--- drop table if exists materials cascade;
--- drop table if exists transactions cascade;
--- drop table if exists tasks cascade;
--- drop table if exists sites cascade;
--- drop table if exists profiles cascade;
--- drop table if exists organizations cascade;
+-- 2. NASTAVENIE PRÁV PRE SUPABASE API
+GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
 
--- 2. VYTVORENIE TABULIEK
-create table organizations (
-  id uuid default gen_random_uuid() primary key,
-  created_by uuid references auth.users(id) on delete cascade,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  name text not null,
-  pin_code text default '0000',
-  logo_url text,
-  stamp_url text,
-  subscription_plan text default 'free_trial', 
-  subscription_status text default 'trialing',
-  trial_ends_at timestamp with time zone default (now() + interval '30 days'),
-  stripe_customer_id text,
-  stripe_subscription_id text,
-  ico text,
-  dic text,
-  ic_dph text,
-  is_vat_payer boolean default false,
-  address_type text default 'sidlo',
-  business_address text
+-- 3. TVORBA TABULIEK
+CREATE TABLE public.organizations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    name TEXT NOT NULL,
+    pin_code TEXT DEFAULT '0000',
+    logo_url TEXT,
+    subscription_plan TEXT DEFAULT 'free_trial',
+    subscription_status TEXT DEFAULT 'trialing',
+    trial_ends_at TIMESTAMPTZ DEFAULT (now() + interval '30 days'),
+    ico TEXT,
+    dic TEXT,
+    ic_dph TEXT,
+    is_vat_payer BOOLEAN DEFAULT false,
+    address_type TEXT DEFAULT 'sidlo',
+    business_address TEXT,
+    stamp_url TEXT
 );
 
-create table profiles (
-  id uuid references auth.users(id) on delete cascade primary key,
-  email text,
-  role text default 'employee',
-  full_name text,
-  organization_id uuid references organizations(id) on delete cascade,
-  hourly_rate numeric(10,2) default 0,
-  phone text,
-  is_active boolean default true,
-  is_approved boolean default true,
-  settings jsonb default '{"notify_tasks": true, "notify_logs": true, "task_categories": [{"id": "1", "label": "Všeobecné", "color": "#f1f5f9"}, {"id": "2", "label": "Stavba", "color": "#ffedd5"}, {"id": "3", "label": "Administratíva", "color": "#dbeafe"}]}', 
-  job_title text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE TABLE public.profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
+    email TEXT,
+    role TEXT DEFAULT 'employee' CHECK (role IN ('admin', 'employee')),
+    full_name TEXT,
+    organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE,
+    hourly_rate NUMERIC DEFAULT 0,
+    phone TEXT,
+    is_active BOOLEAN DEFAULT true,
+    settings JSONB DEFAULT '{"notify_logs": true, "notify_tasks": true, "task_categories": [{"id": "1", "color": "#f1f5f9", "label": "Všeobecné"}, {"id": "2", "color": "#ffedd5", "label": "Stavba"}, {"id": "3", "color": "#dbeafe", "label": "Administratíva"}]}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    is_approved BOOLEAN DEFAULT true,
+    job_title TEXT DEFAULT 'zamestnanec',
+    show_wage_in_profile BOOLEAN DEFAULT true,
+    avatar_url TEXT
 );
 
-create table support_requests (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  organization_id uuid references organizations(id) on delete cascade,
-  user_id uuid references profiles(id) on delete cascade,
-  user_name text,
-  org_name text,
-  user_email text,
-  user_phone text,
-  message text not null,
-  status text default 'new'
+CREATE TABLE public.sites (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    name TEXT NOT NULL,
+    address TEXT,
+    client_name TEXT,
+    status TEXT DEFAULT 'lead',
+    budget NUMERIC DEFAULT 0,
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    notes TEXT,
+    lead_stage TEXT DEFAULT 'new'
 );
 
-create table sites (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  name text not null,
-  address text,
-  client_name text,
-  status text default 'lead',
-  lead_stage text default 'new',
-  budget numeric(12,2) default 0,
-  organization_id uuid references organizations(id) on delete cascade not null,
-  notes text
+CREATE TABLE public.attendance_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES public.sites(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    hours NUMERIC NOT NULL DEFAULT 0,
+    hourly_rate_snapshot NUMERIC DEFAULT 0,
+    description TEXT,
+    date DATE DEFAULT CURRENT_DATE,
+    start_time TEXT,
+    end_time TEXT,
+    payment_type TEXT DEFAULT 'hourly',
+    fixed_amount NUMERIC DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table diary_records (
-  id uuid default gen_random_uuid() primary key,
-  site_id uuid references sites(id) on delete cascade not null,
-  organization_id uuid references organizations(id) on delete cascade not null,
-  date date not null,
-  weather text,
-  temperature_morning text,
-  temperature_noon text,
-  notes text,
-  mechanisms text,
-  status text default 'draft',
-  photos text[],
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE TABLE public.diary_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id UUID NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    weather TEXT,
+    temperature_morning TEXT,
+    temperature_noon TEXT,
+    notes TEXT,
+    mechanisms TEXT,
+    status TEXT DEFAULT 'draft',
+    photos JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(site_id, date)
 );
 
-create table quotes (
-  id uuid default gen_random_uuid() primary key,
-  organization_id uuid references organizations(id) on delete cascade not null,
-  site_id uuid references sites(id) on delete cascade,
-  quote_number text,
-  client_name text,
-  client_address text,
-  total_amount numeric(12,2) default 0,
-  issue_date date default CURRENT_DATE,
-  valid_until date,
-  status text check (status in ('draft', 'sent', 'accepted', 'rejected')) default 'draft',
-  notes text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE TABLE public.fuel_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id UUID NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    amount NUMERIC NOT NULL DEFAULT 0,
+    liters NUMERIC DEFAULT 0,
+    vehicle TEXT,
+    description TEXT,
+    receipt_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table quote_items (
-  id uuid default gen_random_uuid() primary key,
-  quote_id uuid references quotes(id) on delete cascade,
-  description text not null,
-  quantity numeric(10,2) default 1,
-  unit text default 'ks',
-  unit_price numeric(10,2) default 0,
-  total_price numeric(12,2) default 0,
-  vat_rate numeric(5,2) default 0
+CREATE TABLE public.materials (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    site_id UUID NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    quantity NUMERIC DEFAULT 0,
+    unit TEXT DEFAULT 'ks',
+    unit_price NUMERIC DEFAULT 0,
+    total_price NUMERIC DEFAULT 0,
+    supplier TEXT,
+    purchase_date DATE
 );
 
-create table transactions (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  site_id uuid references sites(id) on delete cascade,
-  organization_id uuid references organizations(id) on delete cascade not null,
-  type text not null check (type in ('invoice', 'expense')),
-  category text not null,
-  amount numeric(12,2) not null default 0,
-  date date not null,
-  description text,
-  is_paid boolean default false
+CREATE TABLE public.advances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    amount NUMERIC NOT NULL DEFAULT 0,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    description TEXT,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'settled')),
+    settled_at TIMESTAMPTZ,
+    settled_amount NUMERIC NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table materials (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  site_id uuid references sites(id) on delete cascade not null,
-  organization_id uuid references organizations(id) on delete cascade not null,
-  name text not null,
-  quantity numeric(10,2) default 0,
-  unit text default 'ks',
-  unit_price numeric(10,2) default 0,
-  total_price numeric(12,2) default 0,
-  supplier text,
-  purchase_date date
+CREATE TABLE public.advance_settlements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    advance_id UUID NOT NULL REFERENCES public.advances(id) ON DELETE CASCADE,
+    amount NUMERIC NOT NULL,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table tasks (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  site_id uuid references sites(id) on delete cascade,
-  organization_id uuid references organizations(id) on delete cascade not null,
-  title text not null,
-  description text,
-  status text default 'todo',
-  start_date timestamp with time zone,
-  end_date timestamp with time zone,
-  color text default '#f97316',
-  assigned_to uuid references profiles(id) on delete set null
+CREATE TABLE public.support_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE,
+    user_id REFERENCES public.profiles(id) ON DELETE SET NULL,
+    user_name TEXT,
+    org_name TEXT,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'new',
+    user_email TEXT,
+    user_phone TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table attendance_logs (
-  id uuid default gen_random_uuid() primary key,
-  user_id uuid references profiles(id) on delete cascade not null,
-  site_id uuid references sites(id) on delete set null,
-  organization_id uuid references organizations(id) on delete cascade not null,
-  hours numeric(10,2) not null default 0,
-  hourly_rate_snapshot numeric(10,2) default 0,
-  description text,
-  date date default CURRENT_DATE,
-  start_time text, 
-  end_time text,   
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE TABLE public.tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id UUID REFERENCES public.sites(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT DEFAULT 'todo',
+    start_date TIMESTAMPTZ,
+    end_date TIMESTAMPTZ,
+    color TEXT DEFAULT '#f97316',
+    assigned_to UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create index if not exists idx_profiles_org on profiles(organization_id);
-create index if not exists idx_sites_org on sites(organization_id);
-create index if not exists idx_attendance_org_date on attendance_logs(organization_id, date);
-create index if not exists idx_attendance_user on attendance_logs(user_id);
-create index if not exists idx_transactions_org on transactions(organization_id);
-create index if not exists idx_materials_site on materials(site_id);
-create index if not exists idx_tasks_assigned on tasks(assigned_to);
-create index if not exists idx_diary_site_date on diary_records(site_id, date);
+CREATE TABLE public.transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id UUID REFERENCES public.sites(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('invoice', 'expense')),
+    category TEXT NOT NULL,
+    amount NUMERIC NOT NULL DEFAULT 0,
+    date DATE NOT NULL,
+    description TEXT,
+    is_paid BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-create or replace function public.handle_new_user()
-returns trigger as $$
-declare
-  org_id uuid;
-begin
-  if new.raw_user_meta_data->>'company_name' is not null then
-    insert into public.organizations (name, created_by)
-    values (new.raw_user_meta_data->>'company_name', new.id)
-    returning id into org_id;
-    insert into public.profiles (id, email, full_name, role, organization_id, hourly_rate, is_approved, job_title)
-    values (new.id, new.email, new.raw_user_meta_data->>'full_name', 'admin', org_id, 0, true, 'Administrátor');
-  elsif new.raw_user_meta_data->>'company_id' is not null then
-    insert into public.profiles (id, email, full_name, role, organization_id, hourly_rate, is_approved, job_title)
-    values (new.id, new.email, new.raw_user_meta_data->>'full_name', 'employee', (new.raw_user_meta_data->>'company_id')::uuid, 0, true, 'Zamestnanec');
-  end if;
-  return new;
-end;
-$$ language plpgsql security definer;
+CREATE TABLE public.quotes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES public.sites(id) ON DELETE SET NULL,
+    quote_number TEXT NOT NULL,
+    client_name TEXT,
+    client_address TEXT,
+    total_amount NUMERIC DEFAULT 0,
+    issue_date DATE DEFAULT CURRENT_DATE,
+    valid_until DATE,
+    notes TEXT,
+    status TEXT DEFAULT 'draft'
+);
 
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+CREATE TABLE public.quote_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quote_id UUID NOT NULL REFERENCES public.quotes(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    quantity NUMERIC DEFAULT 1,
+    unit TEXT DEFAULT 'ks',
+    unit_price NUMERIC DEFAULT 0,
+    total_price NUMERIC DEFAULT 0,
+    vat_rate NUMERIC DEFAULT 20
+);
 
-alter table organizations enable row level security;
-alter table profiles enable row level security;
-alter table sites enable row level security;
-alter table diary_records enable row level security;
-alter table quotes enable row level security;
-alter table quote_items enable row level security;
-alter table transactions enable row level security;
-alter table materials enable row level security;
-alter table tasks enable row level security;
-alter table attendance_logs enable row level security;
-alter table support_requests enable row level security;
+-- 4. INDEXY PRE VÝKON (Kritické pre RLS a Filtre)
+CREATE INDEX idx_profiles_org ON public.profiles(organization_id);
+CREATE INDEX idx_sites_org ON public.sites(organization_id);
+CREATE INDEX idx_attendance_org ON public.attendance_logs(organization_id);
+CREATE INDEX idx_attendance_user ON public.attendance_logs(user_id);
+CREATE INDEX idx_attendance_site ON public.attendance_logs(site_id);
+CREATE INDEX idx_attendance_date ON public.attendance_logs(date);
+CREATE INDEX idx_diary_site ON public.diary_records(site_id);
+CREATE INDEX idx_diary_date ON public.diary_records(date);
+CREATE INDEX idx_fuel_site ON public.fuel_logs(site_id);
+CREATE INDEX idx_fuel_date ON public.fuel_logs(date);
+CREATE INDEX idx_materials_site ON public.materials(site_id);
+CREATE INDEX idx_tasks_assigned ON public.tasks(assigned_to);
+CREATE INDEX idx_transactions_site ON public.transactions(site_id);
+CREATE INDEX idx_quotes_org ON public.quotes(organization_id);
+CREATE INDEX idx_quote_items_quote ON public.quote_items(quote_id);
+CREATE INDEX idx_adv_settle_adv ON public.advance_settlements(advance_id);
 
-create or replace function get_my_org_id()
-returns uuid as $$
-  select organization_id from profiles where id = auth.uid() limit 1;
-$$ language sql security definer;
+-- 5. FINANČNÝ POHĽAD S BEZPEČNOSŤOU (Zobrazuje reálne náklady)
+CREATE OR REPLACE VIEW public.v_site_financials 
+WITH (security_invoker = true)
+AS
+SELECT 
+    s.id as site_id,
+    COALESCE((SELECT SUM(amount) FROM public.transactions WHERE site_id = s.id AND type = 'invoice' AND is_paid = true), 0) as total_income,
+    COALESCE((SELECT SUM(amount) FROM public.transactions WHERE site_id = s.id AND type = 'expense'), 0) as total_direct_expenses,
+    COALESCE((SELECT SUM(total_price) FROM public.materials WHERE site_id = s.id), 0) as total_material_cost,
+    COALESCE((SELECT SUM(amount) FROM public.fuel_logs WHERE site_id = s.id), 0) as total_fuel_cost,
+    COALESCE((
+        SELECT SUM(
+            CASE 
+                WHEN al.payment_type = 'fixed' THEN COALESCE(al.fixed_amount, 0)
+                ELSE al.hours * COALESCE(NULLIF(al.hourly_rate_snapshot, 0), (SELECT hourly_rate FROM public.profiles WHERE id = al.user_id), 0)
+            END
+        ) 
+        FROM public.attendance_logs al 
+        WHERE al.site_id = s.id
+    ), 0) as total_labor_cost
+FROM public.sites s;
 
-create policy "Allow public check existence" on organizations for select using (true);
-create policy "Manage own org" on organizations for all using (id = get_my_org_id() OR created_by = auth.uid());
-create policy "Org Access Profiles" on profiles for all using (organization_id = get_my_org_id() OR id = auth.uid());
-create policy "Org Access Sites" on sites for all using (organization_id = get_my_org_id());
-create policy "Org Access Diary" on diary_records for all using (organization_id = get_my_org_id());
-create policy "Org Access Quotes" on quotes for all using (organization_id = get_my_org_id());
-create policy "Org Access Items" on quote_items for all using (quote_id in (select id from quotes where organization_id = get_my_org_id()));
-create policy "Org Access Transactions" on transactions for all using (organization_id = get_my_org_id());
-create policy "Org Access Materials" on materials for all using (organization_id = get_my_org_id());
-create policy "Org Access Tasks" on tasks for all using (organization_id = get_my_org_id());
-create policy if not exists "Org Access Logs" on attendance_logs for all using (organization_id = get_my_org_id());
+-- 6. BEZPEČNOSŤ (RLS)
+ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.diary_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fuel_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.advances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.advance_settlements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.support_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quotes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quote_items ENABLE ROW LEVEL SECURITY;
 
--- Support requests policies (Bezpečnejšie: len prihlásení)
-create policy "Allow support insert" on support_requests for insert with check (auth.uid() is not null);
-create policy "Superadmin select support" on support_requests for select using (auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
-create policy "Superadmin delete support" on support_requests for delete using (auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
-create policy "Superadmin update support" on support_requests for update using (auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
+CREATE OR REPLACE FUNCTION public.get_my_org()
+RETURNS uuid AS $$
+DECLARE
+  _org_id uuid;
+BEGIN
+  SELECT organization_id INTO _org_id FROM public.profiles WHERE id = (SELECT auth.uid());
+  RETURN _org_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-create policy "Org Insert Sites" on sites for insert with check (organization_id = get_my_org_id());
-create policy "Org Insert Diary" on diary_records for insert with check (organization_id = get_my_org_id());
-create policy "Org Insert Quotes" on quotes for insert with check (organization_id = get_my_org_id());
-create policy "Org Insert Transactions" on transactions for insert with check (organization_id = get_my_org_id());
-create policy "Org Insert Materials" on materials for insert with check (organization_id = get_my_org_id());
-create policy "Org Insert Tasks" on tasks for insert with check (organization_id = get_my_org_id());
-create policy if not exists "Org Insert Logs" on attendance_logs for insert with check (organization_id = get_my_org_id());
+-- IZOLAČNÉ PRAVIDLÁ (Vysoký výkon cez Subquery)
+CREATE POLICY "iso_profiles" ON public.profiles FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_org_update" ON public.organizations FOR UPDATE TO authenticated USING (id = (SELECT public.get_my_org())) WITH CHECK (id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_org_delete" ON public.organizations FOR DELETE TO authenticated USING (id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_org_lookup" ON public.organizations FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "iso_sites" ON public.sites FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_attendance" ON public.attendance_logs FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_diary" ON public.diary_records FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_fuel" ON public.fuel_logs FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_materials" ON public.materials FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_advances" ON public.advances FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_tasks" ON public.tasks FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_transactions" ON public.transactions FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_quotes" ON public.quotes FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "iso_support" ON public.support_requests FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
 
--- View pre finančné štatistiky (optimalizácia načítania)
-create or replace view v_site_financials as
-select 
-  s.id as site_id,
-  (select coalesce(sum(amount), 0) from transactions where site_id = s.id and type = 'invoice') as total_income,
-  (select coalesce(sum(amount), 0) from transactions where site_id = s.id and type = 'expense') as total_direct_expenses,
-  (select coalesce(sum(total_price), 0) from materials where site_id = s.id) as total_material_cost,
-  (select coalesce(sum(hours * hourly_rate_snapshot), 0) from attendance_logs where site_id = s.id) as total_labor_cost
-from sites s;
+-- OPRAVENÉ PRAVIDLÁ PRE POLOŽKY (S pevnou kontrolou subquery)
+CREATE POLICY "iso_quote_items" ON public.quote_items FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.quotes q WHERE q.id = quote_id AND q.organization_id = (SELECT public.get_my_org()))) WITH CHECK (EXISTS (SELECT 1 FROM public.quotes q WHERE q.id = quote_id AND q.organization_id = (SELECT public.get_my_org())));
+CREATE POLICY "iso_advance_settlements" ON public.advance_settlements FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.advances a WHERE a.id = advance_id AND a.organization_id = (SELECT public.get_my_org()))) WITH CHECK (EXISTS (SELECT 1 FROM public.advances a WHERE a.id = advance_id AND a.organization_id = (SELECT public.get_my_org())));
+
+-- 7. AUTH TRIGGER (Zabezpečuje prepojenie profilu s firmou)
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+DECLARE
+  new_org_id UUID;
+BEGIN
+  IF (new.raw_user_meta_data->>'role') = 'admin' THEN
+    INSERT INTO public.organizations (name)
+    VALUES (COALESCE(new.raw_user_meta_data->>'company_name', 'Moja Firma'))
+    RETURNING id INTO new_org_id;
+    INSERT INTO public.profiles (id, organization_id, email, full_name, role, is_active)
+    VALUES (new.id, new_org_id, new.email, new.raw_user_meta_data->>'full_name', 'admin', true);
+  ELSE
+    INSERT INTO public.profiles (id, organization_id, email, full_name, role, is_active)
+    VALUES (new.id, (new.raw_user_meta_data->>'company_id')::UUID, new.email, new.raw_user_meta_data->>'full_name', 'employee', true);
+  END IF;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 8. STORAGE (Bucket a Bezpečnostné pravidlá)
+INSERT INTO storage.buckets (id, name, public) VALUES ('diary-photos', 'diary-photos', true) ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'diary-photos');
+CREATE POLICY "Auth Upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'diary-photos');
+CREATE POLICY "Auth Update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'diary-photos');
+CREATE POLICY "Auth Delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'diary-photos');
+
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+GRANT SELECT ON public.v_site_financials TO authenticated, anon, service_role;
 
 NOTIFY pgrst, 'reload schema';
 `;

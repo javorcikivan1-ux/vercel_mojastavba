@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button, Card, AlertModal, Badge, Input, Select, Modal } from '../components/UI';
@@ -542,7 +541,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
     </button>
   );
 
-  const TaskItem = ({ task }: { task: any }) => {
+  // Fix: Changed props type to any to allow 'key' prop when used in lists and avoid TS errors
+  const TaskItem = ({ task }: any) => {
       const todayStr = getLocalDateISO(new Date());
       const taskDateStr = task.start_date?.split('T')[0];
       const isToday = taskDateStr === todayStr;
@@ -1071,7 +1071,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                                                       {log.description}
                                                                   </p>
                                                               )}
-                           </div>
+                                                          </div>
                                                           <div className="text-right shrink-0">
                                                               <div className="text-sm font-black text-slate-900">{formatDuration(Number(log.hours))}</div>
                                                               {showWage && (

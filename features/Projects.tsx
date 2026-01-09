@@ -631,8 +631,10 @@ const IntegratedCalculator = () => {
             setEquation('');
         } else if (val === '=') {
             try {
-                // Striktné vyhodnotenie cez eval pre jednoduchú kalkulačku
-                const res = eval(equation + display);
+                const fullEquation = (equation + display).replace(/[^0-9+\-*/.]/g, '');
+                // Bezpečnejšia alternatíva k eval pre jednoduché matematické výrazy
+                const calculate = new Function(`return ${fullEquation}`);
+                const res = calculate();
                 setDisplay(String(roundFin(Number(res))));
                 setEquation('');
             } catch {
