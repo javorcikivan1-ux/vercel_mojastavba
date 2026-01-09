@@ -2,7 +2,7 @@
 {
   "name": "mojastavba",
   "private": true,
-  "version": "4.0.0",
+  "version": "4.0.4",
   "description": "Aplikácia pre stavebný manažment",
   "author": {
     "name": "MojaStavba",
@@ -27,6 +27,7 @@
   "dependencies": {
     "@capacitor/android": "^6.0.0",
     "@capacitor/app": "^6.0.3",
+    "@capacitor/browser": "^6.0.0",
     "@capacitor/core": "^6.0.0",
     "@capacitor/ios": "^6.0.0",
     "@capgo/capacitor-updater": "^6.0.0",
@@ -74,12 +75,13 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",

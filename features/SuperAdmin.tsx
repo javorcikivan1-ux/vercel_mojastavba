@@ -152,7 +152,7 @@ export const SuperAdminScreen = () => {
                         <ShieldAlert className="text-red-600" size={32} />
                         SuperAdmin Panel
                     </h2>
-                    <p className="text-slate-500 font-medium mt-1 text-sm uppercase tracking-widest">Prehľad požiadaviek a stavu systému</p>
+                    <p className="text-slate-500 font-medium mt-1 text-sm uppercase tracking-widest">Prehľad požiadaviek a stavu systému MojaStavba</p>
                 </div>
             </div>
 

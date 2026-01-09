@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, UserProfile } from './lib/supabase';
 import { Button, ConfirmModal, LegalModal, Modal } from './components/UI';
 import { DashboardScreen } from './features/Dashboard';
@@ -22,19 +22,46 @@ import { UpdatesScreen } from './features/Updates';
 
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown
 } from 'lucide-react';
 
 import { App as CapApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 
 const SUPER_ADMIN_EMAIL = 'javorcik.ivan1@gmail.com';
+const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mojastavba/releases/latest";
+const APK_DOWNLOAD_URL = "https://github.com/javorcikivan1-ux/instalacky_mojastavba/releases/latest/download/MojaStavba.apk";
+
+// --- OFFLINE OVERLAY COMPONENT ---
+const OfflineOverlay = () => (
+    <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-500">
+        <div className="bg-white rounded-[2.5rem] shadow-2xl p-10 max-w-sm w-full text-center border border-slate-100 animate-in zoom-in-95 duration-300">
+            <div className="w-24 h-24 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6 relative">
+                <WifiOff size={48} className="animate-pulse" />
+                <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-1 shadow-md">
+                    <Frown size={28} className="text-orange-600" />
+                </div>
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 leading-tight">Sme offline... ☹️</h2>
+            <p className="text-slate-500 mt-4 font-medium leading-relaxed">
+                Stratili ste pripojenie k sieti. Pre fungovanie aplikácie MojaStavba musíte byť pripojený na internet.
+            </p>
+            <div className="mt-8 flex flex-col gap-3">
+                <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-slate-400 tracking-widest italic animate-pulse">
+                    <RefreshCw size={12} className="animate-spin" /> Čakám na signál...
+                </div>
+            </div>
+        </div>
+    </div>
+);
 
 export const App = () => {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [organization, setOrganization] = useState<any>(null);
   const [view, setView] = useState('loading');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   const [activeScreen, setActiveScreen] = useState(() => localStorage.getItem('ms_active_screen') || 'dashboard'); 
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(() => localStorage.getItem('ms_selected_site_id'));
@@ -47,32 +74,80 @@ export const App = () => {
   const [initialLoginView, setInitialLoginView] = useState('login');
   const [workerTab, setWorkerTab] = useState('dashboard');
   
-  // State pre auto-update upozornenie
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
-
-  // State pre rozbalenie financií v sidebare
   const [isFinanceOpen, setIsFinanceOpen] = useState(() => {
     const active = localStorage.getItem('ms_active_screen');
     return active === 'finance' || active === 'analytics' || active === 'advances';
   });
 
-  // --- AUTO UPDATE LISTENER (GLOBÁLNY) ---
+  // --- OFFLINE LISTENER ---
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // --- AUTO UPDATE LISTENER ---
   useEffect(() => {
     const isElectron = !Capacitor.isNativePlatform() && navigator.userAgent.toLowerCase().includes('electron');
+    const isAndroid = Capacitor.getPlatform() === 'android';
+
     if (isElectron) {
       try {
         // @ts-ignore
         const { ipcRenderer } = window.require('electron');
-        ipcRenderer.on('update-status', (_: any, status: string, version?: string) => {
-          if (status === 'available' && version) {
+        const handleUpdateStatus = (_: any, status: string, version?: string) => {
+          if (status === 'available' && version && activeScreen !== 'settings') {
             setUpdateAvailable(version);
           }
-        });
-      } catch (e) {
-        console.error("IPC update listener failed", e);
-      }
+          if (status === 'ready') setUpdateAvailable(null);
+        };
+        ipcRenderer.on('update-status', handleUpdateStatus);
+        return () => ipcRenderer.removeListener('update-status', handleUpdateStatus);
+      } catch (e) { console.error("IPC update listener failed", e); }
+    } 
+    
+    if (isAndroid) {
+        const checkAndroidVersion = async () => {
+            try {
+                const info = await CapApp.getInfo();
+                const currentVersion = info.version;
+                const response = await fetch(GITHUB_REPO_URL);
+                const data = await response.json();
+                const latestVersion = data.tag_name.replace('v', '');
+                if (latestVersion !== currentVersion) {
+                    setUpdateAvailable(latestVersion);
+                }
+            } catch (err) {
+                console.error("Android version check failed", err);
+            }
+        };
+        checkAndroidVersion();
     }
-  }, []);
+  }, [activeScreen]); 
+
+  const handleUpdateClick = async () => {
+      const isAndroid = Capacitor.getPlatform() === 'android';
+      if (isAndroid) {
+          try {
+              await Browser.open({ url: APK_DOWNLOAD_URL });
+          } catch (e) {
+              window.open(APK_DOWNLOAD_URL, '_blank');
+          }
+          setUpdateAvailable(null);
+      } else {
+          setActiveScreen('settings'); 
+          setInitialSettingsTab('updates'); 
+          setUpdateAvailable(null);
+      }
+  };
 
   useEffect(() => {
     localStorage.setItem('ms_active_screen', activeScreen);
@@ -177,7 +252,6 @@ export const App = () => {
       setSelectedSiteId(null);
   };
 
-  // Fix: Added missing handleProfileUpdate function to update the user profile state in the App component
   const handleProfileUpdate = (updatedProfile: UserProfile) => {
       setProfile(updatedProfile);
   };
@@ -205,40 +279,52 @@ export const App = () => {
   if (loading && !profile) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-orange-600" size={40}/></div>;
 
   if (view === 'landing') return (
-    <LandingScreen 
-      onStart={() => { setInitialLoginView('onboarding'); setView('login'); }} 
-      onTryFree={() => { setInitialLoginView('onboarding'); setView('login'); }}
-      onLogin={() => { setInitialLoginView('login'); setView('login'); }} 
-      onWorker={() => { setInitialLoginView('register-emp'); setView('login'); }} 
-      onSubscriptionClick={() => { 
-          setInitialLoginView('login'); 
-          setView('login'); 
-      }}
-    />
+    <>
+      {!isOnline && <OfflineOverlay />}
+      <LandingScreen 
+        onStart={() => { setInitialLoginView('onboarding'); setView('login'); }} 
+        onTryFree={() => { setInitialLoginView('onboarding'); setView('login'); }}
+        onLogin={() => { setInitialLoginView('login'); setView('login'); }} 
+        onWorker={() => { setInitialLoginView('register-emp'); setView('login'); }} 
+        onSubscriptionClick={() => { 
+            setInitialLoginView('login'); 
+            setView('login'); 
+        }}
+      />
+    </>
   );
 
   const inviteCompanyId = new URLSearchParams(window.location.search).get('companyId') || '';
   const effectiveInitialView = new URLSearchParams(window.location.search).get('action') === 'register-emp' ? 'register-emp' : initialLoginView;
 
   if (view === 'login') return (
-      <LoginScreen 
-        onLogin={() => {}} 
-        initialView={effectiveInitialView}
-        initialCompanyId={inviteCompanyId}
-        onBackToLanding={() => setView('landing')}
-      />
+      <>
+        {!isOnline && <OfflineOverlay />}
+        <LoginScreen 
+          onLogin={() => {}} 
+          initialView={effectiveInitialView}
+          initialCompanyId={inviteCompanyId}
+          onBackToLanding={() => setView('landing')}
+        />
+      </>
   );
 
   if (view === 'app' && profile && organization) {
       const isSuperAdmin = profile.email === SUPER_ADMIN_EMAIL;
 
       if (isTrialExpired() && activeScreen !== 'subscription') {
-           return <SubscriptionScreen profile={profile} organization={organization} isExpiredProp={true} onSuccess={() => window.location.reload()} onLogout={handleLogout} />;
+           return (
+             <>
+               {!isOnline && <OfflineOverlay />}
+               <SubscriptionScreen profile={profile} organization={organization} isExpiredProp={true} onSuccess={() => window.location.reload()} onLogout={handleLogout} />
+             </>
+           );
       }
 
       if(profile.role === 'employee') {
            return (
                <>
+                {!isOnline && <OfflineOverlay />}
                 <WorkerModeScreen profile={profile} onLogout={handleLogout} onTabChange={setWorkerTab} />
                 {workerTab === 'dashboard' && (
                     <>
@@ -258,7 +344,7 @@ export const App = () => {
                                 Vydali sme novú aktualizáciu MojaStavba. Stiahnite si ju teraz pre plynulý chod aplikácie.
                             </p>
                             <div className="mt-6 flex flex-col gap-2">
-                                <Button fullWidth onClick={() => { setActiveScreen('settings'); setInitialSettingsTab('updates'); setUpdateAvailable(null); }}>
+                                <Button fullWidth onClick={handleUpdateClick}>
                                     Prejsť k aktualizácii
                                 </Button>
                                 <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
@@ -300,6 +386,7 @@ export const App = () => {
 
       return (
         <div className="flex h-screen bg-slate-50 overflow-hidden pt-safe-top relative">
+             {!isOnline && <OfflineOverlay />}
              <aside className={`hidden md:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}>
                  <div className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-start'} gap-2.5 transition-all`}>
                      <img 
@@ -523,7 +610,7 @@ export const App = () => {
                              Vydali sme novú aktualizáciu MojaStavba. Stiahnite si ju teraz pre plynulý chod aplikácie.
                          </p>
                          <div className="mt-6 flex flex-col gap-2">
-                             <Button fullWidth onClick={() => { setActiveScreen('settings'); setInitialSettingsTab('updates'); setUpdateAvailable(null); }}>
+                             <Button fullWidth onClick={handleUpdateClick}>
                                  Prejsť k aktualizácii
                              </Button>
                              <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>

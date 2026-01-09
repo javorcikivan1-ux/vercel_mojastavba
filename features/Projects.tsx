@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, CustomLogo } from '../components/UI';
@@ -5,7 +6,6 @@ import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDow
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
-// @ts-ignore
 import { ProjectPHM } from './ProjectPHM';
 
 const PAGE_SIZE = 12;
@@ -164,7 +164,13 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
             const enriched = sitesData.map(site => {
                 const s = statsRes?.find(st => st.site_id === site.id);
                 const income = roundFin(Number(s?.total_income || 0));
-                const totalCost = roundFin(Number(s?.total_direct_expenses || 0) + Number(s?.total_material_cost || 0) + Number(s?.total_labor_cost || 0));
+                // PRIDANÉ: total_fuel_cost do výpočtu celkových nákladov
+                const totalCost = roundFin(
+                    Number(s?.total_direct_expenses || 0) + 
+                    Number(s?.total_material_cost || 0) + 
+                    Number(s?.total_labor_cost || 0) +
+                    Number(s?.total_fuel_cost || 0)
+                );
                 return {
                     ...site,
                     profit: roundFin(income - totalCost),
@@ -527,7 +533,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
                                     checked={formData.hasVat}
                                     onChange={(e) => toggleVat(e.target.checked)}
                                 />
-                                <span className="text-sm font-bold text-slate-700">Pripočítať DPH</span>
+                                <span className="text-sm font-bold text-slate-700">Som platiteľ DPH</span>
                              </label>
                              {formData.hasVat && (
                                 <div className="flex items-center gap-2 animate-in slide-in-from-left-2">
@@ -856,7 +862,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                                   return (
                                                       <tr key={row.id} className="group hover:bg-slate-50 transition">
                                                           <td className="p-3 text-center text-slate-300 font-mono">{i+1}</td>
-                                                          <td className="p-3"><input className="w-full bg-transparent outline-none font-bold text-slate-700 placeholder:text-slate-300" value={row.description} onChange={e => updateRow(row.id, 'description', e.target.value)} placeholder="Názov položky..." /></td>
+                                                          <td className="p-3"><input list="quote-desc-suggestions" className="w-full bg-transparent outline-none font-bold text-slate-700 placeholder:text-slate-300" value={row.description} onChange={e => updateRow(row.id, 'description', e.target.value)} placeholder="Názov položky..." /></td>
                                                           <td className="p-3">
                                                               <select className="w-full bg-transparent outline-none text-center text-slate-500" value={row.unit} onChange={e => updateRow(row.id, 'unit', e.target.value)}>
                                                                   {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
@@ -945,6 +951,23 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
     });
     const [items, setTableItems] = useState([{ description: '', quantity: 1, unit: 'ks', unit_price: 0, vat_rate: 23 }]);
     const [saving, setSaving] = useState(false);
+    const [suggestions, setSuggestions] = useState<string[]>([]);
+
+    useEffect(() => {
+        const fetchSuggestions = async () => {
+            const { data } = await supabase
+                .from('quote_items')
+                .select('description, quotes!inner(organization_id)')
+                .eq('quotes.organization_id', profile.organization_id)
+                .limit(500);
+            
+            if (data) {
+                const unique = Array.from(new Set(data.map(i => i.description))).filter(Boolean);
+                setSuggestions(unique as string[]);
+            }
+        };
+        fetchSuggestions();
+    }, [profile.organization_id]);
 
     useEffect(() => {
         if(header.site_id) {
@@ -964,7 +987,6 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
         setTableItems(newItems);
     };
 
-    // Robustnejší výpočet súčtov so zaokrúhľovaním
     const subtotal = roundFin(items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0));
     const totalVat = roundFin(items.reduce((sum, item) => {
         const itemSubtotal = item.quantity * item.unit_price;
@@ -1017,6 +1039,9 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
     return (
         <Modal title="Tvorba Cenovej Ponuky" onClose={onClose} maxWidth="max-w-6xl">
             <div className="space-y-6">
+                <datalist id="quote-desc-suggestions">
+                    {suggestions.map((s, idx) => <option key={idx} value={s} />)}
+                </datalist>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
                     <div className="space-y-4">
                         <Select label="Projekt / Dopyt" value={header.site_id} onChange={(e: any) => setHeader({...header, site_id: e.target.value})}>
@@ -1034,7 +1059,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                         <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <input type="checkbox" id="vat" className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" checked={header.has_vat} onChange={(e) => setHeader({...header, has_vat: e.target.checked})} />
-                                <label htmlFor="vat" className="font-bold text-sm text-slate-700">Uplatniť DPH (rozpísať položkovo)</label>
+                                <label htmlFor="vat" className="font-bold text-sm text-slate-700">Som platiteľ DPH (rozpísať položkovo)</label>
                             </div>
                             <div className="text-right">
                                 <div className="text-[9px] uppercase font-black text-slate-400">Celková suma s DPH</div>
@@ -1070,14 +1095,13 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                                     const itemTotal = roundFin(itemSub + itemVat);
                                     return (
                                         <tr key={i} className="group hover:bg-slate-50 transition">
-                                            <td className="p-2 pl-4"><input className="w-full bg-transparent outline-none font-bold text-slate-700" placeholder="Názov položky..." value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} /></td>
+                                            <td className="p-2 pl-4"><input list="quote-desc-suggestions" className="w-full bg-transparent outline-none font-bold text-slate-700" placeholder="Názov položky..." value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} /></td>
                                             <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-center font-mono" value={item.quantity === 0 ? '' : item.quantity} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
                                             <td className="p-2">
                                                 <select className="w-full bg-transparent outline-none text-center text-slate-500 font-medium" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
                                                     {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                                                 </select>
                                             </td>
-                                            {/* Fix: use 'item.unit_price' instead of 'item_price' */}
                                             <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none font-mono text-right" value={item.unit_price === 0 ? '' : item.unit_price} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'unit_price', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
                                             {header.has_vat && (
                                                 <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-center font-bold text-orange-600" value={item.vat_rate} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'vat_rate', Math.max(0, parseFloat(e.target.value) || 0))} /></td>

@@ -1,3 +1,25 @@
+postup:
+
+1. zmen verziu v  package.json na vyssiu
+2. npm run electron:build  (urobis .exe)
+3. premenuj subor .exe na pomlcky! = appka sa  musi volat: MojaStavba-Setup-4.0.4.   (menis cislo podla package.json) a nasledne v gite v4.0.4 alebo vX.X.X
+4. pushni na git pre vercel:
+push na git pre web: 
+git add .
+git commit -m "Aktualizácia MojaStavba"
+git push
+5. Urob APK: npm run build
+6. npx cap sync android
+7. urob APK v Android Studio a premenuj APK na MojaStavba.apk
+8. nahraj MojaStavba.apk a exe subor s ostatnými subormi na git ako release!
+9. nahraj MojaStavba.apk a MojaStavba.exe do druhého repoziata kvôli funkcnym download linkom
+
+
+
+
+
+
+
 KAMERA:
 B. Povolenia (Permissions):
 V metadata.json máš kameru. Pre App Store a Google Play musíš v kóde (plist a manifest) definovať textové zdôvodnenie, prečo tú kameru chceš (napr. "Potrebujeme prístup k fotoaparátu, aby ste mohli pridávať fotky k záznamom v denníku"). Ak to tam nebude, vyhodia ťa hneď v prvom kole.
