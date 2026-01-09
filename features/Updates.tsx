@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
+import pkg from '../package.json';
 
 type Status =
   | 'idle'
@@ -24,7 +26,7 @@ type Status =
   | 'error';
 
 export const UpdatesScreen = () => {
-  const [appVersion, setAppVersion] = useState<string>('...');
+  const [appVersion, setAppVersion] = useState<string>(pkg.version);
   const [status, setStatus] = useState<Status>('idle');
   const [newVersion, setNewVersion] = useState<string>('');
   const [progress, setProgress] = useState(0);
@@ -39,11 +41,10 @@ export const UpdatesScreen = () => {
         // @ts-ignore
         const { ipcRenderer } = window.require('electron');
 
-        // Získanie verzie
+        // Získanie verzie z Electron procesu
         ipcRenderer.send('app-version');
         ipcRenderer.on('app-version', (_: any, version: string) => setAppVersion(version));
 
-        // Počúvanie na zmeny stavu
         const handleStatus = (_: any, newStatus: Status, info?: string) => {
           setStatus(newStatus);
           if (newStatus === 'available' && info) setNewVersion(info);
@@ -67,8 +68,15 @@ export const UpdatesScreen = () => {
         setStatus('error');
         setErrorMsg("Nepodarilo sa spojiť s procesom Windows.");
       }
+    } else if (isCapacitor) {
+        // Pre mobil skúsime zistiť verziu z natívneho API
+        CapApp.getInfo().then(info => {
+            if (info.version && info.version !== "...") {
+                setAppVersion(info.version);
+            }
+        });
     }
-  }, [isElectron]);
+  }, [isElectron, isCapacitor]);
 
   const checkForUpdates = () => {
     if (isElectron) {
@@ -78,8 +86,6 @@ export const UpdatesScreen = () => {
           // @ts-ignore
           const { ipcRenderer } = window.require('electron');
           ipcRenderer.send('check-for-update');
-          
-          // Bezpečnostná poistka ak main proces neodpovedá
           setTimeout(() => {
               setStatus(prev => prev === 'checking' ? 'idle' : prev);
           }, 10000);
@@ -87,6 +93,9 @@ export const UpdatesScreen = () => {
           setStatus('error');
           setErrorMsg("Chyba komunikácie.");
       }
+    } else if (isCapacitor) {
+        // Pre mobil len jednoduchý reload, kontrola prebieha v App.tsx cez pop-up
+        window.location.reload();
     } else {
         window.location.reload();
     }
@@ -142,7 +151,7 @@ export const UpdatesScreen = () => {
                 </div>
               )}
               <Button onClick={checkForUpdates} fullWidth size="lg" className="h-14 uppercase tracking-widest font-black text-xs shadow-orange-100">
-                Skontrolovať aktualizácie
+                {isCapacitor ? 'Obnoviť aplikáciu' : 'Skontrolovať aktualizácie'}
               </Button>
             </>
           )}

@@ -20,20 +20,22 @@ import { LandingScreen, LoginScreen } from './features/Auth';
 import { SuperAdminScreen } from './features/SuperAdmin';
 import { UpdatesScreen } from './features/Updates';
 
+// Import verzie z package.json ako primárny fallback
+import pkg from './package.json';
+
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown, Download
 } from 'lucide-react';
 
 import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
 const SUPER_ADMIN_EMAIL = 'javorcik.ivan1@gmail.com';
 const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mojastavba/releases/latest";
-const APK_DOWNLOAD_URL = "https://github.com/javorcikivan1-ux/instalacky_mojastavba/releases/latest/download/MojaStavba.apk";
 
-// --- OFFLINE OVERLAY COMPONENT ---
 const OfflineOverlay = () => (
     <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-500">
         <div className="bg-white rounded-[2.5rem] shadow-2xl p-10 max-w-sm w-full text-center border border-slate-100 animate-in zoom-in-95 duration-300">
@@ -74,27 +76,27 @@ export const App = () => {
   const [initialLoginView, setInitialLoginView] = useState('login');
   const [workerTab, setWorkerTab] = useState('dashboard');
   
+  // Update state
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying'>('idle');
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
   const [isFinanceOpen, setIsFinanceOpen] = useState(() => {
     const active = localStorage.getItem('ms_active_screen');
     return active === 'finance' || active === 'analytics' || active === 'advances';
   });
 
-  // --- OFFLINE LISTENER ---
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // --- AUTO UPDATE LISTENER ---
   useEffect(() => {
     const isElectron = !Capacitor.isNativePlatform() && navigator.userAgent.toLowerCase().includes('electron');
     const isAndroid = Capacitor.getPlatform() === 'android';
@@ -107,7 +109,6 @@ export const App = () => {
           if (status === 'available' && version && activeScreen !== 'settings') {
             setUpdateAvailable(version);
           }
-          if (status === 'ready') setUpdateAvailable(null);
         };
         ipcRenderer.on('update-status', handleUpdateStatus);
         return () => ipcRenderer.removeListener('update-status', handleUpdateStatus);
@@ -115,24 +116,23 @@ export const App = () => {
     } 
     
     if (isAndroid) {
-        const checkAndroidVersion = async () => {
+        const checkAndroidUpdate = async () => {
             try {
-                const info = await CapApp.getInfo();
-                // Normalizácia lokálnej verzie (odstránenie bielych znakov)
-                const currentVersion = info.version.trim();
+                let currentVersion = pkg.version;
+                try {
+                    const info = await CapApp.getInfo();
+                    if (info.version && info.version !== "..." && info.version.trim() !== "") {
+                        currentVersion = info.version.trim();
+                    }
+                } catch (e) {}
                 
-                const response = await fetch(`${GITHUB_REPO_URL}?t=${Date.now()}`); // Cache busting
+                const response = await fetch(`${GITHUB_REPO_URL}?t=${Date.now()}`);
                 const data = await response.json();
                 
                 if (data && data.tag_name) {
-                    // Normalizácia GitHub verzie (odstránenie 'v' a bielych znakov)
                     const latestVersion = data.tag_name.replace(/[vV]/g, '').trim();
                     
-                    // KRITICKÁ ZMENA: Porovnávame či je nová verzia VYŠŠIA, nie len RÔZNA
-                    // Týmto zabránime loopu, ak sa verzie z nejakého dôvodu nezhodujú presne
-                    if (latestVersion !== currentVersion) {
-                        // Jednoduchá kontrola - ak je string verzie iný, ukážeme update
-                        // Ale len v prípade, že nie sme v settings (kde by to rušilo)
+                    if (latestVersion !== currentVersion && currentVersion !== "") {
                         if (activeScreen !== 'settings') {
                             setUpdateAvailable(latestVersion);
                         }
@@ -142,22 +142,44 @@ export const App = () => {
                 console.error("Android version check failed", err);
             }
         };
-        checkAndroidVersion();
+        checkAndroidUpdate();
     }
   }, [activeScreen]); 
 
   const handleUpdateClick = async () => {
       const isAndroid = Capacitor.getPlatform() === 'android';
-      if (isAndroid) {
-          // Pre Android je lepšie otvoriť stránku releasov, kde si užívateľ klikne na súbor.
-          // Prehliadače v mobile často blokujú priamy download APK z JS kvôli bezpečnosti.
-          const releasesUrl = "https://github.com/javorcikivan1-ux/instalacky_mojastavba/releases/latest";
+      if (isAndroid && updateAvailable) {
           try {
-              await Browser.open({ url: releasesUrl });
-          } catch (e) {
-              window.open(releasesUrl, '_blank');
+              setUpdateStatus('downloading');
+              setDownloadProgress(10);
+
+              // URL k ZIP súboru v GitHub Release
+              const downloadUrl = `https://github.com/javorcikivan1-ux/vercel_mojastavba/releases/download/v${updateAvailable}/MojaStavba.zip`;
+              
+              setDownloadProgress(25);
+              const version = await CapacitorUpdater.download({
+                  url: downloadUrl,
+                  version: updateAvailable,
+              });
+
+              setDownloadProgress(75);
+              setUpdateStatus('applying');
+              
+              // Nastavenie novej verzie a automatický reštart
+              await CapacitorUpdater.set(version);
+              setDownloadProgress(100);
+          } catch (e: any) {
+              console.error("OTA Update failed", e);
+              // Fallback ak zlyhá automatika - otvoríme web pre manuálny download APK
+              const releasesUrl = "https://github.com/javorcikivan1-ux/instalacky_mojastavba/releases/latest";
+              try {
+                  await Browser.open({ url: releasesUrl });
+              } catch (browserErr) {
+                  window.open(releasesUrl, '_blank');
+              }
+              setUpdateStatus('idle');
+              setUpdateAvailable(null);
           }
-          setUpdateAvailable(null);
       } else {
           setActiveScreen('settings'); 
           setInitialSettingsTab('updates'); 
@@ -350,21 +372,40 @@ export const App = () => {
                 )}
                 
                 {updateAvailable && (
-                    <Modal title="Nová verzia aplikácie!" onClose={() => setUpdateAvailable(null)} maxWidth="max-w-sm">
+                    <Modal title="Aktualizácia systému" onClose={updateStatus === 'idle' ? () => setUpdateAvailable(null) : undefined} maxWidth="max-w-sm">
                         <div className="text-center py-4">
-                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-sm animate-bounce">
-                                <ArrowUpCircle size={32}/>
-                            </div>
-                            <h3 className="text-lg font-black text-slate-900">Dostupná verzia v{updateAvailable}</h3>
-                            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                                Vydali sme novú aktualizáciu MojaStavba. Stiahnite si ju teraz pre plynulý chod aplikácie.
-                            </p>
-                            <div className="mt-6 flex flex-col gap-2">
-                                <Button fullWidth onClick={handleUpdateClick}>
-                                    Prejsť k aktualizácii
-                                </Button>
-                                <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
-                            </div>
+                            {updateStatus === 'idle' ? (
+                                <>
+                                    <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-sm animate-bounce">
+                                        <ArrowUpCircle size={32}/>
+                                    </div>
+                                    <h3 className="text-lg font-black text-slate-900">Dostupná verzia v{updateAvailable}</h3>
+                                    <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                                        Vydali sme novú aktualizáciu MojaStavba. Aktualizujte teraz pre najnovšie funkcie a opravy.
+                                    </p>
+                                    <div className="mt-6 flex flex-col gap-2">
+                                        <Button fullWidth onClick={handleUpdateClick}>
+                                            Aktualizovať teraz (OTA)
+                                        </Button>
+                                        <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-6 py-4 animate-in fade-in">
+                                    <Loader2 className="animate-spin text-orange-600 mx-auto" size={48} />
+                                    <div>
+                                        <h3 className="font-black text-slate-900">{updateStatus === 'downloading' ? 'Sťahujem nové prostredie...' : 'Aplikujem zmeny...'}</h3>
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">Aplikácia sa po dokončení sama reštartuje</p>
+                                    </div>
+                                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                        <div 
+                                            className="bg-orange-600 h-full transition-all duration-500" 
+                                            style={{ width: `${downloadProgress}%` }}
+                                        ></div>
+                                    </div>
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{downloadProgress}%</div>
+                                </div>
+                            )}
                         </div>
                     </Modal>
                 )}
@@ -611,28 +652,47 @@ export const App = () => {
                      <>
                         <SupportWidget profile={profile} organization={organization} />
                         <AIAssistantWidget profile={profile} organization={organization} />
-                     </>
+                    </>
                  )}
              </main>
 
              {updateAvailable && (
-                 <Modal title="Nová verzia aplikácie!" onClose={() => setUpdateAvailable(null)} maxWidth="max-w-sm">
-                     <div className="text-center py-4">
-                         <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-orange-100 shadow-sm animate-bounce">
-                             <ArrowUpCircle size={32}/>
-                         </div>
-                         <h3 className="text-lg font-black text-slate-900">Dostupná verzia v{updateAvailable}</h3>
-                         <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                             Vydali sme novú aktualizáciu MojaStavba. Stiahnite si ju teraz pre plynulý chod aplikácie.
-                         </p>
-                         <div className="mt-6 flex flex-col gap-2">
-                             <Button fullWidth onClick={handleUpdateClick}>
-                                 Prejsť k aktualizácii
-                             </Button>
-                             <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
-                         </div>
-                     </div>
-                 </Modal>
+                <Modal title="Aktualizácia systému" onClose={updateStatus === 'idle' ? () => setUpdateAvailable(null) : undefined} maxWidth="max-w-sm">
+                    <div className="text-center py-4">
+                        {updateStatus === 'idle' ? (
+                            <>
+                                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-sm animate-bounce">
+                                    <ArrowUpCircle size={32}/>
+                                </div>
+                                <h3 className="text-lg font-black text-slate-900">Dostupná verzia v{updateAvailable}</h3>
+                                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                                    Vydali sme novú verziu aplikácie MojaStavba. Aktualizujte teraz pre najnovšie funkcie a opravy.
+                                </p>
+                                <div className="mt-6 flex flex-col gap-2">
+                                    <Button fullWidth onClick={handleUpdateClick}>
+                                        Aktualizovať teraz (OTA)
+                                    </Button>
+                                    <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="space-y-6 py-4 animate-in fade-in">
+                                <Loader2 className="animate-spin text-orange-600 mx-auto" size={48} />
+                                <div>
+                                    <h3 className="font-black text-slate-900">{updateStatus === 'downloading' ? 'Sťahujem nové prostredie...' : 'Aplikujem zmeny...'}</h3>
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">Aplikácia sa po dokončení sama reštartuje</p>
+                                </div>
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                    <div 
+                                        className="bg-orange-600 h-full transition-all duration-500" 
+                                        style={{ width: `${downloadProgress}%` }}
+                                    ></div>
+                                </div>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{downloadProgress}%</div>
+                            </div>
+                        )}
+                    </div>
+                </Modal>
              )}
 
              {showLegalModal && <LegalModal type={showLegalModal} onClose={() => setShowLegalModal(null)} />}

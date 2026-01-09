@@ -2,7 +2,7 @@
 {
   "name": "mojastavba",
   "private": true,
-  "version": "4.0.5",
+  "version": "5.0.0",
   "description": "Aplikácia pre stavebný manažment",
   "author": {
     "name": "MojaStavba",

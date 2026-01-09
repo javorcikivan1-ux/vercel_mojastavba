@@ -2,8 +2,8 @@ postup:
 
 1. zmen verziu v  package.json na vyssiu
 2. npm run electron:build  (urobis .exe)
-3. premenuj subor .exe na pomlcky! = appka sa  musi volat: MojaStavba-Setup-4.0.4.   (menis cislo podla package.json) a nasledne v gite v4.0.4 alebo vX.X.X
-4. pushni na git pre vercel:
+3. premenuj subor .exe na pomlcky! = appka sa  musi volat: MojaStavba-Setup-4.0.4. S BODKOU NA KONCI. (menis cislo podla package.json) a nasledne v gite v4.0.4 alebo vX.X.X
+4. pushni na git pre vercel: TOTO ROB AKO POSLEDNE
 push na git pre web: 
 git add .
 git commit -m "Aktualizácia MojaStavba"
@@ -17,7 +17,7 @@ git push
 
 
 
-
+NEZABUDNI: zmenit build.gradle!!!!!!!!!!
 
 
 KAMERA:
@@ -37,6 +37,21 @@ git add .
 git commit -m "moja zmena"
 git push
 
+
+VERCEL_MOJASTAVBA AKTUALIZACIE!!!!!!!!!!!!!!
+APK:
+
+ ZHRNUTIE: Tvoj postup pre verziu X.X.X
+Krok	Čo urobiť	Súbor / Miesto
+1.	Zmeniť verziu na X.X.X	package.json
+2.	Spustiť npm run build	Terminál
+3.	Zazipovať priečinok dist	Súbor: MojaStavba.zip
+4.	Spustiť npx cap sync android	Terminál
+5.	Zmeniť versionCode 406 a versionName "X.X.X"	app/build.gradle (Android Studio)
+6.	Vygenerovať APK	Android Studio
+7.	Nahrať ZIP aj APK na GitHub	GitHub Releases (vX.X.X)
+Dôležité upozornenie k ZIPovaniu:
+Keď otvoria používatelia tvoj ZIP, nesmú tam vidieť priečinok dist. Musia tam vidieť priamo súbory index.html, assets/ atď.
 
 
 
