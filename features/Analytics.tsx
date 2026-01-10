@@ -83,21 +83,24 @@ export const AnalyticsScreen = ({ profile }: any) => {
   const loadGlobalAnalytics = async () => {
       setDataLoading(true);
       
-      const [transRes, logsRes, materialsRes] = await Promise.all([
-          supabase.from('transactions').select('*').eq('organization_id', profile.organization_id),
-          supabase.from('attendance_logs').select('*, profiles(hourly_rate)').eq('organization_id', profile.organization_id),
-          supabase.from('materials').select('*').eq('organization_id', profile.organization_id)
+      const [transRes, logsRes, materialsRes, fuelRes] = await Promise.all([
+          // Načítame len transakcie so stavbou
+          supabase.from('transactions').select('*').eq('organization_id', profile.organization_id).not('site_id', 'is', null),
+          supabase.from('attendance_logs').select('*, profiles(hourly_rate)').eq('organization_id', profile.organization_id).not('site_id', 'is', null),
+          supabase.from('materials').select('*').eq('organization_id', profile.organization_id).not('site_id', 'is', null),
+          supabase.from('fuel_logs').select('*').eq('organization_id', profile.organization_id).not('site_id', 'is', null)
       ]);
 
       const transactions = transRes.data || [];
       const logs = logsRes.data || [];
       const materials = materialsRes.data || [];
+      const fuels = fuelRes.data || [];
 
       const income = transactions.filter(t => t.type === 'invoice').reduce((s, t) => s + Number(t.amount), 0);
       const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
       const matCost = materials.reduce((s, m) => s + Number(m.total_price), 0);
+      const fuelCost = fuels.reduce((s, f) => s + Number(f.amount), 0);
       
-      // LOGIKA ÚKOLU V GLOBÁLNEJ ANALYTIKE
       const laborCost = logs.reduce((s, l: any) => {
           if (l.payment_type === 'fixed') {
               return s + Number(l.fixed_amount || 0);
@@ -105,13 +108,14 @@ export const AnalyticsScreen = ({ profile }: any) => {
           return s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
       }, 0);
       
-      const totalCost = expenses + matCost + laborCost;
+      const totalCost = expenses + matCost + laborCost + fuelCost;
 
       // Zistenie štartu (najstarší záznam alebo vznik firmy)
       const allDates = [
           ...transactions.map(t => t.date),
           ...logs.map(l => l.date),
-          ...materials.map(m => m.purchase_date)
+          ...materials.map(m => m.purchase_date),
+          ...fuels.map(f => f.date)
       ].filter(Boolean).sort();
 
       let startOfHistory: Date;
@@ -134,8 +138,8 @@ export const AnalyticsScreen = ({ profile }: any) => {
               const mInc = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'invoice').reduce((s,t) => s + Number(t.amount), 0);
               const mExp = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
               const mMat = materials.filter(m => m.purchase_date && m.purchase_date.substring(0, 7) === monthKey).reduce((s,m) => s + Number(m.total_price), 0);
+              const mFuel = fuels.filter(f => f.date && f.date.substring(0, 7) === monthKey).reduce((s,f) => s + Number(f.amount), 0);
               
-              // MESAČNÁ LOGIKA ÚKOLU
               const mLabor = logs.filter(l => l.date.substring(0, 7) === monthKey).reduce((s, l: any) => {
                   if (l.payment_type === 'fixed') {
                       return s + Number(l.fixed_amount || 0);
@@ -146,7 +150,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
               months.push({
                   label: current.toLocaleDateString('sk-SK', { month: 'short' }),
                   income: mInc,
-                  cost: mExp + mMat + mLabor
+                  cost: mExp + mMat + mLabor + mFuel
               });
               current.setMonth(current.getMonth() + 1);
           }
@@ -154,7 +158,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
 
       setChartData(months);
       setAnalyticsData({
-          income, totalCost, laborCost, matCost, otherCost: expenses,
+          income, totalCost, laborCost, matCost, otherCost: expenses + fuelCost,
           profit: income - totalCost,
           margin: income > 0 ? ((income - totalCost) / income) * 100 : 0,
           totalHours: logs.reduce((s, l) => s + Number(l.hours), 0)
@@ -165,22 +169,24 @@ export const AnalyticsScreen = ({ profile }: any) => {
   const loadProjectAnalytics = async (siteId: string) => {
       setDataLoading(true);
       
-      const [transRes, logsRes, materialsRes] = await Promise.all([
+      const [transRes, logsRes, materialsRes, fuelRes] = await Promise.all([
           supabase.from('transactions').select('*').eq('site_id', siteId),
           supabase.from('attendance_logs').select('*, profiles(full_name, hourly_rate)').eq('site_id', siteId),
-          supabase.from('materials').select('*').eq('site_id', siteId)
+          supabase.from('materials').select('*').eq('site_id', siteId),
+          supabase.from('fuel_logs').select('*').eq('site_id', siteId)
       ]);
 
       const transactions = transRes.data || [];
       const logs = logsRes.data || [];
       const materials = materialsRes.data || [];
+      const fuels = fuelRes.data || [];
       const site = sites.find(s => s.id === siteId);
 
       const income = transactions.filter(t => t.type === 'invoice').reduce((s, t) => s + Number(t.amount), 0);
       const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
       const matCost = materials.reduce((s, m) => s + Number(m.total_price), 0);
+      const fuelCost = fuels.reduce((s, f) => s + Number(f.amount), 0);
       
-      // LOGIKA ÚKOLU V PROJEKTOVEJ ANALYTIKE
       const laborCost = logs.reduce((s, l: any) => {
           if (l.payment_type === 'fixed') {
               return s + Number(l.fixed_amount || 0);
@@ -188,13 +194,11 @@ export const AnalyticsScreen = ({ profile }: any) => {
           return s + (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
       }, 0);
 
-      const totalCost = expenses + matCost + laborCost;
+      const totalCost = expenses + matCost + laborCost + fuelCost;
 
       const dataPoints: any[] = [];
       
-      const siteStartStr = transactions.length > 0 || logs.length > 0 ? 
-            [...transactions.map(t=>t.date), ...logs.map(l=>l.date)].filter(Boolean).sort()[0] : 
-            site?.created_at;
+      const siteStartStr = [...transactions.map(t=>t.date), ...logs.map(l=>l.date), ...materials.map(m=>m.purchase_date), ...fuels.map(f=>f.date)].filter(Boolean).sort()[0] || site?.created_at;
             
       const startDate = siteStartStr ? new Date(siteStartStr) : new Date();
       startDate.setHours(0, 0, 0, 0);
@@ -211,8 +215,8 @@ export const AnalyticsScreen = ({ profile }: any) => {
               const dayInc = transactions.filter(t => t.date === dayStr && t.type === 'invoice').reduce((s,t) => s + Number(t.amount), 0);
               const dayExp = transactions.filter(t => t.date === dayStr && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
               const dayMat = materials.filter(m => m.purchase_date === dayStr).reduce((s,m) => s + Number(m.total_price), 0);
+              const dayFuel = fuels.filter(f => f.date === dayStr).reduce((s,f) => s + Number(f.amount), 0);
               
-              // DENNÁ KUMULATÍVNA LOGIKA ÚKOLU
               const dayLabor = logs.filter(l => l.date === dayStr).reduce((s, l: any) => {
                   if (l.payment_type === 'fixed') {
                       return s + Number(l.fixed_amount || 0);
@@ -221,7 +225,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
               }, 0);
 
               runningIncome += dayInc;
-              runningCost += (dayExp + dayMat + dayLabor);
+              runningCost += (dayExp + dayMat + dayLabor + dayFuel);
 
               dataPoints.push({
                   label: current.getDate() + '.' + (current.getMonth() + 1) + '.',
@@ -246,8 +250,8 @@ export const AnalyticsScreen = ({ profile }: any) => {
               const mInc = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'invoice').reduce((s,t) => s + Number(t.amount), 0);
               const mExp = transactions.filter(t => t.date.substring(0, 7) === monthKey && t.type === 'expense').reduce((s,t) => s + Number(t.amount), 0);
               const mMat = materials.filter(m => m.purchase_date && m.purchase_date.substring(0, 7) === monthKey).reduce((s,m) => s + Number(m.total_price), 0);
+              const mFuel = fuels.filter(f => f.date && f.date.substring(0, 7) === monthKey).reduce((s,f) => s + Number(f.amount), 0);
               
-              // MESAČNÁ PROJEKTOVÁ LOGIKA ÚKOLU
               const mLabor = logs.filter(l => l.date.substring(0, 7) === monthKey).reduce((s, l: any) => {
                   if (l.payment_type === 'fixed') {
                       return s + Number(l.fixed_amount || 0);
@@ -258,7 +262,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
               dataPoints.push({ 
                 label: current.toLocaleDateString('sk-SK', { month: 'short' }), 
                 income: mInc, 
-                cost: mExp + mMat + mLabor 
+                cost: mExp + mMat + mLabor + mFuel 
               });
               current.setMonth(current.getMonth() + 1);
           }
@@ -266,7 +270,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
       }
 
       setAnalyticsData({
-          site, income, totalCost, laborCost, matCost, otherCost: expenses,
+          site, income, totalCost, laborCost, matCost, otherCost: expenses + fuelCost,
           profit: income - totalCost,
           margin: income > 0 ? ((income - totalCost) / income) * 100 : 0,
           totalHours: logs.reduce((s, l) => s + Number(l.hours), 0)
@@ -276,10 +280,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
           const name = log.profiles?.full_name || 'Neznámy';
           if (!acc[name]) acc[name] = { hours: 0, cost: 0 };
           const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
-          
-          // TABUĽKOVÁ LOGIKA ÚKOLU PRE PRACOVNÍKA
           const entryCost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : (Number(log.hours) * rate);
-          
           acc[name].hours += Number(log.hours);
           acc[name].cost += entryCost;
           return acc;
@@ -297,9 +298,9 @@ export const AnalyticsScreen = ({ profile }: any) => {
          <div>
             <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
                 <BarChart3 className="text-orange-600" size={28} />
-                Analytika
+                Analytika zákaziek
             </h2>
-            <p className="text-sm text-slate-500 mt-1 font-medium">Finančné zdravie zákaziek</p>
+            <p className="text-sm text-slate-500 mt-1 font-medium">Finančná výkonnosť projektov (bez všeobecnej réžie)</p>
          </div>
 
          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -308,13 +309,13 @@ export const AnalyticsScreen = ({ profile }: any) => {
                     onClick={() => setViewType('global')}
                     className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'global' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                  >
-                     Globálne
+                     Všetky stavby
                  </button>
                  <button 
                     onClick={() => setViewType('project')}
                     className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'project' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                  >
-                     Projektové
+                     Jeden projekt
                  </button>
              </div>
 
@@ -352,7 +353,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
           {dataLoading && (
               <div className="absolute inset-0 z-10 bg-white/40 backdrop-blur-[1px] flex items-center justify-center rounded-2xl">
                   <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100 flex items-center gap-3">
-                      <Loader2 className="animate-spin text-orange-500" size={20}/>
+                      <Loader2 className="animate-spin text-orange-50" size={20}/>
                       <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Prepočítavam...</span>
                   </div>
               </div>
@@ -365,7 +366,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
                           <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
                               <div>
                                 <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                                    <TrendingUp size={10} className="text-green-500"/> Bilancia
+                                    <TrendingUp size={10} className="text-green-500"/> Čistý zisk stavieb
                                 </div>
                                 <div className={`text-xl md:text-2xl font-black tracking-tight ${analyticsData.profit >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
                                     {formatMoney(analyticsData.profit)}
@@ -380,11 +381,11 @@ export const AnalyticsScreen = ({ profile }: any) => {
 
                           <Card className="border-slate-100 p-4 flex flex-col justify-between shadow-sm">
                               <div>
-                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><TrendingDown size={10} className="text-red-500"/> Náklady Spolu</div>
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><TrendingDown size={10} className="text-red-500"/> Priame náklady</div>
                                 <div className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">{formatMoney(analyticsData.totalCost)}</div>
                               </div>
-                              <div className="mt-3 text-[9px] font-bold text-slate-400">
-                                  PRIEM. {formatMoney(analyticsData.totalCost / (analyticsData.totalHours || 1))}/h
+                              <div className="mt-3 text-[9px] font-bold text-slate-400 uppercase">
+                                  Bez všeobecnej réžie
                               </div>
                           </Card>
 
@@ -417,26 +418,24 @@ export const AnalyticsScreen = ({ profile }: any) => {
                                   <div>
                                       <h3 className="font-bold text-sm text-slate-700 uppercase tracking-wider flex items-center gap-2">
                                          {chartMode === 'cumulative' ? <LineChart className="text-orange-500" size={16}/> : <BarChart3 className="text-orange-500" size={16}/>}
-                                         {viewType === 'global' ? 'Vývoj Firmy' : 'Analýza Projektu'}
+                                         {viewType === 'global' ? 'Výkonnosť všetkých stavieb' : 'Analýza projektu'}
                                       </h3>
                                       <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5 flex items-center gap-1 tracking-tight">
-                                          {chartMode === 'cumulative' ? 'Kumulatívny priebeh nákladov a príjmov' : 'Mesačné sumáre transakcií'}
+                                          {chartMode === 'cumulative' ? 'Kumulatívny priebeh projektov' : 'Mesačné sumáre transakcií na stavbách'}
                                       </p>
                                   </div>
                                   
                                   <div className="flex items-center gap-3">
-                                      {viewType === 'project' && (
-                                          <div className="bg-slate-50 p-1 rounded-lg flex border border-slate-200">
-                                              <button 
-                                                onClick={() => setChartMode('cumulative')}
-                                                className={`px-3 py-1 rounded-md text-[9px] font-black uppercase transition ${chartMode === 'cumulative' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400'}`}
-                                              >Kumulatívny</button>
-                                              <button 
-                                                onClick={() => setChartMode('monthly')}
-                                                className={`px-3 py-1 rounded-md text-[9px] font-black uppercase transition ${chartMode === 'monthly' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400'}`}
-                                              >Mesačný</button>
-                                          </div>
-                                      )}
+                                      <div className="bg-slate-50 p-1 rounded-lg flex border border-slate-200">
+                                          <button 
+                                            onClick={() => setChartMode('cumulative')}
+                                            className={`px-3 py-1 rounded-md text-[9px] font-black uppercase transition ${chartMode === 'cumulative' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400'}`}
+                                          >Kumulatívny</button>
+                                          <button 
+                                            onClick={() => setChartMode('monthly')}
+                                            className={`px-3 py-1 rounded-md text-[9px] font-black uppercase transition ${chartMode === 'monthly' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400'}`}
+                                          >Mesačný</button>
+                                      </div>
                                       <div className="hidden sm:flex gap-4">
                                           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-slate-800 rounded-sm"></div><span className="text-[9px] font-bold text-slate-400 uppercase">Príjmy</span></div>
                                           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-orange-400 rounded-sm"></div><span className="text-[9px] font-bold text-slate-400 uppercase">Náklady</span></div>
@@ -446,7 +445,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
                               
                               <div className="h-64 md:h-72 flex items-end justify-between gap-1.5 md:gap-3 px-1">
                                   {chartData.length === 0 ? (
-                                      <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px] font-bold uppercase italic">Zatiaľ žiadne dáta pre graf.</div>
+                                      <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px] font-bold uppercase italic">Zatiaľ žiadne projektové dáta.</div>
                                   ) : chartData.map((m, i) => {
                                       const max = Math.max(...chartData.map(x => Math.max(x.income, x.cost)), 100);
                                       return (
@@ -502,12 +501,12 @@ export const AnalyticsScreen = ({ profile }: any) => {
                               )}
 
                               <Card className="border-slate-100 p-5 shadow-sm bg-white">
-                                  <h3 className="font-bold text-[10px] text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2"><Activity size={12} className="text-indigo-500"/> Skladba Nákladov</h3>
+                                  <h3 className="font-bold text-[10px] text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2"><Activity size={12} className="text-indigo-500"/> Skladba projektových nákladov</h3>
                                   <div className="space-y-5">
                                       {[
                                           { label: 'Mzdy a Práca', val: analyticsData.laborCost, color: 'bg-indigo-500', icon: Users },
                                           { label: 'Materiál', val: analyticsData.matCost, color: 'bg-orange-500', icon: Package },
-                                          { label: 'Ostatné', val: analyticsData.otherCost, color: 'bg-slate-300', icon: Wallet }
+                                          { label: 'Ostatné (PHM, Réžia stavby)', val: analyticsData.otherCost, color: 'bg-slate-300', icon: Wallet }
                                       ].map(item => (
                                           <div key={item.label} className="group">
                                               <div className="flex justify-between items-end mb-1.5">
@@ -527,59 +526,57 @@ export const AnalyticsScreen = ({ profile }: any) => {
                           </div>
                       </div>
 
-                      {viewType === 'project' && (
-                          <Card className="p-0 overflow-hidden border-slate-100 shadow-sm bg-white">
-                            <div className="p-5 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/20">
-                                <div>
-                                    <h3 className="font-bold text-sm text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                                        <HardHat className="text-indigo-500" size={18}/> Výkon Pracovníkov
-                                    </h3>
-                                </div>
-                                <div className="bg-white px-4 py-2 rounded-2xl border border-slate-200 text-[10px] font-black uppercase text-slate-500 shadow-sm flex items-center gap-2">
-                                    <Clock size={12} className="text-orange-500"/> SPOLU {analyticsData.totalHours.toFixed(1)} h
-                                </div>
+                      <Card className="p-0 overflow-hidden border-slate-100 shadow-sm bg-white">
+                        <div className="p-5 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/20">
+                            <div>
+                                <h3 className="font-bold text-sm text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                    <HardHat className="text-indigo-500" size={18}/> Výkon Pracovníkov na projektoch
+                                </h3>
                             </div>
-                            <div className="overflow-x-auto custom-scrollbar">
-                                <table className="w-full text-sm text-left min-w-[500px]">
-                                    <thead className="bg-white text-slate-400 font-bold text-[9px] uppercase border-b border-slate-50 tracking-[0.15em]">
-                                        <tr>
-                                            <th className="p-5">Meno</th>
-                                            <th className="p-5 text-center">Čas</th>
-                                            <th className="p-5 text-right">Mzdový náklad</th>
-                                            <th className="p-5 text-right">Podiel</th>
+                            <div className="bg-white px-4 py-2 rounded-2xl border border-slate-200 text-[10px] font-black uppercase text-slate-500 shadow-sm flex items-center gap-2">
+                                <Clock size={12} className="text-orange-500"/> SPOLU {analyticsData.totalHours.toFixed(1)} h
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto custom-scrollbar">
+                            <table className="w-full text-sm text-left min-w-[500px]">
+                                <thead className="bg-white text-slate-400 font-bold text-[9px] uppercase border-b border-slate-50 tracking-[0.15em]">
+                                    <tr>
+                                        <th className="p-5">Meno</th>
+                                        <th className="p-5 text-center">Čas</th>
+                                        <th className="p-5 text-right">Mzdový náklad</th>
+                                        <th className="p-5 text-right">Podiel</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {laborBreakdown.map((worker) => (
+                                        <tr key={worker.name} className="hover:bg-slate-50/80 transition-colors group">
+                                            <td className="p-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-xs border border-slate-200 shadow-inner group-hover:bg-white transition-colors">
+                                                        {worker.name.charAt(0)}
+                                                    </div>
+                                                    <span className="font-extrabold text-slate-700">{worker.name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-5 text-center font-mono font-bold text-slate-500 text-xs">{formatDuration(worker.hours)}</td>
+                                            <td className="p-5 text-right font-black text-slate-800">{formatMoney(worker.cost)}</td>
+                                            <td className="p-5 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <span className="text-[10px] font-black text-slate-400">{((worker.cost / (analyticsData.laborCost || 1)) * 100).toFixed(0)}%</span>
+                                                    <div className="w-16 bg-slate-100 h-1 rounded-full overflow-hidden">
+                                                        <div className="bg-indigo-400 h-full" style={{ width: `${(worker.cost / (analyticsData.laborCost || 1)) * 100}%` }}></div>
+                                                    </div>
+                                                </div>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {laborBreakdown.map((worker) => (
-                                            <tr key={worker.name} className="hover:bg-slate-50/80 transition-colors group">
-                                                <td className="p-5">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-xs border border-slate-200 shadow-inner group-hover:bg-white transition-colors">
-                                                            {worker.name.charAt(0)}
-                                                        </div>
-                                                        <span className="font-extrabold text-slate-700">{worker.name}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-5 text-center font-mono font-bold text-slate-500 text-xs">{formatDuration(worker.hours)}</td>
-                                                <td className="p-5 text-right font-black text-slate-800">{formatMoney(worker.cost)}</td>
-                                                <td className="p-5 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <span className="text-[10px] font-black text-slate-400">{((worker.cost / (analyticsData.laborCost || 1)) * 100).toFixed(0)}%</span>
-                                                        <div className="w-16 bg-slate-100 h-1 rounded-full overflow-hidden">
-                                                            <div className="bg-indigo-400 h-full" style={{ width: `${(worker.cost / (analyticsData.laborCost || 1)) * 100}%` }}></div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {laborBreakdown.length === 0 && (
-                                            <tr><td colSpan={4} className="p-16 text-center text-slate-300 font-bold uppercase tracking-widest text-[10px] italic">Žiadne záznamy prác.</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                          </Card>
-                      )}
+                                    ))}
+                                    {laborBreakdown.length === 0 && (
+                                        <tr><td colSpan={4} className="p-16 text-center text-slate-300 font-bold uppercase tracking-widest text-[10px] italic">Žiadne záznamy prác priradené k stavbám.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                      </Card>
 
                       <div className="bg-white rounded-3xl p-6 md:p-10 text-slate-800 relative overflow-hidden border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8 group">
                           <div className="absolute top-0 right-0 w-64 h-64 bg-orange-50 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 group-hover:bg-orange-100 transition-colors duration-1000"></div>

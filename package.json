@@ -2,7 +2,7 @@
 {
   "name": "mojastavba",
   "private": true,
-  "version": "5.0.0",
+  "version": "5.1.1",
   "description": "Aplikácia pre stavebný manažment",
   "author": {
     "name": "MojaStavba",
@@ -30,7 +30,7 @@
     "@capacitor/browser": "^6.0.0",
     "@capacitor/core": "^6.0.0",
     "@capacitor/ios": "^6.0.0",
-    "@capgo/capacitor-updater": "^6.0.0",
+    "@capgo/capacitor-updater": "6.39.0",
     "@google/genai": "^1.34.0",
     "@supabase/supabase-js": "^2.39.0",
     "electron-updater": "^6.1.7",

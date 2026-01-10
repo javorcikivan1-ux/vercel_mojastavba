@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Loader2, X, AlertTriangle, CheckCircle2, HelpCircle, HardHat } from 'lucide-react';
+import { Loader2, X, AlertTriangle, CheckCircle2, HelpCircle, HardHat, Lock } from 'lucide-react';
 
 // --- CUSTOM BRAND LOGO ---
 export const CustomLogo = ({ className = "w-6 h-6", color = "text-white" }: { className?: string, color?: string }) => (
@@ -150,59 +150,106 @@ export const LegalModal = ({ type, onClose }: { type: 'vop' | 'gdpr', onClose: (
     
     return (
         <Modal title={titles[type]} onClose={onClose} maxWidth="max-w-4xl">
-            <div className="space-y-6 text-sm text-slate-600 leading-relaxed pb-10">
+            <div className="legal-container text-slate-700">
+                <style>{`
+                    .legal-container { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; }
+                    .legal-container h1 { color: #ea580c; border-bottom: 2px solid #fed7aa; padding-bottom: 10px; font-size: 1.8rem; font-weight: 800; margin-bottom: 20px; }
+                    .legal-container h2 { color: #1e293b; margin-top: 35px; font-size: 1.3rem; border-left: 4px solid #ea580c; padding-left: 15px; font-weight: 700; margin-bottom: 15px; }
+                    .legal-container p, .legal-container li { margin-bottom: 15px; font-size: 0.95rem; }
+                    .legal-container ul { padding-left: 20px; list-style-type: disc; }
+                    .legal-footer-text { margin-top: 50px; text-align: center; font-size: 0.8rem; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px; }
+                `}</style>
+                
                 {type === 'vop' ? (
                     <>
-                        <div className="border-b border-slate-100 pb-4">
-                            <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest mb-1">Poskytovateľ</h4>
-                            <p className="font-bold">LORD'S BENISON s.r.o.</p>
-                            <p>Sídlo: M. Nandrássyho 654/10, 050 01 Revúca</p>
-                            <p>IČO: 52404901 | DIČ: 2121022992 | IČ DPH: SK2121022992</p>
-                            <p>Zápis: Obchodný register Okresného súdu Banská Bystrica, Oddiel Sro, Vložka č. 36729/S</p>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            <p><strong>1. Úvodné ustanovenia a definície</strong><br/>Tieto VOP upravujú vzťahy medzi spoločnosťou LORD'S BENISON s.r.o. (Poskytovateľ) a užívateľom (zákazníkom) pri poskytovaní softvérovej služby MojaStavba. Služba je poskytovaná formou SaaS (Software as a Service) cez webové rozhranie a mobilnú aplikáciu.</p>
-                            
-                            <p><strong>2. Uzatvorenie zmluvy a registrácia</strong><br/>Zmluva vzniká registráciou firemného účtu. Užívateľ je povinný uviesť pravdivé údaje. Firemný účet (Admin) má právo prizývať zamestnancov (Užívateľov), za ktorých činnosť v systéme nesie plnú zodpovednosť.</p>
-                            
-                            <p><strong>3. Platobné podmienky a predplatné</strong><br/>Služba ponúka 30-dňovú skúšobnú lehotu. Po jej uplynutí je služba spoplatnená sumou 15 € s DPH / mesiac za jeden firemný účet (neobmedzený počet zamestnancov). Platba prebieha cez bránu Stripe. Predplatné je bez viazanosti, vypovedateľné kedykoľvek v nastaveniach.</p>
-                            
-                            <p><strong>4. Práva a povinnosti užívateľa</strong><br/>Užívateľ sa zaväzuje nezneužívať systém, nezasahovať do jeho bezpečnosti a využívať ho v súlade s platnou legislatívou SR. Užívateľ zodpovedá za legálnosť a správnosť dát vložených do stavebného denníka a evidencie dochádzky.</p>
-                            
-                            <p><strong>5. Zodpovednosť za vady a dostupnosť</strong><br/>Poskytovateľ garantuje 99% dostupnosť služby. Nenese zodpovednosť za nepriame škody, stratu zisku alebo dát spôsobenú výpadkom internetu na strane užívateľa alebo nesprávnym používaním aplikácie. Služba je poskytovaná "tak, ako je".</p>
-                            
-                            <p><strong>6. Ochrana duševného vlastníctva</strong><br/>Všetok softvérový kód, dizajn a značka MojaStavba sú majetkom Poskytovateľa. Užívateľ získava nevýhradnú licenciu na používanie systému počas trvania predplatného.</p>
-                            
-                            <p><strong>7. Záverečné ustanovenia</strong><br/>Tieto podmienky sa riadia Obchodným zákonníkom SR a zákonom č. 108/2024 Z. z. o ochrane spotrebiteľa. Prípadné spory budú riešené prednostne zmierom, následne súdom v SR.</p>
-                        </div>
+                        <h1>Všeobecné obchodné podmienky</h1>
+                        <p>Posledná aktualizácia: 1. mája 2025</p>
+
+                        <h2>1. Identifikácia poskytovateľa</h2>
+                        <p>Prevádzkovateľom a poskytovateľom služby MojaStavba je:<br/>
+                        <strong>LORD'S BENISON s.r.o.</strong><br/>
+                        Sídlo: M. Nandrássyho 654/10, 050 01 Revúca<br/>
+                        IČO: 52404901<br/>
+                        DIČ: 2121022992<br/>
+                        IČ DPH: SK2121022992<br/>
+                        Zapísaná v Obchodnom registri Okresného súdu Banská Bystrica, Oddiel Sro, Vložka č. 36729/S.</p>
+
+                        <h2>2. Definícia služby</h2>
+                        <p>MojaStavba je softvérová aplikácia poskytovaná ako služba (SaaS) určená na digitalizáciu stavebnej administratívy, najmä stavebného denníka, evidencie dochádzky a sledovania projektových nákladov.</p>
+
+                        <h2>3. Registrácia a ochrana prístupu</h2>
+                        <p>Používanie služby vyžaduje vytvorenie firemného účtu. Užívateľ (Majiteľ firmy) je povinný chrániť svoje prístupové heslo a zodpovedá za činnosť všetkých zamestnancov, ktorých do systému prizve cez unikátne ID firmy.</p>
+
+                        <h2>4. Platobné podmienky</h2>
+                        <ul>
+                            <li><strong>Trial:</strong> Nový užívateľ má právo na 30-dňovú bezplatnú verziu.</li>
+                            <li><strong>Cena:</strong> Aktuálna cena predplatného je 15 € mesačne (vrátane DPH) za firemný účet.</li>
+                            <li><strong>Fakturácia:</strong> Platba prebieha vopred na nasledujúce 30-dňové obdobie cez platobnú bránu Stripe.</li>
+                            <li><strong>Zrušenie:</strong> Predplatné je možné kedykoľvek zrušiť. Služba ostane aktívna do konca predplateného obdobia.</li>
+                        </ul>
+
+                        <h2>5. Práva a povinnosti</h2>
+                        <p>Poskytovateľ garantuje dostupnosť systému 99 % času s výnimkou plánovanej údržby. Užívateľ sa zaväzuje systém nepoužívať na nelegálne účely alebo na prenos škodlivého kódu.</p>
+
+                        <h2>6. Zodpovednosť</h2>
+                        <p>Služba je poskytovaná "tak, ako stojí a leží" (as is). Poskytovateľ nezodpovedá za správnosť údajov zapísaných užívateľom (napr. v stavebnom denníku) ani za prípadné sankcie zo strany štátnych orgánov spôsobené nesprávnym vedením evidencie.</p>
+
+                        <h2>7. Riešenie sporov</h2>
+                        <p>Prípadné spory budú riešené prednostne dohodou. Právne vzťahy sa riadia Obchodným zákonníkom SR. Spotrebiteľ má právo na alternatívne riešenie sporov cez Slovenskú obchodnú inšpekciu (SOI).</p>
                     </>
                 ) : (
                     <>
-                        <div className="border-b border-slate-100 pb-4">
-                            <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest mb-1">Prevádzkovateľ</h4>
-                            <p className="font-bold">LORD'S BENISON s.r.o.</p>
-                            <p>IČO: 52404901 | E-mail: sluzby@lordsbenison.eu</p>
-                        </div>
+                        <h1>Ochrana osobných údajov (GDPR)</h1>
+                        <p>Posledná aktualizácia: 1. mája 2025</p>
+                        
+                        <h2>1. Prevádzkovateľ údajov</h2>
+                        <p>Prevádzkovateľom aplikácie MojaStavba a správcom vašich osobných údajov je spoločnosť:<br/>
+                        <strong>LORD'S BENISON s.r.o.</strong><br/>
+                        Sídlo: M. Nandrássyho 654/10, 050 01 Revúca<br/>
+                        IČO: 52404901<br/>
+                        E-mail: sluzby@lordsbenison.eu</p>
 
-                        <div className="space-y-4">
-                            <p><strong>1. Rozsah a účel spracúvania</strong><br/>Spracúvame len nevyhnutné osobné údaje: meno, e-mail, telefónne číslo, mzdu (hodinovú sadzbu) a lokalizačné údaje (miesto stavby) za účelom plnenia zmluvy (prevádzka aplikácie), vedenia účtovníctva a ochrany majetku firmy.</p>
-                            
-                            <p><strong>2. Právny základ</strong><br/>Spracúvanie prebieha na základe plnenia zmluvy (čl. 6 ods. 1 písm. b GDPR) a oprávneného záujmu prevádzkovateľa (čl. 6 ods. 1 písm. f GDPR) pri monitorovaní pracovného výkonu a bezpečnosti práce.</p>
-                            
-                            <p><strong>3. Príjemcovia údajov</strong><br/>Vaše dáta sú uložené v šifrovanej podobe na serveroch Supabase (Región EÚ). Platobné údaje sú spracúvané výhradne spoločnosťou Stripe, Inc. Údaje neposkytujeme tretím stranám na marketingové účely.</p>
-                            
-                            <p><strong>4. Doba uchovávania</strong><br/>Osobné údaje uchovávame počas trvania účtu. Po požiadaní o zmazanie účtu sú dáta vymazané, s výnimkou údajov potrebných pre účtovníctvo, ktoré uchovávame 10 rokov podľa zákona č. 431/2002 Z. z.</p>
-                            
-                            <p><strong>5. Bezpečnosť a práva dotknutých osôb</strong><br/>Aplikácia využíva SSL šifrovanie a moderné bezpečnostné protokoly. Máte právo na prístup k údajom, opravu, vymazanie (právo na zabudnutie) a podanie sťažnosti na Úrad na ochranu osobných údajov SR.</p>
-                            
-                            <p><strong>6. Používanie cookies</strong><br/>Aplikácia používa len funkčné cookies potrebné pre autentifikáciu (prihlásenie) a stabilitu systému. Nepoužívame sledovacie ani reklamné cookies tretích strán.</p>
-                        </div>
+                        <h2>2. Účel a právny základ spracúvania</h2>
+                        <p>Vaše osobné údaje spracúvame na základe nasledovných právnych titulov:</p>
+                        <ul>
+                            <li><strong>Plnenie zmluvy:</strong> Poskytovanie funkcií aplikácie (dochádzka, denník, správa projektov).</li>
+                            <li><strong>Zákonná povinnosť:</strong> Fakturácia a vedenie účtovníctva.</li>
+                            <li><strong>Oprávnený záujem:</strong> Zabezpečenie bezpečnosti systému a ochrana pred zneužitím.</li>
+                        </ul>
+
+                        <h2>3. Kategórie spracúvaných údajov</h2>
+                        <p>V systéme uchovávame len nevyhnutné údaje:</p>
+                        <ul>
+                            <li><strong>Identifikačné údaje:</strong> Meno a priezvisko.</li>
+                            <li><strong>Kontaktné údaje:</strong> E-mailová adresa a telefónne číslo.</li>
+                            <li><strong>Firemné údaje:</strong> Názov firmy, IČO, DIČ (ak sú zadané).</li>
+                            <li><strong>Pracovné údaje:</strong> Hodinová sadzba, časové záznamy o práci na projektoch, fotografie zo stavieb.</li>
+                        </ul>
+
+                        <h2>4. Sprostredkovatelia a prenos údajov</h2>
+                        <p>Vaše údaje neprenášame do tretích krajín mimo EÚ/EHP bez adekvátnej ochrany. Využívame nasledujúcich overených partnerov:</p>
+                        <ul>
+                            <li><strong>Supabase, Inc.:</strong> Cloudová databáza a úložisko (servery v EÚ).</li>
+                            <li><strong>Stripe, Inc.:</strong> Spracovanie platieb a predplatného.</li>
+                        </ul>
+
+                        <h2>5. Doba uchovávania údajov</h2>
+                        <p>Osobné údaje sú uchovávané po dobu trvania vášho predplatného alebo do momentu požiadania o zmazanie účtu. Po ukončení vzťahu uchovávame len údaje vyžadované zákonom o účtovníctve po dobu 10 rokov.</p>
+
+                        <h2>6. Vaše práva ako dotknutej osoby</h2>
+                        <p>V zmysle nariadenia GDPR máte právo:</p>
+                        <ul>
+                            <li>Požadovať prístup k vašim údajom.</li>
+                            <li>Na opravu nesprávnych údajov.</li>
+                            <li>Na vymazanie údajov (právo byť zabudnutý).</li>
+                            <li>Na prenosnosť údajov k inému prevádzkovateľovi.</li>
+                            <li>Podať sťažnosť na dozorný orgán (Úrad na ochranu osobných údajov SR).</li>
+                        </ul>
                     </>
                 )}
-                <div className="pt-6 border-t border-slate-100 flex justify-between items-center">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Verzia 1.0.2 | Máj 2025</p>
-                    <Button onClick={onClose} className="shadow-orange-100">Rozumiem</Button>
+
+                <div className="legal-footer-text">
+                    &copy; 2025 LORD'S BENISON s.r.o. | Vyvinuté pre MojaStavba.app
                 </div>
             </div>
         </Modal>

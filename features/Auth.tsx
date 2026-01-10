@@ -11,18 +11,11 @@ import {
 import { Capacitor } from '@capacitor/core';
 
 // Pomocná funkcia pre získanie bezpečnej návratovej URL
-// Táto funkcia zabezpečí, že používateľ bude presmerovaný na platnú a povolenú URL v Supabase.
 const getRedirectURL = () => {
   const origin = window.location.origin;
-  
-  // 1. Ak sme na webe (produkcia alebo lokálny vývoj), použijeme aktuálny origin
   if (origin.includes('moja-stavba.sk') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
     return origin;
   }
-  
-  // 2. Ak sme v natívnej appke (Android/Windows), origin môže byť 'capacitor://' alebo 'file://'.
-  // Supabase nepovoľuje tieto schémy ako redirect URL v emaile priamo.
-  // Preto vrátime používateľa na webovú verziu, kde sa overenie dokončí.
   return 'https://www.moja-stavba.sk';
 };
 
@@ -230,22 +223,50 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showLegal, setShowLegal] = useState<'vop' | 'gdpr' | null>(null);
 
+  // Synchronizácia modalu s reálnymi HTML názvami v URL
+  useEffect(() => {
+    const checkURL = () => {
+      const path = window.location.pathname;
+      if (path.includes('vseobecne-obchodne-podmienky.html')) setShowLegal('vop');
+      else if (path.includes('zasady-ochrany-osobnych-udajov-gdpr.html')) setShowLegal('gdpr');
+      else setShowLegal(null);
+    };
+
+    checkURL();
+    window.addEventListener('popstate', checkURL);
+    return () => window.removeEventListener('popstate', checkURL);
+  }, []);
+
+  const handleLegalClick = (type: 'vop' | 'gdpr') => {
+    const fileName = type === 'vop' ? 'vseobecne-obchodne-podmienky.html' : 'zasady-ochrany-osobnych-udajov-gdpr.html';
+    // Ak sme na localhoste alebo webe, zmeníme URL bez reálneho načítania súboru (vďaka Reactu)
+    const newURL = `/${fileName}`;
+    window.history.pushState({ path: newURL }, '', newURL);
+    setShowLegal(type);
+  };
+
+  const handleCloseLegal = () => {
+    // Vrátime URL na pôvodnú hlavnú stránku
+    window.history.pushState({ path: '/' }, '', '/');
+    setShowLegal(null);
+  };
+
   // Detekcia či ide o WEB (SEO relevantné prostredie)
   const isWebOnly = Capacitor.getPlatform() === 'web' && !navigator.userAgent.toLowerCase().includes('electron');
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col">
+    <div className="min-h-screen bg-white text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col">
       <header>
         <nav className="border-b border-slate-200 bg-white/95 backdrop-blur-md z-50 sticky top-0">
           <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 md:gap-2.5 min-w-0 shrink">
+            <a href="/" className="flex items-center gap-1.5 md:gap-2.5 min-w-0 shrink hover:opacity-80 transition">
               <img 
                 src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
                 alt="MojaStavba Logo" 
                 className="w-7 h-7 md:w-9 md:h-9 object-contain shrink-0" 
               />
               <span className="font-extrabold text-sm md:text-xl tracking-tight text-slate-900 truncate">Moja<span className="text-orange-600">Stavba</span></span>
-            </div>
+            </a>
 
             <div className="flex items-center gap-2 md:gap-3 shrink-0">
                <button 
@@ -265,8 +286,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
         </nav>
       </header>
 
-      <main className="flex-1">
-        <section className="flex flex-col items-center justify-center px-6 pt-12 pb-6 md:pt-24 md:pb-10 bg-gradient-to-b from-orange-50/50 to-white text-center">
+      <main className="flex-1 flex flex-col bg-white">
+        <section className="flex-1 flex flex-col items-center justify-center px-6 pt-12 pb-12 md:pt-24 md:pb-20 bg-gradient-to-b from-orange-50/50 to-white text-center min-h-[calc(100vh-80px)]">
           <div className="max-w-4xl mx-auto">
             {/* TLAČIDLO SŤAHOVANIA */}
             <button 
@@ -277,17 +298,14 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
               Stiahnuť aplikáciu MojaStavba
             </button>
 
-            {isWebOnly ? (
-                <h1 className="text-3xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
-                    Komplexný systém pre <br/>
-                    <span className="text-orange-600">stavebný manažment</span>
-                </h1>
-            ) : (
-                <div className="text-3xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
-                    Stavebný manažment<br/>
-                    <span className="text-orange-600">pre moderné firmy</span>
-                </div>
-            )}
+            {/* HLAVNÝ SEO NADPIS H1 - dôležitý pre vyhľadávače */}
+            <h1 className="text-3xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
+                {isWebOnly ? (
+                  <>Komplexný systém pre <br/><span className="text-orange-600">stavebný manažment</span></>
+                ) : (
+                  <>Stavebný manažment<br/><span className="text-orange-600">pre moderné firmy</span></>
+                )}
+            </h1>
 
             <p className="text-base md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed px-2">
               Kompletná správa zákaziek, dochádzky a analytiky v jednej aplikácii.<br/>
@@ -393,18 +411,22 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                     <ul className="space-y-3">
                         <li><button onClick={() => onSubscriptionClick()} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Cenník a predplatné</button></li>
                         <li>
-                          {isWebOnly ? (
-                            <a href="/vseobecne-obchodne-podmienky.html" target="_blank" className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</a>
-                          ) : (
-                            <button onClick={() => setShowLegal('vop')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</button>
-                          )}
+                          <a 
+                            href="/vseobecne-obchodne-podmienky.html" 
+                            onClick={(e) => { e.preventDefault(); handleLegalClick('vop'); }}
+                            className="text-sm text-slate-300 hover:text-orange-400 transition font-medium"
+                          >
+                            Obchodné podmienky (VOP)
+                          </a>
                         </li>
                         <li>
-                          {isWebOnly ? (
-                            <a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</a>
-                          ) : (
-                            <button onClick={() => setShowLegal('gdpr')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</button>
-                          )}
+                          <a 
+                            href="/zasady-ochrany-osobnych-udajov-gdpr.html" 
+                            onClick={(e) => { e.preventDefault(); handleLegalClick('gdpr'); }}
+                            className="text-sm text-slate-300 hover:text-orange-400 transition font-medium"
+                          >
+                            Ochrana údajov (GDPR)
+                          </a>
                         </li>
                     </ul>
                 </div>
@@ -438,7 +460,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
                 <div>
                     <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Prevádzkovateľ</h4>
-                    <div className="space-y-3 text-sm text-slate-400">
+                    <address className="space-y-3 text-sm text-slate-400 not-italic">
                         <p className="font-bold text-white">LORD'S BENISON s.r.o.</p>
                         <p className="flex items-start">
                           <span>M. Nandrássyho 654/10<br/>050 01 Revúca</span>
@@ -448,7 +470,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                             <p>DIČ: 2121022992</p>
                             <p>IČ DPH: SK2121022992</p>
                         </div>
-                    </div>
+                    </address>
                 </div>
             </div>
             <div className="max-w-6xl mx-auto mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
@@ -460,7 +482,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
       )}
 
       {showDownloadModal && <DownloadModal onClose={() => setShowDownloadModal(false)} />}
-      {showLegal && <LegalModal type={showLegal} onClose={() => setShowLegal(null)} />}
+      {showLegal && <LegalModal type={showLegal} onClose={handleCloseLegal} />}
     </div>
   );
 };
@@ -494,7 +516,6 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
     }
     setLoading(true);
 
-    // Dôležité: Získame správnu URL pre presmerovanie
     const redirectURL = getRedirectURL();
     
     try {
@@ -503,7 +524,6 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
         if(error) throw error;
       } 
       else if (view === 'forgot-password') {
-          // Použijeme redirectTo parameter pre obnovu hesla
           const { error } = await supabase.auth.resetPasswordForEmail(email, {
               redirectTo: `${redirectURL}/?action=reset-password`,
           });
@@ -512,7 +532,6 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
           setView('login');
       }
       else if (view === 'register-admin') {
-        // Použijeme emailRedirectTo parameter pre registráciu
         const { data: auth, error: authError } = await supabase.auth.signUp({ 
           email, 
           password, 
@@ -530,7 +549,6 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
           const { data: org, error: orgCheckError = null } = await supabase.from('organizations').select('id, name').eq('id', cleanId).maybeSingle();
           if(orgCheckError || !org) throw new Error("Firma s týmto ID neexistuje. Skontrolujte, či ste správne skopírovali kód.");
           
-          // Použijeme emailRedirectTo parameter aj pre zamestnanca
           const { data: auth, error: authError } = await supabase.auth.signUp({ 
             email, 
             password, 
@@ -549,7 +567,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const switchToLogin = () => { setView('login'); setError(null); };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-start md:justify-center p-4 relative pt-16 pb-12 overflow-y-auto scroll-container flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-start md:justify-center p-4 relative pt-16 pb-12 overflow-y-auto scroll-container">
       {showLegalModal && <LegalModal type={showLegalModal} onClose={() => setShowLegalModal(null)} />}
       <div className="absolute top-4 left-4 z-50 pt-safe-top"><button onClick={onBackToLanding} className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm hover:bg-white text-slate-500 hover:text-slate-900 rounded-xl shadow-sm hover:shadow border border-slate-200/50 transition font-bold text-sm"><ArrowLeft size={16} /> <span className="hidden sm:inline">Späť na úvod</span></button></div>
       <Card className="w-full max-w-md shadow-xl border-slate-200 animate-in zoom-in-95 relative overflow-hidden my-4" padding={view === 'onboarding' ? 'p-0' : 'p-6'}>
@@ -687,7 +705,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                                 Nemáte účet? <span className="underline font-bold text-orange-600">Zaregistrujte sa</span>
                             </button>
                         ) : (
-                            <button onClick={switchToLogin} className="text-slate-500 hover:text-slate-900 font-medium">
+                            <button className="text-slate-500 hover:text-slate-900 font-medium" onClick={switchToLogin}>
                                 Máte už účet? <span className="underline font-bold text-orange-600">Prihláste sa</span>
                             </button>
                         )}

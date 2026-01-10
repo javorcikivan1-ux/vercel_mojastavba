@@ -9,12 +9,15 @@ import {
   ArrowUpCircle,
   Smartphone,
   Download,
-  Loader2
+  Loader2,
+  Search
 } from 'lucide-react';
 
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import pkg from '../package.json';
+
+const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mojastavba/releases/latest";
 
 type Status =
   | 'idle'
@@ -71,32 +74,56 @@ export const UpdatesScreen = () => {
     } else if (isCapacitor) {
         // Pre mobil skúsime zistiť verziu z natívneho API
         CapApp.getInfo().then(info => {
-            if (info.version && info.version !== "...") {
-                setAppVersion(info.version);
+            if (info.version && info.version !== "..." && info.version.trim() !== "") {
+                setAppVersion(info.version.trim());
             }
         });
     }
   }, [isElectron, isCapacitor]);
 
-  const checkForUpdates = () => {
+  const checkForUpdates = async () => {
+    setStatus('checking');
+    setErrorMsg('');
+
     if (isElectron) {
-      setStatus('checking');
-      setErrorMsg('');
       try {
           // @ts-ignore
           const { ipcRenderer } = window.require('electron');
           ipcRenderer.send('check-for-update');
+          // Timeout pre prípad, že Electron neodpovedá
           setTimeout(() => {
               setStatus(prev => prev === 'checking' ? 'idle' : prev);
           }, 10000);
       } catch (e) {
           setStatus('error');
-          setErrorMsg("Chyba komunikácie.");
+          setErrorMsg("Chyba komunikácie s Windows procesom.");
       }
     } else if (isCapacitor) {
-        // Pre mobil len jednoduchý reload, kontrola prebieha v App.tsx cez pop-up
-        window.location.reload();
+        // REÁLNA KONTROLA PRE ANDROID
+        try {
+            const response = await fetch(`${GITHUB_REPO_URL}?t=${Date.now()}`);
+            const data = await response.json();
+            
+            if (data && data.tag_name) {
+                const latestVersion = data.tag_name.replace(/[vV]/g, '').trim();
+                const currentVersion = appVersion.replace(/[vV]/g, '').trim();
+
+                if (latestVersion !== currentVersion) {
+                    setNewVersion(latestVersion);
+                    setStatus('available');
+                } else {
+                    setStatus('no-update');
+                    setTimeout(() => setStatus('idle'), 5000);
+                }
+            } else {
+                throw new Error("Nepodarilo sa získať dáta z GitHubu.");
+            }
+        } catch (err: any) {
+            setStatus('error');
+            setErrorMsg("Nepodarilo sa skontrolovať server. Skontrolujte pripojenie.");
+        }
     } else {
+        // Web verzia - len refresh
         window.location.reload();
     }
   };
@@ -106,6 +133,10 @@ export const UpdatesScreen = () => {
           // @ts-ignore
           const { ipcRenderer } = window.require('electron');
           ipcRenderer.send('start-download');
+      } else if (isCapacitor) {
+          // Na mobile update spúšťame cez vyskakovacie okno v App.tsx, 
+          // ale ak užívateľ klikne tu, môžeme ho navigovať na reštart
+          window.location.reload();
       }
   };
 
@@ -151,7 +182,7 @@ export const UpdatesScreen = () => {
                 </div>
               )}
               <Button onClick={checkForUpdates} fullWidth size="lg" className="h-14 uppercase tracking-widest font-black text-xs shadow-orange-100">
-                {isCapacitor ? 'Obnoviť aplikáciu' : 'Skontrolovať aktualizácie'}
+                Skontrolovať aktualizácie
               </Button>
             </>
           )}
@@ -169,9 +200,17 @@ export const UpdatesScreen = () => {
             <div className="bg-blue-50 border border-blue-100 p-6 rounded-3xl animate-in fade-in slide-in-from-top-4">
               <ArrowUpCircle className="mx-auto text-blue-600 mb-3" size={40} />
               <div className="font-black text-blue-900 text-lg">Dostupná verzia v{newVersion}</div>
-              <p className="text-xs text-blue-600 font-bold mb-6 mt-1 uppercase tracking-tight">Bola vydaná dôležitá aktualizácia systému.</p>
-              <Button onClick={startDownload} fullWidth className="bg-blue-600 hover:bg-blue-700 shadow-blue-100 border-none">
-                <Download size={18} /> Stiahnuť a aktualizovať
+              <p className="text-xs text-blue-600 font-bold mb-6 mt-1 uppercase tracking-tight">Bola vydaná nová aktualizácia systému.</p>
+              
+              {isCapacitor ? (
+                  <div className="text-xs text-blue-800 bg-white/50 p-4 rounded-xl border border-blue-100 mb-6 font-medium leading-relaxed">
+                      Pre stiahnutie tejto aktualizácie stačí reštartovať aplikáciu. Systém si nový balík stiahne automaticky pri štarte.
+                  </div>
+              ) : null}
+
+              <Button onClick={isCapacitor ? () => window.location.reload() : startDownload} fullWidth className="bg-blue-600 hover:bg-blue-700 shadow-blue-100 border-none">
+                {isCapacitor ? <RefreshCw size={18}/> : <Download size={18} />} 
+                {isCapacitor ? 'Reštartovať a aktualizovať' : 'Stiahnuť a aktualizovať'}
               </Button>
             </div>
           )}

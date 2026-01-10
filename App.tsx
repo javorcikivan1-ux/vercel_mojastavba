@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, UserProfile } from './lib/supabase';
 import { Button, ConfirmModal, LegalModal, Modal } from './components/UI';
@@ -20,12 +19,12 @@ import { LandingScreen, LoginScreen } from './features/Auth';
 import { SuperAdminScreen } from './features/SuperAdmin';
 import { UpdatesScreen } from './features/Updates';
 
-// Import verzie z package.json ako primárny fallback
+// Import verzie z package.json ako fallback
 import pkg from './package.json';
 
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown, Download
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown, Download, CheckCircle2
 } from 'lucide-react';
 
 import { App as CapApp } from '@capacitor/app';
@@ -97,54 +96,46 @@ export const App = () => {
     };
   }, []);
 
+  // KONTROLA AKTUALIZÁCIÍ
   useEffect(() => {
-    const isElectron = !Capacitor.isNativePlatform() && navigator.userAgent.toLowerCase().includes('electron');
-    const isAndroid = Capacitor.getPlatform() === 'android';
+    const isNative = Capacitor.isNativePlatform();
 
-    if (isElectron) {
-      try {
-        // @ts-ignore
-        const { ipcRenderer } = window.require('electron');
-        const handleUpdateStatus = (_: any, status: string, version?: string) => {
-          if (status === 'available' && version && activeScreen !== 'settings') {
-            setUpdateAvailable(version);
-          }
-        };
-        ipcRenderer.on('update-status', handleUpdateStatus);
-        return () => ipcRenderer.removeListener('update-status', handleUpdateStatus);
-      } catch (e) { console.error("IPC update listener failed", e); }
-    } 
-    
-    if (isAndroid) {
-        const checkAndroidUpdate = async () => {
-            try {
-                let currentVersion = pkg.version;
-                try {
-                    const info = await CapApp.getInfo();
-                    if (info.version && info.version !== "..." && info.version.trim() !== "") {
-                        currentVersion = info.version.trim();
-                    }
-                } catch (e) {}
-                
-                const response = await fetch(`${GITHUB_REPO_URL}?t=${Date.now()}`);
-                const data = await response.json();
-                
-                if (data && data.tag_name) {
-                    const latestVersion = data.tag_name.replace(/[vV]/g, '').trim();
-                    
-                    if (latestVersion !== currentVersion && currentVersion !== "") {
-                        if (activeScreen !== 'settings') {
-                            setUpdateAvailable(latestVersion);
-                        }
-                    }
+    const checkUpdates = async () => {
+        try {
+            let currentVersion = pkg.version;
+            
+            if (isNative) {
+                const current = await CapacitorUpdater.current();
+                if (current?.bundle?.version) {
+                    currentVersion = current.bundle.version;
                 }
-            } catch (err) {
-                console.error("Android version check failed", err);
             }
-        };
-        checkAndroidUpdate();
-    }
-  }, [activeScreen]); 
+
+            const response = await fetch(`${GITHUB_REPO_URL}?t=${Date.now()}`);
+            const data = await response.json();
+            
+            if (data && data.tag_name) {
+                const latestVersion = data.tag_name.replace(/[vV]/g, '').trim();
+                const cleanCurrent = currentVersion.replace(/[vV]/g, '').trim();
+                
+                if (latestVersion !== cleanCurrent && cleanCurrent !== "" && latestVersion !== "" && updateStatus === 'idle') {
+                    if (activeScreen !== 'settings') {
+                        setUpdateAvailable(latestVersion);
+                    }
+                } else if (latestVersion === cleanCurrent) {
+                    setUpdateAvailable(null);
+                }
+            }
+        } catch (err) {
+            console.error("Update check failed", err);
+        }
+    };
+
+    checkUpdates();
+    const interval = setInterval(checkUpdates, 10 * 60 * 1000); 
+    return () => clearInterval(interval);
+
+  }, [activeScreen, updateStatus]); 
 
   const handleUpdateClick = async () => {
       const isAndroid = Capacitor.getPlatform() === 'android';
@@ -153,30 +144,21 @@ export const App = () => {
               setUpdateStatus('downloading');
               setDownloadProgress(10);
 
-              // URL k ZIP súboru v GitHub Release
               const downloadUrl = `https://github.com/javorcikivan1-ux/vercel_mojastavba/releases/download/v${updateAvailable}/MojaStavba.zip`;
               
-              setDownloadProgress(25);
+              setDownloadProgress(30);
               const version = await CapacitorUpdater.download({
                   url: downloadUrl,
                   version: updateAvailable,
               });
 
-              setDownloadProgress(75);
+              setDownloadProgress(80);
               setUpdateStatus('applying');
               
-              // Nastavenie novej verzie a automatický reštart
+              // TOTO SPUSTÍ REŠTART
               await CapacitorUpdater.set(version);
-              setDownloadProgress(100);
           } catch (e: any) {
               console.error("OTA Update failed", e);
-              // Fallback ak zlyhá automatika - otvoríme web pre manuálny download APK
-              const releasesUrl = "https://github.com/javorcikivan1-ux/instalacky_mojastavba/releases/latest";
-              try {
-                  await Browser.open({ url: releasesUrl });
-              } catch (browserErr) {
-                  window.open(releasesUrl, '_blank');
-              }
               setUpdateStatus('idle');
               setUpdateAvailable(null);
           }
@@ -381,11 +363,11 @@ export const App = () => {
                                     </div>
                                     <h3 className="text-lg font-black text-slate-900">Dostupná verzia v{updateAvailable}</h3>
                                     <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                                        Vydali sme novú aktualizáciu MojaStavba. Aktualizujte teraz pre najnovšie funkcie a opravy.
+                                        Vydali sme novú aktualizáciu MojaStavba. Táto aktualizácia je kľúčová pre správne fungovanie systému.
                                     </p>
                                     <div className="mt-6 flex flex-col gap-2">
                                         <Button fullWidth onClick={handleUpdateClick}>
-                                            Aktualizovať teraz (OTA)
+                                            Aktualizovať teraz
                                         </Button>
                                         <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
                                     </div>
@@ -394,7 +376,7 @@ export const App = () => {
                                 <div className="space-y-6 py-4 animate-in fade-in">
                                     <Loader2 className="animate-spin text-orange-600 mx-auto" size={48} />
                                     <div>
-                                        <h3 className="font-black text-slate-900">{updateStatus === 'downloading' ? 'Sťahujem nové prostredie...' : 'Aplikujem zmeny...'}</h3>
+                                        <h3 className="font-black text-slate-900">{updateStatus === 'downloading' ? 'Sťahujem aktualizáciu...' : 'Aplikujem zmeny...'}</h3>
                                         <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">Aplikácia sa po dokončení sama reštartuje</p>
                                     </div>
                                     <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -664,31 +646,36 @@ export const App = () => {
                                 <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-sm animate-bounce">
                                     <ArrowUpCircle size={32}/>
                                 </div>
-                                <h3 className="text-lg font-black text-slate-900">Dostupná verzia v{updateAvailable}</h3>
-                                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                                    Vydali sme novú verziu aplikácie MojaStavba. Aktualizujte teraz pre najnovšie funkcie a opravy.
+                                <h3 className="text-lg font-black text-slate-900 text-center">Nová verzia v{updateAvailable}</h3>
+                                <p className="text-xs text-slate-500 mt-2 leading-relaxed text-center">
+                                    Váš systém MojaStavba má pripravenú aktualizáciu. Kliknite pre okamžité nahranie nových funkcií.
                                 </p>
                                 <div className="mt-6 flex flex-col gap-2">
                                     <Button fullWidth onClick={handleUpdateClick}>
-                                        Aktualizovať teraz (OTA)
+                                        Aktualizovať teraz
                                     </Button>
                                     <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
                                 </div>
                             </>
                         ) : (
                             <div className="space-y-6 py-4 animate-in fade-in">
-                                <Loader2 className="animate-spin text-orange-600 mx-auto" size={48} />
+                                <div className="flex justify-center relative">
+                                    <Loader2 className="animate-spin text-orange-600" size={64} />
+                                    <Download className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-orange-400" size={24}/>
+                                </div>
                                 <div>
-                                    <h3 className="font-black text-slate-900">{updateStatus === 'downloading' ? 'Sťahujem nové prostredie...' : 'Aplikujem zmeny...'}</h3>
-                                    <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">Aplikácia sa po dokončení sama reštartuje</p>
+                                    <h3 className="font-black text-slate-900 text-center">{updateStatus === 'downloading' ? 'Sťahujem nové prostredie...' : 'Aplikujem zmeny...'}</h3>
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold mt-1 text-center italic">Po dokončení sa appka sama reštartuje</p>
                                 </div>
-                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                    <div 
-                                        className="bg-orange-600 h-full transition-all duration-500" 
-                                        style={{ width: `${downloadProgress}%` }}
-                                    ></div>
+                                <div className="px-4">
+                                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden border border-slate-200 shadow-inner p-0.5">
+                                        <div 
+                                            className="bg-orange-500 h-full transition-all duration-300 shadow-sm" 
+                                            style={{ width: `${downloadProgress}%` }}
+                                        ></div>
+                                    </div>
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mt-2">{downloadProgress}%</div>
                                 </div>
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{downloadProgress}%</div>
                             </div>
                         )}
                     </div>

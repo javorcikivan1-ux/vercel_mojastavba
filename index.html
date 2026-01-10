@@ -1,53 +1,53 @@
-
 <!DOCTYPE html>
 <html lang="sk">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- Icons -->
     <link rel="icon" type="image/png" href="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" />
     <link rel="apple-touch-icon" href="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" />
     <link rel="shortcut icon" href="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" />
-    
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- Viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#ea580c" />
-    
-    <!-- SEO Meta Tags -->
-    <title>MojaStavba - Profesionálny Stavebný Manažment a Dochádzka</title>
-    <meta name="description" content="Digitálny stavebný denník, evidencia dochádzky a správa zákaziek pre moderné stavebné firmy. Vyskúšajte MojaStavba na 14 dní zadarmo." />
-    <meta name="keywords" content="stavebný manažment, stavebný denník, dochádzka na stavbu, správa zákaziek, MojaStavba, stavebný softvér" />
+
+    <!-- Primary SEO -->
+    <title>MojaStavba – Stavebný manažment a digitálny stavebný denník</title>
+    <meta name="description" content="Efektívny stavebný manažment, digitálny stavebný denník a elektronická dochádzka pre stavebné firmy. Vyskúšajte MojaStavba PRO na 30 dní zadarmo." />
+    <meta name="keywords" content="stavebný manažment, stavebný denník, dochádzka na stavbu, správa zákaziek, MojaStavba, stavebný softvér, evidencia prác" />
     <meta name="author" content="MojaStavba" />
-    
-    <!-- Open Graph / Facebook -->
+
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.moja-stavba.sk/" />
-    <meta property="og:title" content="MojaStavba - Stavebný Manažment" />
+    <meta property="og:title" content="MojaStavba – Profesionálny stavebný manažment" />
     <meta property="og:description" content="Digitálny stavebný denník a evidencia dochádzky pre vašu firmu v mobile aj na PC." />
     <meta property="og:image" content="https://lordsbenison.sk/wp-content/uploads/2025/12/image-2.png" />
 
-    <script type="importmap">
-{
-  "imports": {
-    "path": "https://esm.sh/path@^0.12.7",
-    "@capacitor/cli": "https://esm.sh/@capacitor/cli@^8.0.0",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "url": "https://esm.sh/url@^0.11.4",
-    "electron": "https://esm.sh/electron@^39.2.7",
-    "@capacitor/core": "https://esm.sh/@capacitor/core@^8.0.0",
-    "@capacitor/app": "https://esm.sh/@capacitor/app@^6.0.0",
-    "vite": "https://esm.sh/vite@^7.3.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0",
-    "electron-updater": "https://esm.sh/electron-updater@^6.6.2",
-    "html2pdf.js": "https://esm.sh/html2pdf.js@^0.12.1",
-    "@capgo/capacitor-updater": "https://esm.sh/@capgo/capacitor-updater@^8.40.8"
-  }
-}
-</script>
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MojaStavba – Profesionálny stavebný manažment" />
+    <meta name="twitter:description" content="Digitálny stavebný denník a evidencia dochádzky pre vašu firmu v mobile aj na PC." />
+    <meta name="twitter:image" content="https://lordsbenison.sk/wp-content/uploads/2025/12/image-2.png" />
   </head>
+
   <body class="bg-slate-50 text-slate-900 overflow-x-hidden">
     <div id="root"></div>
+
+    <!-- 🔥 CAPGO OTA BOOTSTRAP – MUSÍ BYŤ PRVÝ -->
+    <script>
+      try {
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+          window.Capacitor.Plugins?.CapacitorUpdater?.notifyAppReady();
+          console.log("Capgo early boot OK");
+        }
+      } catch (e) {
+        console.log("Capgo early boot failed", e);
+      }
+    </script>
+
+    <!-- Potom až Vite / React bundle -->
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
