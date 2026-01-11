@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, UserProfile } from './lib/supabase';
 import { Button, ConfirmModal, LegalModal, Modal } from './components/UI';
@@ -85,6 +86,9 @@ export const App = () => {
     return active === 'finance' || active === 'analytics' || active === 'advances';
   });
 
+  const isNative = Capacitor.isNativePlatform();
+  const isElectron = !isNative && navigator.userAgent.toLowerCase().includes('electron');
+
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -96,19 +100,27 @@ export const App = () => {
     };
   }, []);
 
-  // KONTROLA AKTUALIZÁCIÍ
+  // KONTROLA AKTUALIZÁCIÍ - Len pre natívne aplikácie
   useEffect(() => {
-    const isNative = Capacitor.isNativePlatform();
+    // Ak sme na webe (Vercel), tento useEffect skončí hneď tu. Nič sa nebude sťahovať ani kontrolovať.
+    if (!isNative && !isElectron) return; 
 
     const checkUpdates = async () => {
         try {
             let currentVersion = pkg.version;
             
             if (isNative) {
+                // TU JE TA ZMENA: CapacitorUpdater.current() vracia verziu webového balíka (5.2.2)
+                // nie verziu APK inštalačky (5.1.1). Tým pádom sa slučka preruší.
                 const current = await CapacitorUpdater.current();
                 if (current?.bundle?.version) {
-                    currentVersion = current.bundle.version;
+                    currentVersion = current.bundle.version.trim();
+                } else {
+                    const info = await CapApp.getInfo();
+                    if (info.version) currentVersion = info.version.trim();
                 }
+            } else if (isElectron) {
+                currentVersion = pkg.version; 
             }
 
             const response = await fetch(`${GITHUB_REPO_URL}?t=${Date.now()}`);
@@ -118,12 +130,14 @@ export const App = () => {
                 const latestVersion = data.tag_name.replace(/[vV]/g, '').trim();
                 const cleanCurrent = currentVersion.replace(/[vV]/g, '').trim();
                 
-                if (latestVersion !== cleanCurrent && cleanCurrent !== "" && latestVersion !== "" && updateStatus === 'idle') {
+                // Porovnáme: Ak je 5.2.2 (GitHub) rovné 5.2.2 (v appke po update), nič nevyhodí.
+                if (latestVersion !== cleanCurrent && latestVersion !== "" && cleanCurrent !== "" && updateStatus === 'idle') {
                     if (activeScreen !== 'settings') {
                         setUpdateAvailable(latestVersion);
                     }
-                } else if (latestVersion === cleanCurrent) {
-                    setUpdateAvailable(null);
+                } else {
+                    // Ak sú verzie rovnaké, pre istotu okno zavrieme
+                    setUpdateAvailable(null); 
                 }
             }
         } catch (err) {
@@ -132,10 +146,10 @@ export const App = () => {
     };
 
     checkUpdates();
-    const interval = setInterval(checkUpdates, 10 * 60 * 1000); 
+    const interval = setInterval(checkUpdates, 15 * 60 * 1000); 
     return () => clearInterval(interval);
 
-  }, [activeScreen, updateStatus]); 
+  }, [activeScreen, updateStatus, isNative, isElectron]); 
 
   const handleUpdateClick = async () => {
       const isAndroid = Capacitor.getPlatform() === 'android';
@@ -627,7 +641,7 @@ export const App = () => {
                                 className={`flex flex-col items-center justify-center min-w-[80px] flex-shrink-0 py-3 px-1 transition-colors ${activeScreen === item.id ? 'text-orange-600 bg-orange-50' : 'text-slate-400'}`}
                               >
                                 <div className={activeScreen === item.id ? 'scale-110 transition-transform' : ''}><item.icon size={24}/></div>
-                                <span className="text-[10px] mt-1 font-medium truncate w-full text-center">{item.label}</span>
+                                <span className="text-sm mt-1 font-medium truncate w-full text-center">{item.label}</span>
                               </button>
                           ))}
                       </div>

@@ -91,7 +91,7 @@ const DownloadModal = ({ onClose }: { onClose: () => void }) => {
                     </p>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
                     <div className="text-[10px] font-black text-orange-600 uppercase mb-2 flex items-center gap-1">
                         <Smartphone size={12}/> Inštalácia na Android
                     </div>
@@ -499,7 +499,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [companyId, setCompanyId] = useState(initialCompanyId || "");
+  const [companyId, setCompanyId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false); 
@@ -513,11 +513,12 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
       const urlCompanyId = params.get('companyId');
       const urlAction = params.get('action');
 
+      // Vždy skontrolovať URL bez ohľadu na initialView
       if (urlAction === 'register-emp') {
           setView('register-emp');
           if (urlCompanyId) setCompanyId(urlCompanyId);
       } else {
-          if (initialView) setView(initialView);
+          setView(initialView);
           if (initialCompanyId) setCompanyId(initialCompanyId);
       }
   }, [initialView, initialCompanyId]);
@@ -688,9 +689,9 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                                 required 
                                 placeholder="Vložte ID firmy" 
                                 className="w-full bg-white border border-blue-200 rounded-lg p-2 font-mono text-sm"
-                                readOnly={!!companyId} 
+                                readOnly={!!new URLSearchParams(window.location.search).get('companyId')} 
                             />
-                            {!!companyId && <p className="text-[10px] text-blue-600 mt-1 flex items-center gap-1"><CheckCircle2 size={10}/> Automaticky načítané z pozvánky</p>}
+                            {!!new URLSearchParams(window.location.search).get('companyId') && <p className="text-[10px] text-blue-600 mt-1 flex items-center gap-1"><CheckCircle2 size={10}/> Automaticky načítané z pozvánky</p>}
                         </div>
                         <Input label="Vaše Meno" value={fullName} onChange={(e: any) => setFullName(e.target.value)} required placeholder="Ján Novák" />
                         </>

@@ -15,6 +15,7 @@ import {
 
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import pkg from '../package.json';
 
 const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mojastavba/releases/latest";
@@ -39,46 +40,61 @@ export const UpdatesScreen = () => {
   const isElectron = !isCapacitor && navigator.userAgent.toLowerCase().includes('electron');
 
   useEffect(() => {
-    if (isElectron) {
-      try {
-        // @ts-ignore
-        const { ipcRenderer } = window.require('electron');
+    const initVersion = async () => {
+      if (isElectron) {
+        try {
+          // @ts-ignore
+          const { ipcRenderer } = window.require('electron');
+          ipcRenderer.send('app-version');
+          ipcRenderer.on('app-version', (_: any, version: string) => setAppVersion(version));
 
-        // Získanie verzie z Electron procesu
-        ipcRenderer.send('app-version');
-        ipcRenderer.on('app-version', (_: any, version: string) => setAppVersion(version));
+          const handleStatus = (_: any, newStatus: Status, info?: string) => {
+            setStatus(newStatus);
+            if (newStatus === 'available' && info) setNewVersion(info);
+            if (newStatus === 'error' && info) setErrorMsg(info);
+          };
 
-        const handleStatus = (_: any, newStatus: Status, info?: string) => {
-          setStatus(newStatus);
-          if (newStatus === 'available' && info) setNewVersion(info);
-          if (newStatus === 'error' && info) setErrorMsg(info);
-        };
+          const handleProgress = (_: any, percent: number) => {
+            setStatus('downloading');
+            setProgress(Math.round(percent));
+          };
 
-        const handleProgress = (_: any, percent: number) => {
-          setStatus('downloading');
-          setProgress(Math.round(percent));
-        };
-
-        ipcRenderer.on('update-status', handleStatus);
-        ipcRenderer.on('download-progress', handleProgress);
-
-        return () => {
-          ipcRenderer.removeListener('app-version', () => {});
-          ipcRenderer.removeListener('update-status', handleStatus);
-          ipcRenderer.removeListener('download-progress', handleProgress);
-        };
-      } catch (e) {
-        setStatus('error');
-        setErrorMsg("Nepodarilo sa spojiť s procesom Windows.");
+          ipcRenderer.on('update-status', handleStatus);
+          ipcRenderer.on('download-progress', handleProgress);
+        } catch (e) {
+          setStatus('error');
+          setErrorMsg("Nepodarilo sa spojiť s procesom Windows.");
+        }
+      } else if (isCapacitor) {
+        try {
+          // KRITICKÁ ZMENA: Najprv skúsime zistiť verziu aktuálneho OTA bundlu
+          const current = await CapacitorUpdater.current();
+          if (current?.bundle?.version) {
+            setAppVersion(current.bundle.version.trim());
+          } else {
+            // Ak nie je OTA bundle, skúsime natívnu verziu
+            const info = await CapApp.getInfo();
+            if (info.version) setAppVersion(info.version.trim());
+          }
+        } catch (err) {
+          setAppVersion(pkg.version);
+        }
       }
-    } else if (isCapacitor) {
-        // Pre mobil skúsime zistiť verziu z natívneho API
-        CapApp.getInfo().then(info => {
-            if (info.version && info.version !== "..." && info.version.trim() !== "") {
-                setAppVersion(info.version.trim());
-            }
-        });
-    }
+    };
+
+    initVersion();
+
+    return () => {
+      if (isElectron) {
+        try {
+          // @ts-ignore
+          const { ipcRenderer } = window.require('electron');
+          ipcRenderer.removeAllListeners('app-version');
+          ipcRenderer.removeAllListeners('update-status');
+          ipcRenderer.removeAllListeners('download-progress');
+        } catch (e) {}
+      }
+    };
   }, [isElectron, isCapacitor]);
 
   const checkForUpdates = async () => {
@@ -90,7 +106,6 @@ export const UpdatesScreen = () => {
           // @ts-ignore
           const { ipcRenderer } = window.require('electron');
           ipcRenderer.send('check-for-update');
-          // Timeout pre prípad, že Electron neodpovedá
           setTimeout(() => {
               setStatus(prev => prev === 'checking' ? 'idle' : prev);
           }, 10000);
@@ -99,7 +114,6 @@ export const UpdatesScreen = () => {
           setErrorMsg("Chyba komunikácie s Windows procesom.");
       }
     } else if (isCapacitor) {
-        // REÁLNA KONTROLA PRE ANDROID
         try {
             const response = await fetch(`${GITHUB_REPO_URL}?t=${Date.now()}`);
             const data = await response.json();
@@ -108,7 +122,7 @@ export const UpdatesScreen = () => {
                 const latestVersion = data.tag_name.replace(/[vV]/g, '').trim();
                 const currentVersion = appVersion.replace(/[vV]/g, '').trim();
 
-                if (latestVersion !== currentVersion) {
+                if (latestVersion !== currentVersion && latestVersion !== "" && currentVersion !== "") {
                     setNewVersion(latestVersion);
                     setStatus('available');
                 } else {
@@ -123,7 +137,6 @@ export const UpdatesScreen = () => {
             setErrorMsg("Nepodarilo sa skontrolovať server. Skontrolujte pripojenie.");
         }
     } else {
-        // Web verzia - len refresh
         window.location.reload();
     }
   };
@@ -134,8 +147,6 @@ export const UpdatesScreen = () => {
           const { ipcRenderer } = window.require('electron');
           ipcRenderer.send('start-download');
       } else if (isCapacitor) {
-          // Na mobile update spúšťame cez vyskakovacie okno v App.tsx, 
-          // ale ak užívateľ klikne tu, môžeme ho navigovať na reštart
           window.location.reload();
       }
   };
