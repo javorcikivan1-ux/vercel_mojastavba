@@ -102,7 +102,6 @@ export const App = () => {
 
   // KONTROLA AKTUALIZÁCIÍ - Len pre natívne aplikácie
   useEffect(() => {
-    // Ak sme na webe (Vercel), tento useEffect skončí hneď tu. Nič sa nebude sťahovať ani kontrolovať.
     if (!isNative && !isElectron) return; 
 
     const checkUpdates = async () => {
@@ -110,8 +109,6 @@ export const App = () => {
             let currentVersion = pkg.version;
             
             if (isNative) {
-                // TU JE TA ZMENA: CapacitorUpdater.current() vracia verziu webového balíka (5.2.2)
-                // nie verziu APK inštalačky (5.1.1). Tým pádom sa slučka preruší.
                 const current = await CapacitorUpdater.current();
                 if (current?.bundle?.version) {
                     currentVersion = current.bundle.version.trim();
@@ -130,13 +127,11 @@ export const App = () => {
                 const latestVersion = data.tag_name.replace(/[vV]/g, '').trim();
                 const cleanCurrent = currentVersion.replace(/[vV]/g, '').trim();
                 
-                // Porovnáme: Ak je 5.2.2 (GitHub) rovné 5.2.2 (v appke po update), nič nevyhodí.
                 if (latestVersion !== cleanCurrent && latestVersion !== "" && cleanCurrent !== "" && updateStatus === 'idle') {
                     if (activeScreen !== 'settings') {
                         setUpdateAvailable(latestVersion);
                     }
                 } else {
-                    // Ak sú verzie rovnaké, pre istotu okno zavrieme
                     setUpdateAvailable(null); 
                 }
             }
@@ -169,7 +164,6 @@ export const App = () => {
               setDownloadProgress(80);
               setUpdateStatus('applying');
               
-              // TOTO SPUSTÍ REŠTART
               await CapacitorUpdater.set(version);
           } catch (e: any) {
               console.error("OTA Update failed", e);
@@ -221,7 +215,6 @@ export const App = () => {
   }, [selectedSiteId, activeScreen, profile]);
 
   useEffect(() => {
-    // --- LOGIKA PRE MAGIC LINK ---
     const params = new URLSearchParams(window.location.search);
     const urlAction = params.get('action');
 
@@ -230,7 +223,6 @@ export const App = () => {
       if (session) {
           fetchProfile(session.user.id);
       } else {
-          // Ak nie je prihlásený, ale v URL je akcia registrácie, preskočíme landing
           if (urlAction === 'register-emp') {
               setInitialLoginView('register-emp');
               setView('login');
@@ -250,7 +242,6 @@ export const App = () => {
       else {
           setProfile(null);
           setOrganization(null);
-          // Opäť kontrola URL pri zmene auth stavu
           const p = new URLSearchParams(window.location.search);
           if (p.get('action') === 'register-emp') {
             setInitialLoginView('register-emp');
@@ -286,15 +277,27 @@ export const App = () => {
       }
   };
 
-  const handleLogout = async () => {
-      await supabase.auth.signOut();
-      setView('landing');
-      setProfile(null);
-      setOrganization(null);
-      setShowLogoutConfirm(false);
-      localStorage.removeItem('ms_active_screen');
-      localStorage.removeItem('ms_selected_site_id');
-  };
+const handleLogout = async () => {
+  // 1. Okamžite zruš UI stav (aby sa nič neflashlo)
+  setView('landing');
+  setProfile(null);
+  setOrganization(null);
+  setSession(null);
+  setShowLogoutConfirm(false);
+
+  // 2. Vyčisti lokálny stav aplikácie
+  localStorage.removeItem('ms_active_screen');
+  localStorage.removeItem('ms_selected_site_id');
+
+  // 3. Reálne odhlás Supabase
+  await supabase.auth.signOut();
+
+  // 4. Na mobile je nutný hard reload WebView
+  if (Capacitor.isNativePlatform()) {
+    window.location.href = '/';
+  }
+};
+
 
   const handleNavigate = (screen: string, params?: any) => {
       if (screen === 'settings' && params?.tab) {
@@ -477,7 +480,7 @@ export const App = () => {
                      )}
                  </div>
 
-                 {organization.subscription_status !== 'active' && profile?.email !== SUPER_ADMIN_EMAIL && profile?.role !== 'admin' && (
+                 {organization.subscription_status !== 'active' && profile?.email !== SUPER_ADMIN_EMAIL && (
                     <div className="mx-4 mb-3 transition-all duration-300">
                         {isSidebarCollapsed ? (
                             <button
@@ -601,7 +604,7 @@ export const App = () => {
                          {isSuperAdmin && (
                              <button onClick={() => setActiveScreen('superadmin')} className="text-red-600 p-1"><ShieldAlert size={20}/></button>
                          )}
-                         {organization?.subscription_status !== 'active' && profile?.email !== SUPER_ADMIN_EMAIL && profile?.role !== 'admin' && (
+                         {organization?.subscription_status !== 'active' && profile?.email !== SUPER_ADMIN_EMAIL && (
                              <button
                                  onClick={() => setActiveScreen('subscription')}
                                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 active:bg-slate-100 transition-colors"
@@ -680,7 +683,7 @@ export const App = () => {
                                 </div>
                                 <h3 className="text-lg font-black text-slate-900 text-center">Nová verzia v{updateAvailable}</h3>
                                 <p className="text-xs text-slate-500 mt-2 leading-relaxed text-center">
-                                    Váš systém MojaStavba má pripravenú aktualizáciu. Kliknite pre okamžité nahranie nových funkcií.
+                                    Váš systém MojaStavba horí nedočkavosťou na nové funkcie. Kliknite pre okamžitú aktualizáciu.
                                 </p>
                                 <div className="mt-6 flex flex-col gap-2">
                                     <Button fullWidth onClick={handleUpdateClick}>
