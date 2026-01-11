@@ -207,11 +207,22 @@ export const App = () => {
   }, [selectedSiteId, activeScreen, profile]);
 
   useEffect(() => {
+    // --- LOGIKA PRE MAGIC LINK ---
+    const params = new URLSearchParams(window.location.search);
+    const urlAction = params.get('action');
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) fetchProfile(session.user.id);
-      else {
-          setView('landing');
+      if (session) {
+          fetchProfile(session.user.id);
+      } else {
+          // Ak nie je prihlásený, ale v URL je akcia registrácie, preskočíme landing
+          if (urlAction === 'register-emp') {
+              setInitialLoginView('register-emp');
+              setView('login');
+          } else {
+              setView('landing');
+          }
           setLoading(false);
       }
     });
@@ -225,7 +236,14 @@ export const App = () => {
       else {
           setProfile(null);
           setOrganization(null);
-          setView('landing');
+          // Opäť kontrola URL pri zmene auth stavu
+          const p = new URLSearchParams(window.location.search);
+          if (p.get('action') === 'register-emp') {
+            setInitialLoginView('register-emp');
+            setView('login');
+          } else {
+            setView('landing');
+          }
           setLoading(false);
       }
     });
