@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Modal, Input, Badge, ConfirmModal, AlertModal, Select } from '../components/UI';
-import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote, Trash2, Archive, CheckCircle2, Users, Pencil, RefreshCcw, Link, Copy, ChevronDown, ChevronRight, Clock, MapPin, Send, Zap, Info, Smartphone, Monitor, Wallet, Loader2, Filter, FileText, Search, Briefcase, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote, Trash2, Archive, CheckCircle2, Users, Pencil, RefreshCcw, Link, Copy, ChevronDown, ChevronRight, Clock, MapPin, Send, Zap, Info, Smartphone, Monitor, Wallet, Loader2, Filter, FileText, Search, Briefcase, Eye, EyeOff, Share2 } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
+import { Capacitor } from '@capacitor/core';
 
 const TEAM_PAGE_SIZE = 15;
 
@@ -43,6 +43,7 @@ const TeamList = ({ profile, onSelect }: any) => {
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string, name?: string}>({ open: false, action: '', id: '' });
   const [alert, setAlert] = useState<{open: boolean, message: string}>({ open: false, message: '' });
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Debounced search / reset on tab toggle
   useEffect(() => {
@@ -196,10 +197,18 @@ const TeamList = ({ profile, onSelect }: any) => {
       setTimeout(() => setCopied(false), 2000);
   };
 
+  const copyInviteLink = () => {
+      const inviteUrl = `https://www.moja-stavba.sk/?action=register-emp&companyId=${profile.organization_id}`;
+      navigator.clipboard.writeText(inviteUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+  };
+
   const sendInviteViaEmail = () => {
+      const inviteUrl = `https://www.moja-stavba.sk/?action=register-emp&companyId=${profile.organization_id}`;
       const subject = encodeURIComponent("Pozvánka do tímu - MojaStavba");
       const body = encodeURIComponent(
-          `Dobrý deň,\n\nPozývam vás do nášho firemného systému MojaStavba na správu prác a dochádzky.\n\nPostup pre registráciu:\n1. Stiahnite si aplikáciu pre váš systém (Android / Windows).\n2. Pri registrácii zvoľte "Zamestnanecký účet".\n3. Zadajte toto ID firmy: ${profile.organization_id}\n\nPo registrácii si budete môcť hneď zapisovať svoje odpracované hodiny.\n\nS pozdravom,\nAdministrátor`
+          `Dobrý deň,\n\nPozývam vás do nášho firemného systému MojaStavba na správu prác a dochádzky.\n\nZaregistrovať sa môžete priamo kliknutím na tento odkaz (ID firmy sa vyplní samo):\n${inviteUrl}\n\nS pozdravom,\nAdministrátor`
       );
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
@@ -207,6 +216,8 @@ const TeamList = ({ profile, onSelect }: any) => {
   const handleLoadMore = () => {
       setPage(p => p + 1);
   };
+
+  const isNative = Capacitor.isNativePlatform();
 
   return (
     <div className="space-y-6">
@@ -372,8 +383,7 @@ const TeamList = ({ profile, onSelect }: any) => {
                             </label>
                         </div>
                         <p className="text-[10px] text-blue-700 font-medium leading-relaxed ml-8">
-                            <Info size={10} className="inline mr-1 mb-0.5"/>
-                            Po zakliknutí sa bude zamestnancovi v profile zobrazovať jeho hodinová mzda a celkový mesačný zárobok. V opačnom prípade uvidí iba počet odpracovaných hodín.
+                            Po zakliknutí sa bude zamestnancovi v profile zobrazovať jeho hodinová mzda a celkový mesačný zárobok.
                         </p>
                     </div>
                 )}
@@ -385,52 +395,85 @@ const TeamList = ({ profile, onSelect }: any) => {
       )}
 
       {showInviteModal && (
-          <Modal title="Pozvať do tímu" onClose={() => setShowInviteModal(false)}>
+          <Modal title="Pozvať do tímu" onClose={() => setShowInviteModal(false)} maxWidth="max-w-md">
               <div className="space-y-6">
                   <div className="text-center">
-                      <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-orange-100 shadow-sm">
-                          <Users size={32} className="fill-orange-100"/>
+                      <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-orange-200 shadow-inner">
+                          <UserPlus size={40} className="fill-orange-600/10"/>
                       </div>
-                      <h3 className="text-lg font-bold text-slate-900 mb-1">Ako pozvať ľudí?</h3>
-                      <p className="text-xs text-slate-500 max-w-[280px] mx-auto leading-relaxed">
-                          Keďže aplikáciu používate ako nainštalovaný program, zamestnanci si ju musia najprv stiahnuť a pri registrácii zadať vaše <strong>ID firmy</strong>.
+                      <h3 className="text-xl font-black text-slate-900 mb-1">Pozvite svoj tím</h3>
+                      <p className="text-xs text-slate-500 max-w-[300px] mx-auto leading-relaxed font-medium">
+                          {isNative 
+                            ? "Keďže používate aplikáciu, najlepšie je poslať zamestnancom tento registračný odkaz."
+                            : "Zamestnanci sa môžu registrovať priamo cez odkaz, ktorý im pošlete."}
                       </p>
                   </div>
 
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                      <div className="flex items-center justify-between mb-2">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID vašej firmy</label>
-                          {copied && <span className="text-[10px] font-bold text-green-600 flex items-center gap-1 animate-bounce">✓ Skopírované</span>}
-                      </div>
-                      <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3 shadow-sm">
-                          <div className="flex-1 font-mono text-sm font-bold text-slate-700 truncate text-center">
-                              {profile.organization_id}
+                  <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 space-y-4">
+                      <div className="space-y-2">
+                          <div className="flex items-center justify-between px-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID vašej organizácie (kód)</label>
+                              {copied && <span className="text-[10px] font-bold text-green-600 flex items-center gap-1 animate-in slide-in-from-right-2">✓ Skopírované</span>}
                           </div>
-                          <button 
-                              onClick={copyOrgId} 
-                              className={`p-2 rounded-lg transition shrink-0 ${copied ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-orange-600 hover:text-white'}`}
-                          >
-                              <Copy size={18}/>
-                          </button>
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm group">
+                              <div className="flex-1 font-mono text-sm font-bold text-slate-700 truncate text-center">
+                                  {profile.organization_id}
+                              </div>
+                              <button 
+                                  onClick={copyOrgId} 
+                                  className={`p-2.5 rounded-xl transition-all shrink-0 ${copied ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-orange-600 hover:text-white'}`}
+                              >
+                                  <Copy size={20}/>
+                              </button>
+                          </div>
+                      </div>
+
+                      <div className="space-y-2">
+                          <div className="flex items-center justify-between px-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Priamy registračný link (Odporúčané)</label>
+                              {linkCopied && <span className="text-[10px] font-bold text-green-600 flex items-center gap-1 animate-in slide-in-from-right-2">✓ Link skopírovaný</span>}
+                          </div>
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+                               <div className="flex-1 text-[10px] font-bold text-slate-400 truncate italic">
+                                   .../?action=register-emp&companyId=...
+                               </div>
+                               <button 
+                                  onClick={copyInviteLink} 
+                                  className={`p-2.5 rounded-xl transition-all shrink-0 ${linkCopied ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-blue-600 hover:text-white'}`}
+                               >
+                                  <Link size={20}/>
+                               </button>
+                          </div>
+                          <p className="text-[9px] text-blue-500 font-bold uppercase text-center px-2">Link automaticky predvyplní vaše ID firmy pri registrácii</p>
                       </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3 p-3 bg-white border border-slate-100 rounded-xl">
-                        <Smartphone size={20} className="text-blue-500 shrink-0 mt-1"/>
-                        <div>
-                            <div className="text-xs font-bold text-slate-800">Mobilná aplikácia</div>
-                            <p className="text-[10px] text-slate-400 mt-0.5">Pošlite im ID firmy cez WhatsApp a navigujte ich na stiahnutie.</p>
-                        </div>
-                    </div>
-                    
-                    <Button fullWidth onClick={sendInviteViaEmail} variant="secondary" className="bg-white border-slate-200 text-slate-700 h-12">
-                        <Mail size={18} className="text-blue-500"/> Odoslať inštrukcie e-mailom
+                  <div className="grid grid-cols-1 gap-3">
+                    <Button fullWidth onClick={sendInviteViaEmail} variant="secondary" className="h-14 rounded-2xl shadow-sm border-slate-200 font-black uppercase text-xs tracking-widest">
+                        <Mail size={20} className="text-blue-500"/> Poslať pozvánku e-mailom
                     </Button>
+                    
+                    <button 
+                        onClick={() => {
+                            const inviteUrl = `https://www.moja-stavba.sk/?action=register-emp&companyId=${profile.organization_id}`;
+                            if (navigator.share) {
+                                navigator.share({
+                                    title: 'Pozvánka do MojaStavba',
+                                    text: `Ahoj, pripájaj sa do nášho firemného systému MojaStavba. Klikni na link a ID našej organizácie sa ti vyplní samo:`,
+                                    url: inviteUrl
+                                });
+                            } else {
+                                copyInviteLink();
+                            }
+                        }}
+                        className="w-full h-14 flex items-center justify-center gap-3 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-800 transition active:scale-95 shadow-xl shadow-slate-200"
+                    >
+                        <Share2 size={20}/> Zdieľať prístup (WhatsApp a iné)
+                    </button>
                   </div>
 
                   <div className="pt-2">
-                    <Button fullWidth onClick={() => setShowInviteModal(false)} variant="ghost" className="text-slate-400 hover:text-slate-600">Zatvoriť</Button>
+                    <button onClick={() => setShowInviteModal(false)} className="w-full p-2 text-[10px] font-black uppercase text-slate-300 hover:text-slate-500 transition tracking-widest">Zavrieť</button>
                   </div>
               </div>
           </Modal>
@@ -506,13 +549,8 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
         return matchesSite && matchesMonth;
     });
 
-    // Nájdenie názvu vybranej stavby pre zobrazenie
-    const selectedSiteName = filterSite ? sites.find(s => s.id === filterSite)?.name : null;
-
-    // FIX: Prepracovaný výpočet sumáru s podporou úkolu
     const stats = filteredLogs.reduce((acc, log) => {
         const hours = Number(log.hours);
-        // Ak je to úkol, pripočítame fixnú sumu, inak hodinovku
         const entryCost = log.payment_type === 'fixed' 
             ? Number(log.fixed_amount || 0) 
             : hours * Number(log.hourly_rate_snapshot || emp?.hourly_rate || 0);
@@ -582,7 +620,6 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                                             <Building2 size={14} className="opacity-40"/> {s.name}
                                         </button>
                                     ))}
-                                    {filteredSitesList.length === 0 && <div className="p-3 text-xs text-slate-400 italic">Nenašla sa žiadna stavba.</div>}
                                 </div>
                             )}
                         </div>
@@ -625,15 +662,7 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 <h3 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
                     <FileText className="text-orange-500" size={22}/> 
                     Detailný výkaz prác
-                    <span className="ml-2 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-400 text-xs font-bold">{filteredLogs.length} záznamov</span>
                 </h3>
-                {selectedSiteName && (
-                    <div className="flex items-center gap-2 text-sm text-slate-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-100">
-                        <Building2 size={16} className="text-blue-500"/>
-                        <span className="font-medium">Filtrované podľa stavby: <strong className="text-blue-700">{selectedSiteName}</strong></span>
-                    </div>
-                )}
-
                 <div className="grid grid-cols-1 gap-3">
                     {filteredLogs.map((log: any) => {
                         const isFixed = log.payment_type === 'fixed';
@@ -655,10 +684,6 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                                         <div className="text-sm text-slate-700 font-medium leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-100 italic">
                                             {log.description || <span className="text-slate-300">Bez popisu práce...</span>}
                                         </div>
-                                        <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                                            <span className="flex items-center gap-1"><Clock size={12}/> {log.start_time || '--:--'} - {log.end_time || '--:--'}</span>
-                                            {!isFixed && <span className="flex items-center gap-1"><Wallet size={12}/> {formatMoney(log.hourly_rate_snapshot || emp?.hourly_rate || 0)} / hod</span>}
-                                        </div>
                                     </div>
                                     <div className="flex md:flex-col justify-between items-end gap-2 shrink-0">
                                         <div className="text-right">
@@ -676,12 +701,6 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                             </div>
                         );
                     })}
-
-                    {filteredLogs.length === 0 && (
-                        <div className="py-20 text-center text-slate-400 italic bg-white rounded-2xl border-2 border-dashed border-slate-200">
-                            Žiadne záznamy prác pre tento výber.
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

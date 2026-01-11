@@ -33,6 +33,7 @@ CREATE TABLE public.profiles (
     email TEXT,
     role TEXT DEFAULT 'employee' CHECK (role IN ('admin', 'employee')),
     full_name TEXT,
+    nickname TEXT UNIQUE,
     organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE,
     hourly_rate NUMERIC DEFAULT 0,
     phone TEXT,
@@ -208,6 +209,7 @@ CREATE TABLE public.quote_items (
 
 -- 4. INDEXY PRE VÝKON (Kritické pre RLS a Filtre)
 CREATE INDEX idx_profiles_org ON public.profiles(organization_id);
+CREATE INDEX idx_profiles_nickname ON public.profiles(nickname);
 CREATE INDEX idx_sites_org ON public.sites(organization_id);
 CREATE INDEX idx_attendance_org ON public.attendance_logs(organization_id);
 CREATE INDEX idx_attendance_user ON public.attendance_logs(user_id);
@@ -302,11 +304,11 @@ BEGIN
     INSERT INTO public.organizations (name)
     VALUES (COALESCE(new.raw_user_meta_data->>'company_name', 'Moja Firma'))
     RETURNING id INTO new_org_id;
-    INSERT INTO public.profiles (id, organization_id, email, full_name, role, is_active)
-    VALUES (new.id, new_org_id, new.email, new.raw_user_meta_data->>'full_name', 'admin', true);
+    INSERT INTO public.profiles (id, organization_id, email, full_name, nickname, role, is_active)
+    VALUES (new.id, new_org_id, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'nickname', 'admin', true);
   ELSE
-    INSERT INTO public.profiles (id, organization_id, email, full_name, role, is_active)
-    VALUES (new.id, (new.raw_user_meta_data->>'company_id')::UUID, new.email, new.raw_user_meta_data->>'full_name', 'employee', true);
+    INSERT INTO public.profiles (id, organization_id, email, full_name, nickname, role, is_active)
+    VALUES (new.id, (new.raw_user_meta_data->>'company_id')::UUID, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'nickname', 'employee', true);
   END IF;
   RETURN new;
 END;
@@ -331,4 +333,4 @@ GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role
 GRANT SELECT ON public.v_site_financials TO authenticated, anon, service_role;
 
 NOTIFY pgrst, 'reload schema';
-`;
+`

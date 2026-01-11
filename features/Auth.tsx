@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button, Card, Input, CustomLogo, AlertModal, LegalModal, Modal } from '../components/UI';
@@ -6,7 +5,7 @@ import { translateAuthError } from '../lib/utils';
 import { 
   Building2, Smartphone, TrendingUp, Users, ArrowRight, ChevronRight, 
   Monitor, Briefcase, CheckCircle2, AlertCircle, ArrowLeft, Download, X, HelpCircle, Apple, ShieldCheck, Info,
-  FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin
+  FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin, User
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
@@ -87,16 +86,16 @@ const DownloadModal = ({ onClose }: { onClose: () => void }) => {
                     <div className="text-[10px] font-black text-blue-600 uppercase mb-2 flex items-center gap-1">
                         <Monitor size={12}/> Inštalácia na Windows
                     </div>
-                    <p className="text-11px text-slate-500 leading-relaxed">
+                    <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
                         Pretože sme nová aplikácia, Windows môže zobraziť varovanie "SmartScreen". Kliknite na <strong>"Viac informácií"</strong> a následne <strong>"Spustiť aj tak"</strong>. Súbor je 100% bezpečný a skontrolovaný.
                     </p>
                 </div>
 
-                <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
                     <div className="text-[10px] font-black text-orange-600 uppercase mb-2 flex items-center gap-1">
                         <Smartphone size={12}/> Inštalácia na Android
                     </div>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                    <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
                         Po stiahnutí APK povoľte v nastaveniach vášho prehliadača <strong>"Inštalovať z neznámych zdrojov"</strong>. Po dokončení inštalácie môžete toto nastavenie opäť vypnúť.
                     </p>
                 </div>
@@ -139,7 +138,7 @@ export const OnboardingCarousel = ({ onFinish }: { onFinish: () => void }) => {
       highlight: "výkonnosti",
       icon: <TrendingUp size={44} className="text-emerald-600"/>,
       dot: "bg-emerald-600 shadow-emerald-100",
-      accent: "bg-emerald-50/80",
+      accent: "bg-blue-50/80",
       buttonColor: "from-emerald-600 to-emerald-500",
       glow: "bg-emerald-400/20",
       textGradient: "from-emerald-600 to-emerald-400"
@@ -149,7 +148,7 @@ export const OnboardingCarousel = ({ onFinish }: { onFinish: () => void }) => {
       highlight: "zamestnancov",
       icon: <Users size={44} className="text-purple-600"/>,
       dot: "bg-purple-600 shadow-purple-100",
-      accent: "bg-purple-50/80",
+      accent: "bg-blue-50/80",
       buttonColor: "from-purple-600 to-purple-500",
       glow: "bg-purple-400/20",
       textGradient: "from-purple-600 to-purple-400"
@@ -251,8 +250,10 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
     setShowLegal(null);
   };
 
-  // Detekcia či ide o WEB (SEO relevantné prostredie)
-  const isWebOnly = Capacitor.getPlatform() === 'web' && !navigator.userAgent.toLowerCase().includes('electron');
+  // Vylepšená detekcia či ide o WEB (seo relevantné prostredie) - skryje download button v appke
+  const isWebOnly = Capacitor.getPlatform() === 'web' && 
+                   !navigator.userAgent.toLowerCase().includes('electron') &&
+                   !(window as any).ipcRenderer;
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col">
@@ -289,14 +290,16 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
       <main className="flex-1 flex flex-col bg-white">
         <section className="flex-1 flex flex-col items-center justify-center px-6 pt-12 pb-12 md:pt-24 md:pb-20 bg-gradient-to-b from-orange-50/50 to-white text-center min-h-[calc(100vh-80px)]">
           <div className="max-w-4xl mx-auto">
-            {/* TLAČIDLO SŤAHOVANIA */}
-            <button 
-              onClick={() => setShowDownloadModal(true)}
-              className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 px-4 py-2 rounded-full text-xs font-black text-orange-600 mb-8 shadow-sm hover:bg-orange-100 transition-all active:scale-95 group animate-in fade-in duration-700"
-            >
-              <Download size={14} className="group-hover:animate-bounce"/>
-              Stiahnuť aplikáciu MojaStavba
-            </button>
+            {/* TLAČIDLO SŤAHOVANIA - ZOBRAZENÉ LEN NA WEBE */}
+            {isWebOnly && (
+              <button 
+                onClick={() => setShowDownloadModal(true)}
+                className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 px-4 py-2 rounded-full text-xs font-black text-orange-600 mb-8 shadow-sm hover:bg-orange-100 transition-all active:scale-95 group animate-in fade-in duration-700"
+              >
+                <Download size={14} className="group-hover:animate-bounce"/>
+                Stiahnuť aplikáciu MojaStavba
+              </button>
+            )}
 
             {/* HLAVNÝ SEO NADPIS H1 - dôležitý pre vyhľadávače */}
             <h1 className="text-3xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
@@ -491,6 +494,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId = '', onBackToLanding }: any) => {
   const [view, setView] = useState(initialView); 
   const [email, setEmail] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [useNickname, setUseNickname] = useState(false);
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -502,9 +507,19 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
   const [alertInfo, setAlertInfo] = useState<{open: boolean, title: string, message: string, type?: 'success' | 'error'}>({ open: false, title: '', message: '' });
 
+  // AUTOMATICKÉ NAČÍTANIE Z URL (MAGIC LINK)
   useEffect(() => {
-      if(initialView) setView(initialView);
-      if(initialCompanyId) setCompanyId(initialCompanyId);
+      const params = new URLSearchParams(window.location.search);
+      const urlCompanyId = params.get('companyId');
+      const urlAction = params.get('action');
+
+      if (urlAction === 'register-emp') {
+          setView('register-emp');
+          if (urlCompanyId) setCompanyId(urlCompanyId);
+      } else {
+          if (initialView) setView(initialView);
+          if (initialCompanyId) setCompanyId(initialCompanyId);
+      }
   }, [initialView, initialCompanyId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -520,7 +535,23 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
     
     try {
       if(view === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        let loginEmail = email.trim();
+        
+        // Ak neobsahuje @, považujeme to za Nickname a skúsime nájsť prislúchajúci email
+        if (!loginEmail.includes('@')) {
+            const { data: foundProfile, error: nicknameError } = await supabase
+                .from('profiles')
+                .select('email')
+                .eq('nickname', loginEmail)
+                .maybeSingle();
+            
+            if (nicknameError || !foundProfile) {
+                throw new Error("Oops! Asi ste zadali zlý e-mail, heslo alebo prezývku.");
+            }
+            loginEmail = foundProfile.email;
+        }
+
+        const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
         if(error) throw error;
       } 
       else if (view === 'forgot-password') {
@@ -536,7 +567,12 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
           email, 
           password, 
           options: { 
-            data: { full_name: fullName, company_name: companyName, role: 'admin' },
+            data: { 
+                full_name: fullName, 
+                company_name: companyName, 
+                role: 'admin',
+                nickname: useNickname ? nickname.trim() : null
+            },
             emailRedirectTo: redirectURL 
           } 
         });
@@ -553,7 +589,12 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
             email, 
             password, 
             options: { 
-              data: { full_name: fullName, company_id: cleanId, role: 'employee' },
+              data: { 
+                  full_name: fullName, 
+                  company_id: cleanId, 
+                  role: 'employee',
+                  nickname: useNickname ? nickname.trim() : null
+              },
               emailRedirectTo: redirectURL 
             } 
           });
@@ -588,7 +629,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                     {view === 'login' && 'Prihlásenie do systému'}
                     {view === 'forgot-password' && 'Obnova prístupového hesla'}
                     {view === 'selection' && 'Vyberte typ registrácie'}
-                    {view === 'register-admin' && 'Nová firma'}
+                    {view === 'register-admin' && 'Nová registrácia'}
                     {view === 'register-emp' && 'Registrácia zamestnanca'}
                 </p>
                 </div>
@@ -629,8 +670,8 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                     
                     {view === 'register-admin' && (
                         <>
-                        <Input label="Názov Firmy" value={companyName} onChange={(e: any) => setCompanyName(e.target.value)} required placeholder="Moja Stavebná s.r.o." />
-                        <Input label="Vaše Meno (Majiteľ)" value={fullName} onChange={(e: any) => setFullName(e.target.value)} required placeholder="Ján Staviteľ" />
+                        <Input label="Názov organizácie" value={companyName} onChange={(e: any) => setCompanyName(e.target.value)} required placeholder="Moja Stavebná s.r.o." />
+                        <Input label="Meno a priezvisko" value={fullName} onChange={(e: any) => setFullName(e.target.value)} required placeholder="Ján Staviteľ" />
                         </>
                     )}
 
@@ -647,15 +688,60 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                                 required 
                                 placeholder="Vložte ID firmy" 
                                 className="w-full bg-white border border-blue-200 rounded-lg p-2 font-mono text-sm"
-                                readOnly={!!initialCompanyId} 
+                                readOnly={!!companyId} 
                             />
-                            {!!initialCompanyId && <p className="text-[10px] text-blue-600 mt-1 flex items-center gap-1"><CheckCircle2 size={10}/> Automaticky načítané z pozvánky</p>}
+                            {!!companyId && <p className="text-[10px] text-blue-600 mt-1 flex items-center gap-1"><CheckCircle2 size={10}/> Automaticky načítané z pozvánky</p>}
                         </div>
                         <Input label="Vaše Meno" value={fullName} onChange={(e: any) => setFullName(e.target.value)} required placeholder="Ján Novák" />
                         </>
                     )}
 
-                    <Input label="Email" type="email" name="new_email" autoComplete="new-password" value={email} onChange={(e: any) => setEmail(e.target.value)} required placeholder="meno@mail.sk" />
+                    {view !== 'forgot-password' && (
+                        <div className="space-y-4">
+                            <Input 
+                                label={view === 'login' ? "Email" : "Email"} 
+                                type="text" 
+                                name="identifier" 
+                                value={email} 
+                                onChange={(e: any) => setEmail(e.target.value)} 
+                                required 
+                                placeholder={view === 'login' ? "meno@mail.sk alebo prezývka" : "meno@mail.sk"} 
+                            />
+
+                            {view.startsWith('register') && (
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer hover:bg-white transition group">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={useNickname}
+                                            onChange={(e) => setUseNickname(e.target.checked)}
+                                            className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="text-sm font-bold text-slate-700">Chcem sa prihlasovať prezývkou</div>
+                                            <p className="text-[10px] text-slate-400 font-medium uppercase leading-tight"></p>
+                                        </div>
+                                    </label>
+                                    
+                                    {useNickname && (
+                                        <div className="animate-in slide-in-from-top-2 duration-300">
+                                            <Input 
+                                                label="Zvoľte si prezývku (Nickname)" 
+                                                value={nickname} 
+                                                onChange={(e: any) => setNickname(e.target.value)} 
+                                                required 
+                                                placeholder="Môj_nickname" 
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {view === 'forgot-password' && (
+                         <Input label="Váš e-mail" type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} required placeholder="meno@mail.sk" />
+                    )}
                     
                     {view !== 'forgot-password' && (
                         <Input label="Heslo" type="password" name="new_password" autoComplete="new-password" value={password} onChange={(e: any) => setPassword(e.target.value)} required placeholder="••••••••" />
