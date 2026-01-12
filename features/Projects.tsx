@@ -8,6 +8,19 @@ import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 import html2pdf from 'html2pdf.js';
 import { ProjectPHM } from './ProjectPHM';
 
+// Type declaration for window object
+declare global {
+    interface Window {
+        quoteItemsFromCalc?: Array<{
+            description: string;
+            quantity: number;
+            unit: string;
+            unit_price: number;
+            vat_rate: number;
+        }>;
+    }
+}
+
 const PAGE_SIZE = 12;
 
 const UNIT_OPTIONS = ['ks', 'm', 'm2', 'm3', 'kg', 't', 'l', 'bal', 'paleta', 'hod', 'súbor', 'km'];
@@ -408,7 +421,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
                                     const stage = lead.lead_stage || 'new';
                                     return (
                                         <div key={lead.id} onClick={() => onSelectLead(lead.id)} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col md:flex-row gap-4 items-start md:items-center group">
-                                            <div className={`w-2 h-16 rounded-full self-stretch ${stage === 'new' ? 'bg-blue-500' : stage === 'contacted' ? 'bg-yellow-500' : stage === 'meeting' ? 'bg-purple-500' : 'bg-orange-500'}`}></div>
+                                            <div className={`hidden md:block w-2 h-16 rounded-full self-stretch ${stage === 'new' ? 'bg-blue-500' : stage === 'contacted' ? 'bg-yellow-500' : stage === 'meeting' ? 'bg-purple-500' : 'bg-orange-500'}`}></div>
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <h3 className={`font-bold text-lg transition ${getLeadNameColor(stage)}`}>{lead.name}</h3>
@@ -654,7 +667,7 @@ const IntegratedCalculator = () => {
     const eqBtn = `${btnClass} bg-orange-600 text-white hover:bg-orange-700 shadow-orange-200`;
 
     return (
-        <Card className="bg-slate-100 border-slate-200 w-full max-w-[280px]" padding="p-4">
+        <Card className="bg-slate-100 border-slate-200 w-full" padding="p-4">
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1"><Calculator size={12}/> Príručná kalkulačka</div>
             <div className="bg-white border border-slate-300 rounded-xl p-3 mb-4 text-right">
                 <div className="text-xs text-slate-400 h-4 mb-1 truncate">{equation}</div>
@@ -691,8 +704,8 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     const [showConvertModal, setShowConvertModal] = useState(false);
     
     const [calcRows, setCalcRows] = useState<CalcRow[]>([
-        { id: '1', description: 'Položka č.1', unit: 'ks', qty: 0, unit_cost: 0, margin: 20 },
-        { id: '2', description: 'Práca', unit: 'hod', qty: 0, unit_cost: 15, margin: 30 }
+        { id: '1', description: 'Položka č.1', unit: 'ks', qty: 1, unit_cost: 0, margin: 20 },
+        { id: '2', description: 'Práca', unit: 'hod', qty: 1, unit_cost: 0, margin: 30 }
     ]);
 
     const load = async () => {
@@ -757,7 +770,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                 <div className="flex justify-between items-start mb-4">
                     <div>
                         <h1 className="text-2xl font-extrabold text-slate-900 mb-1">{lead.name}</h1>
-                        <div className="flex gap-4 text-sm text-slate-500">
+                        <div className="flex flex-col md:flex-row md:gap-4 gap-1 text-sm text-slate-500">
                             <span className="flex items-center gap-1"><User size={14}/> {lead.client_name}</span>
                             <span className="flex items-center gap-1"><MapPin size={14}/> {lead.address}</span>
                         </div>
@@ -765,20 +778,59 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                     <Badge status={lead.lead_stage || 'new'} />
                 </div>
 
-                <div className="bg-slate-100 p-1 rounded-xl inline-flex gap-1 border border-slate-200 mt-4 mb-6 overflow-x-auto max-w-full">
-                    {[
-                        { id: 'info', label: 'Prehľad & Poznámky', icon: ClipboardList },
-                        { id: 'calculator', label: 'Rozpočet & Kalkulácia', icon: Calculator },
-                        { id: 'quotes', label: `Cenové ponuky (${quotes.length})`, icon: FileText }
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`px-4 py-2 text-sm font-bold flex items-center gap-2 rounded-lg transition whitespace-nowrap ${activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mt-4 mb-6">
+                    <div className="bg-slate-100 p-1 rounded-xl inline-flex gap-1 border border-slate-200 overflow-x-auto max-w-full w-full md:w-auto">
+                        {[
+                            { id: 'info', label: 'Prehľad & Poznámky', icon: ClipboardList },
+                            { id: 'calculator', label: 'Rozpočet & Kalkulácia', icon: Calculator },
+                            { id: 'quotes', label: `Cenové ponuky (${quotes.length})`, icon: FileText }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`px-4 py-2 text-sm font-bold flex items-center gap-2 rounded-lg transition whitespace-nowrap flex-1 md:flex-none justify-center ${activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                            >
+                                <tab.icon size={16}/> {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                    
+                    {activeTab === 'calculator' && (
+                        <Button 
+                            fullWidth
+                            size="sm" 
+                            className="bg-orange-600 hover:bg-orange-700 shadow-orange-200 md:w-auto" 
+                            onClick={() => {
+                                setShowQuoteModal(true);
+                                // Prepare data for transfer
+                                const quoteItems = calcRows.filter(row => row.description && row.qty > 0).map(row => {
+                                    const cost = row.qty * row.unit_cost;
+                                    const price = row.margin < 100 ? cost / ((100 - row.margin) / 100) : cost;
+                                    return {
+                                        description: row.description,
+                                        quantity: row.qty,
+                                        unit: row.unit,
+                                        unit_price: roundFin(price),
+                                        vat_rate: 23
+                                    };
+                                });
+                                // This will be used in QuoteBuilder
+                                window.quoteItemsFromCalc = quoteItems;
+                            }}
                         >
-                            <tab.icon size={16}/> {tab.label}
-                        </button>
-                    ))}
+                            <Send size={16}/> Preniesť do Cenovej Ponuky
+                        </Button>
+                    )}
+                    {activeTab === 'quotes' && (
+                        <Button 
+                            fullWidth
+                            size="sm" 
+                            className="md:w-auto" 
+                            onClick={() => setShowQuoteModal(true)}
+                        >
+                            <Plus size={16}/> Vytvoriť Cenovú Ponuku
+                        </Button>
+                    )}
                 </div>
 
                 <div>
@@ -836,44 +888,43 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                     )}
 
                     {activeTab === 'calculator' && (
-                        <div className="flex flex-col xl:flex-row gap-8 animate-in fade-in">
-                            <div className="flex-1 space-y-6">
-                                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                                    <div className="bg-slate-50 border-b border-slate-200 p-3 flex justify-between items-center">
-                                        <div className="font-bold text-slate-700 text-sm flex items-center gap-2"><LayoutList size={16}/> Rozpočtový Hárok</div>
-                                        <Button variant="secondary" size="sm" onClick={addCalcRow}><Plus size={14}/> Pridať položku</Button>
-                                    </div>
-                                    <div className="w-full overflow-x-auto">
-                                      <table className="w-full text-sm text-left min-w-[700px]">
-                                          <thead className="bg-white text-slate-500 font-bold text-xs uppercase tracking-wider border-b border-slate-100">
-                                              <tr>
-                                                  <th className="p-3 w-8">#</th>
-                                                  <th className="p-3">Popis</th>
-                                                  <th className="p-3 w-20 text-center">MJ</th>
-                                                  <th className="p-3 w-24 text-right">Mn.</th>
-                                                  <th className="p-3 w-28 text-right">Cena/MJ</th>
-                                                  <th className="p-3 w-20 text-right">Marža %</th>
-                                                  <th className="p-3 w-32 text-right">Predajná Cena</th>
-                                                  <th className="p-3 w-10"></th>
-                                              </tr>
-                                          </thead>
-                                          <tbody className="divide-y divide-slate-100">
+                        <div className="animate-in fade-in space-y-6">
+                            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                                <div className="bg-slate-50 border-b border-slate-200 p-3 flex justify-between items-center">
+                                    <div className="font-bold text-slate-700 text-sm flex items-center gap-2"><LayoutList size={16}/> Rozpočtový Hárok</div>
+                                    <Button variant="secondary" size="sm" onClick={addCalcRow}><Plus size={14}/> Pridať položku</Button>
+                                </div>
+                                <div className="w-full overflow-x-auto lg:overflow-visible custom-scrollbar">
+                                  <table className="w-full text-sm text-left min-w-[800px] lg:min-w-0">
+                                      <thead className="bg-white text-slate-500 font-bold text-xs uppercase tracking-wider border-b border-slate-100">
+                                          <tr>
+                                              <th className="p-3 w-8">#</th>
+                                              <th className="p-3 min-w-[200px]">Popis</th>
+                                              <th className="p-3 w-24 text-center px-6">MJ</th>
+                                              <th className="p-3 w-20 text-right px-6">Mn.</th>
+                                              <th className="p-3 w-24 text-right px-6">Cena</th>
+                                              <th className="p-3 w-28 text-right px-6">Marža %</th>
+                                              <th className="p-3 w-32 text-right px-6">Predajná Cena</th>
+                                              <th className="p-3 w-10"></th>
+                                          </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100">
                                               {calcRows.map((row, i) => {
                                                   const rowCost = roundFin(row.qty * row.unit_cost);
                                                   const rowPrice = roundFin(rowCost / ((100 - row.margin) / 100));
                                                   return (
                                                       <tr key={row.id} className="group hover:bg-slate-50 transition">
                                                           <td className="p-3 text-center text-slate-300 font-mono">{i+1}</td>
-                                                          <td className="p-3"><input list="quote-desc-suggestions" className="w-full bg-transparent outline-none font-bold text-slate-700 placeholder:text-slate-300" value={row.description} onChange={e => updateRow(row.id, 'description', e.target.value)} placeholder="Názov položky..." /></td>
-                                                          <td className="p-3">
+                                                          <td className="p-3"><input list="quote-desc-suggestions" className="w-full bg-transparent outline-none font-bold text-slate-700 placeholder:text-slate-300 min-h-[40px]" value={row.description} onChange={e => updateRow(row.id, 'description', e.target.value)} placeholder="Názov položky..." /></td>
+                                                          <td className="p-3 text-center px-6">
                                                               <select className="w-full bg-transparent outline-none text-center text-slate-500" value={row.unit} onChange={e => updateRow(row.id, 'unit', e.target.value)}>
                                                                   {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                                                               </select>
                                                           </td>
-                                                          <td className="p-3"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.qty === 0 ? '' : row.qty} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'qty', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
-                                                          <td className="p-3"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.unit_cost === 0 ? '' : row.unit_cost} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'unit_cost', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
-                                                          <td className="p-3"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-bold text-orange-600" value={row.margin === 0 ? '' : row.margin} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'margin', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
-                                                          <td className="p-3 text-right font-bold text-slate-900 bg-slate-50/50">{formatMoney(rowPrice)}</td>
+                                                          <td className="p-3 text-right px-6"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.qty === 0 ? '' : row.qty} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'qty', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
+                                                          <td className="p-3 text-right px-6"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.unit_cost === 0 ? '' : row.unit_cost} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'unit_cost', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
+                                                          <td className="p-3 text-right px-6"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-bold text-orange-600" value={row.margin === 0 ? '' : row.margin} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'margin', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
+                                                          <td className="p-3 text-right px-6 font-bold text-slate-900 bg-slate-50/50">{formatMoney(rowPrice)}</td>
                                                           <td className="p-3 text-center"><button onClick={() => removeCalcRow(row.id)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></td>
                                                       </tr>
                                                   );
@@ -897,22 +948,17 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                         <div className="text-xl font-extrabold text-slate-900 tracking-tight">{formatMoney(totalPrice)}</div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="xl:w-[280px] shrink-0 flex flex-col gap-6 items-center xl:items-start">
-                                <IntegratedCalculator />
-                                <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-100 w-full shadow-sm">
-                                    <strong>Tip:</strong> Ceny v tomto hárku sú len pre vašu internú kalkuláciu. Do oficiálnej cenovej ponuky sa neprenášajú automaticky.
+                                <div className="flex flex-col lg:flex-row gap-6 items-start">
+                                    <div className="w-full lg:max-w-[320px]">
+                                        <IntegratedCalculator />
+                                    </div>
                                 </div>
-                            </div>
                         </div>
                     )}
 
                     {activeTab === 'quotes' && (
                         <div className="animate-in fade-in">
-                            <div className="flex justify-end mb-4">
-                                <Button size="sm" onClick={() => setShowQuoteModal(true)}><Plus size={16}/> Vytvoriť Cenovú Ponuku</Button>
-                            </div>
                             <QuotesList quotes={quotes} sites={[lead]} onCreate={() => {}} profile={profile} organization={organization} refresh={load} />
                         </div>
                     )}
@@ -949,11 +995,22 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
     const [header, setHeader] = useState({ 
         client_name: '', client_address: '', site_id: initialSiteId || '', 
         issue_date: new Date().toISOString().split('T')[0], valid_until: '', 
-        has_vat: organization?.is_vat_payer || false, vat_rate: 23 
+        has_vat: true, vat_rate: 23 
     });
     const [items, setTableItems] = useState([{ description: '', quantity: 1, unit: 'ks', unit_price: 0, vat_rate: 23 }]);
     const [saving, setSaving] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [hasImportedFromCalc, setHasImportedFromCalc] = useState(false);
+
+    useEffect(() => {
+        // Check if we have items from calculator
+        if (window.quoteItemsFromCalc && window.quoteItemsFromCalc.length > 0) {
+            setTableItems(window.quoteItemsFromCalc);
+            setHasImportedFromCalc(true);
+            // Clear the global variable after use
+            delete window.quoteItemsFromCalc;
+        }
+    }, []);
 
     useEffect(() => {
         const fetchSuggestions = async () => {
@@ -1061,10 +1118,10 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                         <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <input type="checkbox" id="vat" className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" checked={header.has_vat} onChange={(e) => setHeader({...header, has_vat: e.target.checked})} />
-                                <label htmlFor="vat" className="font-bold text-sm text-slate-700">Som platiteľ DPH (rozpísať položkovo)</label>
+                                <label htmlFor="vat" className="font-bold text-sm text-slate-700">Započítať DPH</label>
                             </div>
                             <div className="text-right">
-                                <div className="text-[9px] uppercase font-black text-slate-400">Celková suma s DPH</div>
+                                <div className="text-[9px] uppercase font-black text-slate-400">Celková suma {header.has_vat ? 's DPH' : 'bez DPH'}</div>
                                 <div className="text-2xl font-black text-orange-600 tracking-tighter">{formatMoney(total)}</div>
                             </div>
                         </div>
@@ -1075,12 +1132,18 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                         Položky rozpočtu
                         <Button size="sm" variant="secondary" onClick={addItem}><Plus size={14}/> Pridať riadok</Button>
                     </h4>
+                    {hasImportedFromCalc && (
+                        <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-700 text-sm">
+                            <CheckCircle2 size={16} className="text-green-600"/>
+                            Položky boli automaticky prenesené z kalkulácie
+                        </div>
+                    )}
                     <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                        <div className="w-full overflow-x-auto">
+                        <div className="w-full overflow-x-auto custom-scrollbar">
                            <table className="w-full text-sm text-left min-w-[1000px]">
                             <thead className="bg-slate-100 text-slate-500 font-bold border-b border-slate-200 uppercase text-[10px] tracking-widest">
                                 <tr>
-                                    <th className="p-3 pl-4">Popis</th>
+                                    <th className="p-3 pl-4 min-w-[250px]">Popis</th>
                                     <th className="p-3 w-16 text-center">Mn.</th>
                                     <th className="p-3 w-24 text-center">Jedn.</th>
                                     <th className="p-3 w-28 text-right">Cena bez DPH</th>
@@ -1097,7 +1160,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                                     const itemTotal = roundFin(itemSub + itemVat);
                                     return (
                                         <tr key={i} className="group hover:bg-slate-50 transition">
-                                            <td className="p-2 pl-4"><input list="quote-desc-suggestions" className="w-full bg-transparent outline-none font-bold text-slate-700" placeholder="Názov položky..." value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} /></td>
+                                            <td className="p-2 pl-4"><input list="quote-desc-suggestions" className="w-full bg-transparent outline-none font-bold text-slate-700 min-h-[40px]" placeholder="Názov položky..." value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} /></td>
                                             <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-center font-mono" value={item.quantity === 0 ? '' : item.quantity} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
                                             <td className="p-2">
                                                 <select className="w-full bg-transparent outline-none text-center text-slate-500 font-medium" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
@@ -1191,7 +1254,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                             <Button onClick={generatePDF}><Printer size={16}/> Stiahnuť PDF</Button>
                         </div>
                     </div>
-                    <div className="bg-slate-500/10 p-4 md:p-8 rounded-2xl overflow-auto flex justify-center">
+                    <div className="bg-slate-500/10 p-4 md:p-8 rounded-2xl overflow-auto flex justify-center custom-scrollbar">
                         <div 
                             ref={printRef} 
                             className="bg-white text-slate-900 relative shadow-2xl mx-auto flex flex-col"
@@ -1795,7 +1858,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             <div className="animate-in fade-in">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h3 className="font-extrabold text-xl text-slate-900">História príjmov a nákladov</h3>
-                <Button onClick={() => { 
+                <Button fullWidth={window.innerWidth < 640} onClick={() => { 
                     setFormState({ 
                         type: 'expense', 
                         date: new Date().toISOString().split('T')[0], 
@@ -1808,7 +1871,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 }}><Plus size={18}/> Pridať pohyb</Button>
               </div>
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="w-full overflow-x-auto">
+                <div className="w-full overflow-x-auto custom-scrollbar">
                     <table className="w-full text-sm text-left min-w-[700px]">
                       <thead className="bg-slate-50 text-slate-500 font-black uppercase text-[10px] tracking-widest border-b border-slate-200">
                         <tr><th className="p-4">Dátum</th><th className="p-4">Položka</th><th className="p-4 text-right">Suma</th><th className="p-4 text-center">Stav</th><th className="p-4"></th></tr>
@@ -1859,11 +1922,11 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
           {activeTab === 'labor' && (
             <div className="animate-in fade-in">
               <LaborSummary logs={data.logs} />
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h3 className="font-extrabold text-xl text-slate-900">Denník prác (História)</h3>
                 <button 
                   onClick={() => { setFormState({ date: new Date().toISOString().split('T')[0], start_time: '07:00', end_time: '15:30', payment_type: 'hourly', fixed_amount: 0 }); setModals({...modals, log: true}); }}
-                  className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-xl hover:bg-slate-900 transition font-bold text-sm shadow-sm"
+                  className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-xl hover:bg-slate-900 transition font-bold text-sm shadow-sm w-full sm:w-auto justify-center"
                 >
                   <Clock size={16}/> Zapísať dochádzku
                 </button>
@@ -1894,10 +1957,10 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                               </div>
                           </div>
                           <div className="text-right flex items-center gap-4 ml-6">
-                              <div className="font-black text-slate-900 text-2xl tracking-tighter">
+                              <div className="font-black text-slate-900 text-2xl tracking-tighter hidden sm:block">
                                 {l.payment_type === 'fixed' ? <Briefcase className="text-orange-300" size={24}/> : formatDuration(Number(l.hours || 0))}
                               </div>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 <button onClick={(e) => { e.stopPropagation(); handleEditLog(l); }} className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-[0.90]"><Pencil size={18}/></button>
                                 <button onClick={(e) => { e.stopPropagation(); requestDelete('attendance_logs', l.id); }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition active:scale-[0.90]"><Trash2 size={18}/></button>
                               </div>

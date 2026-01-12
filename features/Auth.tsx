@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button, Card, Input, CustomLogo, AlertModal, LegalModal, Modal } from '../components/UI';
@@ -5,7 +6,7 @@ import { translateAuthError } from '../lib/utils';
 import { 
   Building2, Smartphone, TrendingUp, Users, ArrowRight, ChevronRight, 
   Monitor, Briefcase, CheckCircle2, AlertCircle, ArrowLeft, Download, X, HelpCircle, Apple, ShieldCheck, Info,
-  FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin, User
+  FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin, User, Eye, EyeOff
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
@@ -497,6 +498,8 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const [nickname, setNickname] = useState("");
   const [useNickname, setUseNickname] = useState(false);
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyId, setCompanyId] = useState("");
@@ -526,12 +529,24 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (view !== 'login' && view !== 'forgot-password' && !agreedToTerms) {
-        setError("Musíte súhlasiť so Všeobecnými podmienkami (VOP) a Ochranou údajov (GDPR) pred registráciou.");
-        return;
-    }
-    setLoading(true);
 
+    // Validácie pre registráciu
+    if (view !== 'login' && view !== 'forgot-password') {
+        if (!agreedToTerms) {
+            setError("Musíte súhlasiť so Všeobecnými podmienkami (VOP) a Ochranou údajov (GDPR) pred registráciou.");
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError("Zadané heslá sa nezhodujú.");
+            return;
+        }
+        if (password.length < 6) {
+            setError("Heslo musí mať aspoň 6 znakov.");
+            return;
+        }
+    }
+
+    setLoading(true);
     const redirectURL = getRedirectURL();
     
     try {
@@ -745,7 +760,40 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                     )}
                     
                     {view !== 'forgot-password' && (
-                        <Input label="Heslo" type="password" name="new_password" autoComplete="new-password" value={password} onChange={(e: any) => setPassword(e.target.value)} required placeholder="••••••••" />
+                        <div className="space-y-4">
+                            <div className="relative">
+                                <Input 
+                                    label="Heslo" 
+                                    type={showPassword ? "text" : "password"} 
+                                    name="new_password" 
+                                    autoComplete="new-password" 
+                                    value={password} 
+                                    onChange={(e: any) => setPassword(e.target.value)} 
+                                    required 
+                                    placeholder="••••••••" 
+                                />
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-9 text-slate-400 hover:text-slate-600 transition"
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
+
+                            {view.startsWith('register') && (
+                                <Input 
+                                    label="Potvrdenie hesla" 
+                                    type={showPassword ? "text" : "password"} 
+                                    name="confirm_password" 
+                                    autoComplete="off" 
+                                    value={confirmPassword} 
+                                    onChange={(e: any) => setConfirmPassword(e.target.value)} 
+                                    required 
+                                    placeholder="••••••••" 
+                                />
+                            )}
+                        </div>
                     )}
                     
                     {view === 'login' && (

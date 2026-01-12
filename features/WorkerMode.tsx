@@ -1,7 +1,7 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button, Card, AlertModal, Badge, Input, Select, Modal } from '../components/UI';
-// Added missing Check import from lucide-react
 import { 
   HardHat, Building2, Calendar, Clock, CheckCircle2, Send, Loader2, 
   WifiOff, LayoutGrid, ListTodo, User, LogOut, 
@@ -1071,7 +1071,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                                                       {log.description}
                                                                   </p>
                                                               )}
-                                                          </div>
+                           </div>
                                                           <div className="text-right shrink-0">
                                                               <div className="text-sm font-black text-slate-900">{formatDuration(Number(log.hours))}</div>
                                                               {showWage && (
@@ -1202,7 +1202,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                       </div>
                                   ) : (
                                       <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-[11px] text-blue-700 font-medium flex items-start gap-2">
-                                          <Info size={14} className="shrink-0 mt-0.5" />
+                                          <span className="text-blue-500">ℹ️</span>
                                           {showWage ? (
                                               <span>Suma bude vypočítaná automaticky podľa vašej hodinovej sadzby <strong>{formatMoney(profile.hourly_rate)}/h</strong>.</span>
                                           ) : (
@@ -1311,13 +1311,13 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       {showScrollTop && (
           <button 
             onClick={scrollToTop}
-            className="fixed bottom-20 md:bottom-8 right-4 md:right-8 bg-slate-800 text-white p-3 rounded-full shadow-2xl z-[60] animate-in zoom-in slide-in-from-bottom-4 transition-all hover:bg-orange-600 active:scale-90"
+            className="fixed bottom-24 md:bottom-8 right-4 md:right-8 bg-slate-800 text-white p-3 rounded-full shadow-2xl z-[60] animate-in zoom-in slide-in-from-bottom-4 transition-all hover:bg-orange-600 active:scale-90"
           >
               <ArrowUp size={24} />
           </button>
       )}
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 safe-area-pb shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.1)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.1)] pb-safe-bottom">
           <div className="flex w-full justify-around h-16 items-center">
               {[
                   { id: 'dashboard', icon: LayoutGrid, colorClass: 'text-orange-600' },

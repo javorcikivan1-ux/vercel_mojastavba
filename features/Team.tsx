@@ -386,21 +386,21 @@ const TeamList = ({ profile, onSelect }: any) => {
 
       {showInviteModal && (
           <Modal title="Pozvať členov do tímu" onClose={() => setShowInviteModal(false)} maxWidth="max-w-lg">
-              <div className="space-y-8 py-2">
-                  <div className="text-center space-y-3 px-4">
-                      <div className="w-20 h-20 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-[2.5rem] flex items-center justify-center mx-auto mb-2 shadow-xl shadow-orange-200">
-                          <UserPlus size={40} className="drop-shadow-md"/>
+              <div className="space-y-6 md:space-y-8 py-2 px-1">
+                  <div className="text-center space-y-3 px-2">
+                      <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-[2rem] md:rounded-[2.5rem] flex items-center justify-center mx-auto mb-2 shadow-xl shadow-orange-200">
+                          <UserPlus size={32} className="md:size-[40px] drop-shadow-md"/>
                       </div>
-                      <h3 className="text-2xl font-black text-slate-900 tracking-tight">Onboarding zamestnancov</h3>
-                      <p className="text-sm text-slate-500 leading-relaxed font-medium">
+                      <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Onboarding zamestnancov</h3>
+                      <p className="text-xs md:text-sm text-slate-500 leading-relaxed font-medium">
                           Stačí skopírovať registračný odkaz a poslať ho vašim zamestnancom (napr. cez WhatsApp skupinu). Registrácia je rýchla a jednoduchá.
                       </p>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 px-2">
+                  <div className="grid grid-cols-1 gap-4 px-1 md:px-2">
                       {/* MAGIC LINK SECTION */}
-                      <div className="bg-white border-2 border-orange-50 rounded-3xl p-6 shadow-sm hover:border-orange-200 transition-all group relative overflow-hidden">
-                          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                      <div className="bg-white border-2 border-orange-50 rounded-3xl p-4 md:p-6 shadow-sm hover:border-orange-200 transition-all group relative overflow-hidden">
+                          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
                               <Link size={80} className="text-orange-600"/>
                           </div>
                           
@@ -416,22 +416,23 @@ const TeamList = ({ profile, onSelect }: any) => {
                                 )}
                             </div>
                             
-                            <div className="flex items-center gap-3">
-                                <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-[11px] font-bold text-slate-600 truncate italic">
+                            <div className="flex items-center gap-2 md:gap-3">
+                                <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-3 md:p-4 text-[10px] md:text-[11px] font-bold text-slate-600 truncate italic">
                                     https://www.moja-stavba.sk/?action=register-emp&companyId={profile.organization_id}
                                 </div>
                                 <button 
                                     onClick={copyInviteLink}
-                                    className={`h-14 w-14 rounded-2xl flex items-center justify-center transition-all shrink-0 shadow-lg ${linkCopied ? 'bg-green-600 text-white scale-95 shadow-green-100' : 'bg-slate-900 text-white hover:bg-orange-600 shadow-slate-200 active:scale-95'}`}
+                                    className={`h-12 w-12 md:h-14 md:w-14 rounded-2xl flex items-center justify-center transition-all shrink-0 shadow-lg ${linkCopied ? 'bg-green-600 text-white scale-95 shadow-green-100' : 'bg-slate-900 text-white hover:bg-orange-600 shadow-slate-200 active:scale-95'}`}
                                 >
-                                    {linkCopied ? <ClipboardCheck size={24}/> : <Copy size={24}/>}
+                                    {/* Fix: Moved md:size to className since Lucide icons don't support responsive props */}
+                                    {linkCopied ? <ClipboardCheck size={20} className="md:w-6 md:h-6"/> : <Copy size={20} className="md:w-6 md:h-6"/>}
                                 </button>
                             </div>
                           </div>
                       </div>
 
                       {/* COMPANY ID SECTION */}
-                      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:border-slate-300 transition-all group">
+                      <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-6 shadow-sm hover:border-slate-300 transition-all group">
                           <div className="flex items-center justify-between mb-4">
                               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                   <Hash size={14}/> ID vašej firmy
@@ -440,28 +441,28 @@ const TeamList = ({ profile, onSelect }: any) => {
                                   <span className="text-green-600 text-[10px] font-black uppercase">ID Skopírované</span>
                               )}
                           </div>
-                          <div className="flex items-center gap-3">
-                              <div className="flex-1 font-black text-2xl text-slate-800 tracking-wider">
+                          <div className="flex flex-col sm:flex-row items-center gap-3">
+                              <div className="flex-1 font-black text-xl md:text-2xl text-slate-800 tracking-wider text-center sm:text-left truncate w-full">
                                   {profile.organization_id.substring(0, 8)}...
                               </div>
                               <button 
                                   onClick={copyCompanyId}
-                                  className={`px-6 h-12 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${idCopied ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                  className={`w-full sm:w-auto px-6 h-12 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${idCopied ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                               >
-                                  {idCopied ? 'OK' : 'Kopírovať ID'}
+                                  {idCopied ? 'ID Skopírované' : 'Kopírovať ID'}
                               </button>
                           </div>
                       </div>
                   </div>
 
                   {/* UNIVERSAL INFO BOX */}
-                  <div className="mx-2 p-5 bg-blue-50 border border-blue-100 rounded-3xl flex gap-4 items-start">
+                  <div className="mx-1 md:mx-2 p-4 md:p-5 bg-blue-50 border border-blue-100 rounded-3xl flex flex-col sm:flex-row gap-3 md:gap-4 items-center sm:items-start text-center sm:text-left">
                       <div className="bg-blue-600 text-white p-2 rounded-xl shrink-0 shadow-lg shadow-blue-200">
                           <Info size={20}/>
                       </div>
                       <div className="space-y-1">
-                          <h4 className="text-sm font-black text-blue-900 uppercase tracking-tight">Informácia o univerzálnosti</h4>
-                          <p className="text-xs text-blue-700/80 leading-relaxed font-medium">
+                          <h4 className="text-xs md:text-sm font-black text-blue-900 uppercase tracking-tight">Informácia o univerzálnosti</h4>
+                          <p className="text-[10px] md:text-xs text-blue-700/80 leading-relaxed font-medium">
                               Tento registračný odkaz je <strong>univerzálny pre všetkých</strong> zamestnancov vašej firmy. Môžete ho zdieľať <strong>hromadne</strong>. Pri registrácii cez tento link sa im automaticky vyplní vaše ID firmy.
                           </p>
                       </div>
