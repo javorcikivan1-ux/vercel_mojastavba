@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Modal, Input, ConfirmModal, Select } from '../components/UI';
+// Added AlertModal to imports to fix line 715 error
+import { Card, Button, Modal, Input, ConfirmModal, Select, AlertModal } from '../components/UI';
 import { 
   Plus, ArrowUpRight, ArrowDownLeft, Trash2, Wallet, TrendingUp, 
   AlertCircle, Search, Filter, PieChart, BarChart3, CheckCircle2, 
   XCircle, ChevronLeft, ChevronRight, X, 
-  Building2, Loader2, Fuel, Package, Users, LayoutList, RotateCcw, Eye, Info, Calendar, Check
+  Building2, Loader2, Fuel, Package, Users, LayoutGrid, RotateCcw, Eye, Info, Calendar, Check, Pencil, LayoutList
 } from 'lucide-react';
 import { formatMoney, formatDate } from '../lib/utils';
 
@@ -57,8 +58,11 @@ export const FinanceScreen = ({ profile }: any) => {
   const [showUnpaidModal, setShowUnpaidModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [unpaidInvoices, setUnpaidInvoices] = useState<any[]>([]);
-  const [newTrans, setNewTrans] = useState<any>({ type: 'expense', date: new Date().toISOString().split('T')[0], category: 'Réžia' });
-  const [confirmDelete, setConfirmDelete] = useState<{open: boolean, id: string | null}>({ open: false, id: null });
+  const [newTrans, setNewTrans] = useState<any>({ type: 'expense', date: new Date().toISOString().split('T')[0], category: 'Réžia', is_paid: true, itemType: 'manual' });
+  const [confirmDelete, setConfirmDelete] = useState<{open: boolean, id: string | null, itemType: string}>({ open: false, id: null, itemType: '' });
+  
+  const [alertState, setAlertState] = useState<{open: boolean, title: string, message: string, type?: 'success' | 'error'}>({ open: false, title: '', message: '' });
+  const [actionLoading, setActionLoading] = useState(false);
 
   const getPeriodRange = useCallback(() => {
     let start, end;
@@ -117,7 +121,8 @@ export const FinanceScreen = ({ profile }: any) => {
     const wageGroups: Record<string, any> = {};
     logsData.forEach(l => {
         const userId = l.user_id;
-        const key = userId;
+        const siteId = l.site_id || 'none';
+        const key = `${userId}_${siteId}`;
         const amt = l.payment_type === 'fixed' ? Number(l.fixed_amount) : (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
         
         if (!wageGroups[key]) {
@@ -129,8 +134,8 @@ export const FinanceScreen = ({ profile }: any) => {
                 type: 'expense',
                 amount: 0,
                 is_paid: true,
-                sites: null,
-                site_id: null,
+                sites: l.sites,
+                site_id: l.site_id,
                 itemType: 'wage'
             };
         }
@@ -205,6 +210,67 @@ export const FinanceScreen = ({ profile }: any) => {
       if (!error) loadData();
   };
 
+  const handleEdit = (t: any) => {
+    setNewTrans({
+      id: t.id,
+      type: t.type,
+      date: t.date,
+      amount: t.amount,
+      category: t.category,
+      description: t.description || '',
+      site_id: t.site_id || '',
+      is_paid: t.is_paid,
+      itemType: t.itemType
+    });
+    setSelectedTransaction(null);
+    setShowAddModal(true);
+  };
+
+  const handleSaveTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+        const payload = {
+            ...newTrans,
+            organization_id: profile.organization_id,
+            site_id: newTrans.site_id || null,
+            amount: parseFloat(newTrans.amount) || 0
+        };
+        const { id, itemType, ...saveData } = payload;
+
+        let res;
+        if (id) {
+            if (itemType === 'material') {
+                res = await supabase.from('materials').update({
+                    total_price: saveData.amount,
+                    purchase_date: saveData.date,
+                    name: saveData.description,
+                    site_id: saveData.site_id
+                }).eq('id', id);
+            } else if (itemType === 'fuel') {
+                res = await supabase.from('fuel_logs').update({
+                    amount: saveData.amount,
+                    date: saveData.date,
+                    description: saveData.description,
+                    site_id: saveData.site_id
+                }).eq('id', id);
+            } else {
+                res = await supabase.from('transactions').update(saveData).eq('id', id);
+            }
+        } else {
+            res = await supabase.from('transactions').insert([saveData]);
+        }
+
+        if (res.error) throw res.error;
+        setShowAddModal(false);
+        loadData(true);
+    } catch (err: any) {
+        setAlertState({ open: true, title: 'Chyba', message: err.message, type: 'error' });
+    } finally {
+        setActionLoading(false);
+    }
+  };
+
   const filteredSites = sites.filter(s => s.name.toLowerCase().includes(siteSearchQuery.toLowerCase()));
 
   return (
@@ -219,7 +285,7 @@ export const FinanceScreen = ({ profile }: any) => {
         </div>
         <div className="flex gap-2">
             <Button onClick={() => {
-                setNewTrans({ type: 'expense', date: new Date().toISOString().split('T')[0], category: 'Réžia' });
+                setNewTrans({ type: 'expense', date: new Date().toISOString().split('T')[0], category: 'Réžia', is_paid: true, itemType: 'manual' });
                 setShowAddModal(true);
             }} className="shadow-lg shadow-orange-100 h-12">
                 <Plus size={18}/> Pridať režijný výdavok
@@ -258,20 +324,18 @@ export const FinanceScreen = ({ profile }: any) => {
       {stats.unpaidCount > 0 && (
           <div className="bg-white border-2 border-red-100 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 animate-in slide-in-from-top-2">
               <div className="flex items-center gap-3">
-                  <div className="bg-red-50 p-3 rounded-xl text-red-600 ring-4 ring-red-50/50"><AlertCircle size={24}/></div>
+                  <div className="bg-red-500 text-white p-3 rounded-xl ring-4 ring-red-50/50"><AlertCircle size={24}/></div>
                   <div>
                       <h4 className="font-black text-red-900 text-sm uppercase tracking-tight">Nezaplatené faktúry (Dlžníci)</h4>
-                      <p className="text-xs text-red-700 font-medium">Celkovo dlhujú <span className="font-black underline">{formatMoney(stats.unpaidTotal)}</span>.</p>
+                      <p className="text-xs text-red-700 font-medium">Celkovovo dlhujú <span className="font-black underline">{formatMoney(stats.unpaidTotal)}</span>.</p>
                   </div>
               </div>
               <button onClick={() => setShowUnpaidModal(true)} className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition shadow-lg shadow-red-200">Zobraziť</button>
           </div>
       )}
 
-      {/* FILTER BAR - NO STICKY */}
       <Card className="bg-white border-slate-200 shadow-xl p-4">
           <div className="space-y-4">
-              {/* Prvý riadok: Obdobie */}
               <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-4">
                     <div className="bg-slate-100 p-1 rounded-xl flex items-center shadow-inner">
                         <button onClick={() => setDateMode('month')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition ${dateMode === 'month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Mesiac</button>
@@ -299,7 +363,6 @@ export const FinanceScreen = ({ profile }: any) => {
                     </div>
               </div>
 
-              {/* Druhý riadok: Filtre tabuľky */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="relative">
                       <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
@@ -366,7 +429,6 @@ export const FinanceScreen = ({ profile }: any) => {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* TABUĽKA DÁT */}
           <Card padding="p-0" className="lg:col-span-2 overflow-hidden border-slate-200 shadow-sm bg-white min-h-[400px] flex flex-col">
               <div className="overflow-x-auto custom-scrollbar flex-1">
                 <table className="w-full text-left text-sm">
@@ -406,8 +468,11 @@ export const FinanceScreen = ({ profile }: any) => {
                                         {t.type === 'invoice' ? '+' : '-'}{formatMoney(t.amount)}
                                     </td>
                                     <td className="p-4 text-right">
-                                        {t.itemType === 'manual' && (
-                                            <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ open: true, id: t.id }); }} className="text-slate-300 hover:text-red-500 p-2 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
+                                        {['manual', 'fuel', 'material'].includes(t.itemType) && (
+                                          <div className="flex gap-1">
+                                            <button onClick={(e) => { e.stopPropagation(); handleEdit(t); }} className="text-slate-300 hover:text-blue-500 p-2 rounded-lg transition opacity-0 group-hover:opacity-100"><Pencil size={16}/></button>
+                                            <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ open: true, id: t.id, itemType: t.itemType }); }} className="text-slate-300 hover:text-red-500 p-2 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
+                                          </div>
                                         )}
                                     </td>
                                 </tr>
@@ -424,7 +489,6 @@ export const FinanceScreen = ({ profile }: any) => {
               )}
           </Card>
 
-          {/* BOČNÝ PANEL: SKLADBA NÁKLADOV */}
           <Card className="border-slate-200 p-6 shadow-sm bg-white flex flex-col h-fit">
               <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2 text-[11px] uppercase tracking-widest"><PieChart size={18} className="text-orange-500"/> Skladba nákladov</h3>
               <div className="space-y-4">
@@ -449,7 +513,6 @@ export const FinanceScreen = ({ profile }: any) => {
           </Card>
       </div>
 
-      {/* MODAL: NEZAPLATENÉ FAKTÚRY (DLŽNÍCI) - BEAUTIFIED CARD DESIGN */}
       {showUnpaidModal && (
           <Modal title="Nezaplatené faktúry (Dlžníci)" onClose={() => setShowUnpaidModal(false)} maxWidth="max-w-2xl">
               <div className="space-y-6">
@@ -520,7 +583,6 @@ export const FinanceScreen = ({ profile }: any) => {
           </Modal>
       )}
 
-      {/* DETAIL TRANSAKCIE MODAL */}
       {selectedTransaction && (
           <Modal title="Detail položky" onClose={() => setSelectedTransaction(null)} maxWidth="max-w-md">
               <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
@@ -575,10 +637,15 @@ export const FinanceScreen = ({ profile }: any) => {
                   </div>
 
                   <div className="pt-2 flex flex-col gap-2">
-                      {selectedTransaction.itemType === 'manual' && (
-                          <Button variant="danger" fullWidth onClick={() => { setSelectedTransaction(null); setConfirmDelete({ open: true, id: selectedTransaction.id }); }}>
+                      {['manual', 'fuel', 'material'].includes(selectedTransaction.itemType) && (
+                        <>
+                          <Button variant="primary" fullWidth onClick={() => handleEdit(selectedTransaction)} className="bg-blue-600 hover:bg-blue-700 border-none shadow-blue-100">
+                             <Pencil size={16}/> Upraviť záznam
+                          </Button>
+                          <Button variant="danger" fullWidth onClick={() => { setSelectedTransaction(null); setConfirmDelete({ open: true, id: selectedTransaction.id, itemType: selectedTransaction.itemType }); }}>
                              <Trash2 size={16}/> Odstrániť záznam
                           </Button>
+                        </>
                       )}
                       <Button variant="secondary" fullWidth onClick={() => setSelectedTransaction(null)}>Zatvoriť detail</Button>
                   </div>
@@ -586,57 +653,74 @@ export const FinanceScreen = ({ profile }: any) => {
           </Modal>
       )}
 
-      {/* ADD TRANSACTION MODAL - SIMPLIFIED FOR REZIA */}
       {showAddModal && (
-        <Modal title="Pridať režijný výdavok" onClose={() => setShowAddModal(false)}>
-          <form onSubmit={async (e) => {
-              e.preventDefault();
-              // Vždy ukladáme ako réžiu a výdavok
-              const { error } = await supabase.from('transactions').insert([{ 
-                  ...newTrans, 
-                  type: 'expense',
-                  category: 'Réžia',
-                  organization_id: profile.organization_id, 
-                  is_paid: true
-              }]);
-              if (!error) { setShowAddModal(false); loadData(true); }
-          }} className="space-y-6">
+        <Modal title={newTrans.id ? "Upraviť záznam" : "Pridať finančný pohyb"} onClose={() => setShowAddModal(false)}>
+          <form onSubmit={handleSaveTransaction} className="space-y-6">
             
-            <div className="p-4 bg-orange-50 border border-orange-100 rounded-2xl flex items-center gap-3">
-                <Wallet className="text-orange-600" size={24}/>
-                <div>
-                    <h4 className="font-black text-orange-900 text-xs uppercase tracking-tight">Všeobecná firemná réžia</h4>
-                    <p className="text-[10px] text-orange-700 font-medium">Tento zápis sa započíta do celkových nákladov firmy ako réžia.</p>
-                </div>
+            <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl mb-2">
+              <button type="button" onClick={() => setNewTrans({...newTrans, type: 'expense'})} className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition ${newTrans.type === 'expense' ? 'bg-white shadow-sm text-red-600' : 'text-slate-500'}`}>Výdavok</button>
+              <button type="button" onClick={() => setNewTrans({...newTrans, type: 'invoice'})} className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition ${newTrans.type === 'invoice' ? 'bg-white shadow-sm text-green-600' : 'text-slate-500'}`}>Príjem</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Dátum výdavku" type="date" value={newTrans.date} onChange={(e: any) => setNewTrans({...newTrans, date: e.target.value})} required />
+                <Input label="Dátum" type="date" value={newTrans.date} onChange={(e: any) => setNewTrans({...newTrans, date: e.target.value})} required />
                 <Input label="Suma s DPH (€)" type="number" step="0.01" value={newTrans.amount || ''} onChange={(e: any) => setNewTrans({...newTrans, amount: parseFloat(e.target.value) || 0})} required placeholder="0.00" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select label="Kategória" value={newTrans.category} onChange={(e: any) => setNewTrans({...newTrans, category: e.target.value})} required>
+                    {['Réžia', 'Materiál', 'Iné', 'Platba od klienta', 'PHM'].map(c => <option key={c} value={c}>{c}</option>)}
+                </Select>
+                <Select label="Priradiť k stavbe" value={newTrans.site_id || ''} onChange={(e: any) => setNewTrans({...newTrans, site_id: e.target.value})}>
+                    <option value="">-- Bez priradenia (Firemné) --</option>
+                    {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </Select>
             </div>
             
             <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Detailný popis výdavku</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Popis záznamu</label>
                 <textarea 
-                    className="w-full p-4 bg-white border border-slate-300 rounded-2xl outline-none focus:border-orange-500 min-h-[120px] text-sm font-medium text-slate-800 leading-relaxed shadow-inner transition-all focus:bg-slate-50/50" 
-                    placeholder="Napr. Nákup spotrebného materiálu, oprava náradia, platba za internet..."
+                    className="w-full p-4 bg-white border border-slate-300 rounded-2xl outline-none focus:border-orange-500 min-h-[100px] text-sm font-medium text-slate-800 leading-relaxed shadow-inner transition-all focus:bg-slate-50/50" 
+                    placeholder="Detaily o transakcii..."
                     value={newTrans.description || ''}
                     onChange={(e) => setNewTrans({...newTrans, description: e.target.value})}
                     required
                 />
             </div>
 
-            <Select label="Voliteľné: Priradiť k stavbe" value={newTrans.site_id || ''} onChange={(e: any) => setNewTrans({...newTrans, site_id: e.target.value})}>
-                <option value="">-- Bez priradenia (Všeobecná réžia) --</option>
-                {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
+            <div className="flex items-center gap-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                <input 
+                    type="checkbox" 
+                    id="form_is_paid" 
+                    checked={newTrans.is_paid} 
+                    onChange={(e) => setNewTrans({...newTrans, is_paid: e.target.checked})} 
+                    className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" 
+                />
+                <label htmlFor="form_is_paid" className="text-sm font-bold text-slate-800 flex items-center gap-2 cursor-pointer">Považovať za uhradené</label>
+            </div>
             
-            <Button type="submit" fullWidth size="lg" className="h-14 shadow-xl uppercase font-black text-sm tracking-widest shadow-orange-100">Uložiť režijný výdavok</Button>
+            <Button type="submit" fullWidth size="lg" loading={actionLoading} className="h-14 shadow-xl uppercase font-black text-sm tracking-widest shadow-orange-100">
+              {newTrans.id ? 'Uložiť zmeny' : 'Uložiť záznam'}
+            </Button>
           </form>
         </Modal>
       )}
 
-      <ConfirmModal isOpen={confirmDelete.open} onClose={() => setConfirmDelete({ ...confirmDelete, open: false })} onConfirm={async () => { if(confirmDelete.id) { await supabase.from('transactions').delete().eq('id', confirmDelete.id); loadData(true); } }} title="Zmazať záznam?" message="Tento krok nie je možné vrátiť späť. Položka bude trvalo odstránená." />
+      <ConfirmModal isOpen={confirmDelete.open} onClose={() => setConfirmDelete({ ...confirmDelete, open: false, id: null, itemType: '' })} onConfirm={async () => { 
+        if(confirmDelete.id) { 
+            const tableMap: Record<string, string> = { material: 'materials', fuel: 'fuel_logs', manual: 'transactions' };
+            await supabase.from(tableMap[confirmDelete.itemType] || 'transactions').delete().eq('id', confirmDelete.id); 
+            loadData(true); 
+        } 
+      }} title="Zmazať záznam?" message="Tento krok nie je možné vrátiť späť. Položka bude trvalo odstránená." />
+      
+      <AlertModal 
+        isOpen={alertState.open} 
+        onClose={() => setAlertState({ ...alertState, open: false })} 
+        title={alertState.title || "Info"} 
+        message={alertState.message} 
+        type={alertState.type || 'error'} 
+      />
     </div>
   );
 };

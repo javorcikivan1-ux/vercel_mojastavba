@@ -1,5 +1,6 @@
+
 export const SETUP_SQL = `
--- 1. ÚPLNÝ RESET SCHÉMY
+-- 1. ÚPLNÝ RESET SCHÉMY (POZOR: Zmaže existujúce dáta v public schéme)
 DROP SCHEMA IF EXISTS public CASCADE;
 CREATE SCHEMA public;
 
@@ -9,7 +10,20 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon,
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
 
--- 3. TVORBA TABULIEK
+-- 3. POMOCNÉ FUNKCIE (OPTIMALIZOVANÉ PRE VÝKON A BEZPEČNOSŤ)
+CREATE OR REPLACE FUNCTION public.get_my_org()
+RETURNS uuid AS $$
+  -- Obalenie do SELECT pre vynútenie caching-u na úrovni plánovača dopytov (Fix pre Performance Advisor)
+  SELECT organization_id FROM public.profiles WHERE id = (SELECT auth.uid());
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS text AS $$
+  SELECT role FROM public.profiles WHERE id = (SELECT auth.uid());
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+
+-- 4. TVORBA TABULIEK
+
 CREATE TABLE public.organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -36,6 +50,7 @@ CREATE TABLE public.profiles (
     nickname TEXT UNIQUE,
     organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE,
     hourly_rate NUMERIC DEFAULT 0,
+    cost_rate NUMERIC DEFAULT 0,
     phone TEXT,
     is_active BOOLEAN DEFAULT true,
     settings JSONB DEFAULT '{"notify_logs": true, "notify_tasks": true, "task_categories": [{"id": "1", "color": "#f1f5f9", "label": "Všeobecné"}, {"id": "2", "color": "#ffedd5", "label": "Stavba"}, {"id": "3", "color": "#dbeafe", "label": "Administratíva"}]}'::jsonb,
@@ -59,6 +74,28 @@ CREATE TABLE public.sites (
     lead_stage TEXT DEFAULT 'new'
 );
 
+CREATE TABLE IF NOT EXISTS public.site_permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    site_id UUID NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    can_manage_diary BOOLEAN DEFAULT false,
+    can_manage_finance BOOLEAN DEFAULT false,
+    UNIQUE(site_id, user_id)
+);
+
+CREATE TABLE public.site_worker_rates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    site_id UUID NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    hourly_rate NUMERIC,
+    cost_rate NUMERIC,
+    UNIQUE(site_id, user_id)
+);
+
 CREATE TABLE public.attendance_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -66,6 +103,7 @@ CREATE TABLE public.attendance_logs (
     organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
     hours NUMERIC NOT NULL DEFAULT 0,
     hourly_rate_snapshot NUMERIC DEFAULT 0,
+    cost_rate_snapshot NUMERIC DEFAULT 0,
     description TEXT,
     date DATE DEFAULT CURRENT_DATE,
     start_time TEXT,
@@ -144,7 +182,7 @@ CREATE TABLE public.advance_settlements (
 CREATE TABLE public.support_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE,
-    user_id REFERENCES public.profiles(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     user_name TEXT,
     org_name TEXT,
     message TEXT NOT NULL,
@@ -207,26 +245,17 @@ CREATE TABLE public.quote_items (
     vat_rate NUMERIC DEFAULT 20
 );
 
--- 4. INDEXY PRE VÝKON (Kritické pre RLS a Filtre)
+-- 5. INDEXY PRE MAXIMÁLNY VÝKON
 CREATE INDEX idx_profiles_org ON public.profiles(organization_id);
-CREATE INDEX idx_profiles_nickname ON public.profiles(nickname);
 CREATE INDEX idx_sites_org ON public.sites(organization_id);
 CREATE INDEX idx_attendance_org ON public.attendance_logs(organization_id);
 CREATE INDEX idx_attendance_user ON public.attendance_logs(user_id);
-CREATE INDEX idx_attendance_site ON public.attendance_logs(site_id);
 CREATE INDEX idx_attendance_date ON public.attendance_logs(date);
 CREATE INDEX idx_diary_site ON public.diary_records(site_id);
-CREATE INDEX idx_diary_date ON public.diary_records(date);
-CREATE INDEX idx_fuel_site ON public.fuel_logs(site_id);
-CREATE INDEX idx_fuel_date ON public.fuel_logs(date);
 CREATE INDEX idx_materials_site ON public.materials(site_id);
-CREATE INDEX idx_tasks_assigned ON public.tasks(assigned_to);
-CREATE INDEX idx_transactions_site ON public.transactions(site_id);
-CREATE INDEX idx_quotes_org ON public.quotes(organization_id);
-CREATE INDEX idx_quote_items_quote ON public.quote_items(quote_id);
-CREATE INDEX idx_adv_settle_adv ON public.advance_settlements(advance_id);
+CREATE INDEX idx_site_perms_user ON public.site_permissions(user_id);
 
--- 5. FINANČNÝ POHĽAD S BEZPEČNOSŤOU (Zobrazuje reálne náklady)
+-- 6. POHĽAD PRE FINANCIE (security_invoker zabezpečí rešpektovanie RLS)
 CREATE OR REPLACE VIEW public.v_site_financials 
 WITH (security_invoker = true)
 AS
@@ -240,7 +269,7 @@ SELECT
         SELECT SUM(
             CASE 
                 WHEN al.payment_type = 'fixed' THEN COALESCE(al.fixed_amount, 0)
-                ELSE al.hours * COALESCE(NULLIF(al.hourly_rate_snapshot, 0), (SELECT hourly_rate FROM public.profiles WHERE id = al.user_id), 0)
+                ELSE al.hours * COALESCE(NULLIF(al.cost_rate_snapshot, 0), NULLIF(al.hourly_rate_snapshot, 0), 0)
             END
         ) 
         FROM public.attendance_logs al 
@@ -248,7 +277,7 @@ SELECT
     ), 0) as total_labor_cost
 FROM public.sites s;
 
--- 6. BEZPEČNOSŤ (RLS)
+-- 7. ZAPNUTIE ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sites ENABLE ROW LEVEL SECURITY;
@@ -263,38 +292,130 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quote_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.site_worker_rates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.site_permissions ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE FUNCTION public.get_my_org()
-RETURNS uuid AS $$
-DECLARE
-  _org_id uuid;
-BEGIN
-  SELECT organization_id INTO _org_id FROM public.profiles WHERE id = (SELECT auth.uid());
-  RETURN _org_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+-- 8. RLS POLITIKY (OPTIMALIZOVANÉ PRE PERFORMANCE & BEZPEČNOSŤ)
 
--- IZOLAČNÉ PRAVIDLÁ (Vysoký výkon cez Subquery)
-CREATE POLICY "iso_profiles" ON public.profiles FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_org_update" ON public.organizations FOR UPDATE TO authenticated USING (id = (SELECT public.get_my_org())) WITH CHECK (id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_org_delete" ON public.organizations FOR DELETE TO authenticated USING (id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_org_lookup" ON public.organizations FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "iso_sites" ON public.sites FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_attendance" ON public.attendance_logs FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_diary" ON public.diary_records FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_fuel" ON public.fuel_logs FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_materials" ON public.materials FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_advances" ON public.advances FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_tasks" ON public.tasks FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_transactions" ON public.transactions FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_quotes" ON public.quotes FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
-CREATE POLICY "iso_support" ON public.support_requests FOR ALL TO authenticated USING (organization_id = (SELECT public.get_my_org())) WITH CHECK (organization_id = (SELECT public.get_my_org()));
+-- PROFILY: Rozdelené kvôli bezpečnosti (Fix podľa IT experta)
+CREATE POLICY "profiles_select_in_org" ON public.profiles 
+FOR SELECT TO authenticated 
+USING (organization_id = (SELECT public.get_my_org()));
 
--- OPRAVENÉ PRAVIDLÁ PRE POLOŽKY (S pevnou kontrolou subquery)
-CREATE POLICY "iso_quote_items" ON public.quote_items FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.quotes q WHERE q.id = quote_id AND q.organization_id = (SELECT public.get_my_org()))) WITH CHECK (EXISTS (SELECT 1 FROM public.quotes q WHERE q.id = quote_id AND q.organization_id = (SELECT public.get_my_org())));
-CREATE POLICY "iso_advance_settlements" ON public.advance_settlements FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.advances a WHERE a.id = advance_id AND a.organization_id = (SELECT public.get_my_org()))) WITH CHECK (EXISTS (SELECT 1 FROM public.advances a WHERE a.id = advance_id AND a.organization_id = (SELECT public.get_my_org())));
+CREATE POLICY "profiles_update_self" ON public.profiles 
+FOR UPDATE TO authenticated 
+USING (id = (SELECT auth.uid())) 
+WITH CHECK (id = (SELECT auth.uid()));
 
--- 7. AUTH TRIGGER (Zabezpečuje prepojenie profilu s firmou)
+CREATE POLICY "profiles_admin_all" ON public.profiles 
+FOR ALL TO authenticated 
+USING (
+    organization_id = (SELECT public.get_my_org()) 
+    AND (SELECT public.get_my_role()) = 'admin'
+);
+
+-- ORGANIZÁCIE
+CREATE POLICY "org_select" ON public.organizations FOR SELECT TO authenticated USING (id = (SELECT public.get_my_org()));
+CREATE POLICY "org_update_admin" ON public.organizations FOR UPDATE TO authenticated 
+USING (id = (SELECT public.get_my_org()) AND (SELECT public.get_my_role()) = 'admin');
+
+-- STAVBY
+CREATE POLICY "sites_access" ON public.sites FOR ALL TO authenticated 
+USING (organization_id = (SELECT public.get_my_org()));
+
+-- SITE PERMISSIONS
+CREATE POLICY "site_perms_access" ON public.site_permissions FOR ALL TO authenticated 
+USING (organization_id = (SELECT public.get_my_org()));
+
+-- DOCHÁDZKA
+CREATE POLICY "attendance_access" ON public.attendance_logs FOR ALL TO authenticated 
+USING (
+    organization_id = (SELECT public.get_my_org()) 
+    AND (
+        (SELECT public.get_my_role()) = 'admin' 
+        OR user_id = (SELECT auth.uid())
+    )
+);
+
+-- STAVEBNÝ DENNÍK (Oprava Auth RLS Plan & Delegované práva)
+CREATE POLICY "diary_access" ON public.diary_records FOR ALL TO authenticated 
+USING (
+    organization_id = (SELECT public.get_my_org()) 
+    AND (
+        (SELECT public.get_my_role()) = 'admin' 
+        OR EXISTS (
+            SELECT 1 FROM public.site_permissions sp 
+            WHERE sp.site_id = diary_records.site_id 
+            AND sp.user_id = (SELECT auth.uid()) 
+            AND sp.can_manage_diary = true
+        )
+    )
+);
+
+-- MATERIÁL
+CREATE POLICY "materials_access" ON public.materials FOR ALL TO authenticated 
+USING (
+    organization_id = (SELECT public.get_my_org()) 
+    AND (
+        (SELECT public.get_my_role()) = 'admin' 
+        OR EXISTS (
+            SELECT 1 FROM public.site_permissions sp 
+            WHERE sp.site_id = materials.site_id 
+            AND sp.user_id = (SELECT auth.uid()) 
+            AND sp.can_manage_finance = true
+        )
+    )
+);
+
+-- PHM
+CREATE POLICY "fuel_access" ON public.fuel_logs FOR ALL TO authenticated 
+USING (
+    organization_id = (SELECT public.get_my_org()) 
+    AND (
+        (SELECT public.get_my_role()) = 'admin' 
+        OR EXISTS (
+            SELECT 1 FROM public.site_permissions sp 
+            WHERE sp.site_id = fuel_logs.site_id 
+            AND sp.user_id = (SELECT auth.uid()) 
+            AND sp.can_manage_finance = true
+        )
+    )
+);
+
+-- OSTATNÉ (Základná izolácia firmy)
+CREATE POLICY "transactions_access" ON public.transactions FOR ALL TO authenticated 
+USING (organization_id = (SELECT public.get_my_org()));
+
+CREATE POLICY "quotes_access" ON public.quotes FOR ALL TO authenticated 
+USING (organization_id = (SELECT public.get_my_org()));
+
+CREATE POLICY "quote_items_access" ON public.quote_items FOR ALL TO authenticated 
+USING (EXISTS (
+    SELECT 1 FROM public.quotes q 
+    WHERE q.id = quote_id 
+    AND q.organization_id = (SELECT public.get_my_org())
+));
+
+CREATE POLICY "tasks_access" ON public.tasks FOR ALL TO authenticated 
+USING (organization_id = (SELECT public.get_my_org()));
+
+CREATE POLICY "advances_access" ON public.advances FOR ALL TO authenticated 
+USING (organization_id = (SELECT public.get_my_org()));
+
+CREATE POLICY "adv_settlements_access" ON public.advance_settlements FOR ALL TO authenticated 
+USING (EXISTS (
+    SELECT 1 FROM public.advances a 
+    WHERE a.id = advance_id 
+    AND a.organization_id = (SELECT public.get_my_org())
+));
+
+CREATE POLICY "support_access" ON public.support_requests FOR ALL TO authenticated 
+USING (organization_id = (SELECT public.get_my_org()));
+
+CREATE POLICY "site_rates_access" ON public.site_worker_rates FOR ALL TO authenticated 
+USING (organization_id = (SELECT public.get_my_org()));
+
+-- 9. AUTH TRIGGER (Automatická tvorba profilu a firmy)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 DECLARE
@@ -304,6 +425,7 @@ BEGIN
     INSERT INTO public.organizations (name)
     VALUES (COALESCE(new.raw_user_meta_data->>'company_name', 'Moja Firma'))
     RETURNING id INTO new_org_id;
+    
     INSERT INTO public.profiles (id, organization_id, email, full_name, nickname, role, is_active)
     VALUES (new.id, new_org_id, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'nickname', 'admin', true);
   ELSE
@@ -319,18 +441,16 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 8. STORAGE (Bucket a Bezpečnostné pravidlá)
+-- 10. STORAGE (Bucket a Politiky)
 INSERT INTO storage.buckets (id, name, public) VALUES ('diary-photos', 'diary-photos', true) ON CONFLICT (id) DO NOTHING;
 
 CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'diary-photos');
 CREATE POLICY "Auth Upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'diary-photos');
-CREATE POLICY "Auth Update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'diary-photos');
-CREATE POLICY "Auth Delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'diary-photos');
+CREATE POLICY "Admin Delete" ON storage.objects FOR DELETE TO authenticated 
+USING (bucket_id = 'diary-photos' AND (SELECT public.get_my_role()) = 'admin');
 
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
-GRANT SELECT ON public.v_site_financials TO authenticated, anon, service_role;
+-- KONIEC TRANSAKCIE
+COMMIT;
 
 NOTIFY pgrst, 'reload schema';
 `

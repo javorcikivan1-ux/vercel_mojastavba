@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, X, AlertTriangle, CheckCircle2, HelpCircle, HardHat, Lock } from 'lucide-react';
 
 // --- CUSTOM BRAND LOGO ---
@@ -79,32 +80,39 @@ export const Badge = ({ status }: { status: string }) => {
   );
 };
 
-export const Modal = ({ title, onClose, children, maxWidth = 'max-w-lg' }: any) => (
-  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 transition-all animate-in fade-in duration-200">
-    <div className={`bg-white w-full ${maxWidth} rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200`}>
-      <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/50">
-        <h3 className="font-bold text-lg text-slate-900">{title}</h3>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition hover:bg-slate-100 p-2 rounded-full"><X size={20}/></button>
-      </div>
-      <div className="p-6 overflow-y-auto custom-scrollbar">
-        {children}
-      </div>
-    </div>
-  </div>
-);
+export const Modal = ({ title, onClose, children, maxWidth = 'max-w-lg' }: any) => {
+  if (typeof document === 'undefined') return null;
+  const modalRoot = document.getElementById('modal-root');
+  if (!modalRoot) return null;
 
-export const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, type = 'danger', confirmText = 'Potvrdiť' }: any) => {
+  return createPortal(
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 transition-all animate-in fade-in duration-200">
+      <div className={`bg-white w-full ${maxWidth} rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200`}>
+        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/50">
+          <h3 className="font-bold text-lg text-slate-900">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition hover:bg-slate-100 p-2 rounded-full"><X size={20}/></button>
+        </div>
+        <div className="p-6 overflow-y-auto custom-scrollbar">
+          {children}
+        </div>
+      </div>
+    </div>,
+    modalRoot
+  );
+};
+
+export const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, type = 'danger', confirmText = 'Potvrdiť', cancelText = 'Zrušiť' }: any) => {
   if (!isOpen) return null;
   
   return (
     <Modal title={title} onClose={onClose} maxWidth="max-w-md">
       <div className="text-center flex flex-col items-center">
-        <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${type === 'danger' ? 'bg-red-50 text-red-500' : 'bg-orange-50 text-orange-500'}`}>
+        <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${type === 'danger' ? 'bg-red-50 text-red-500' : 'bg-orange-50 text-orange-50'}`}>
           {type === 'danger' ? <AlertTriangle size={32}/> : <HelpCircle size={32}/>}
         </div>
         <p className="text-slate-600 mb-8 leading-relaxed">{message}</p>
         <div className="grid grid-cols-2 gap-3 w-full">
-          <Button variant="secondary" onClick={onClose}>Zrušiť</Button>
+          <Button variant="secondary" onClick={onClose}>{cancelText}</Button>
           <Button variant={type} onClick={() => { onConfirm(); onClose(); }}>{confirmText}</Button>
         </div>
       </div>
@@ -112,7 +120,7 @@ export const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, type 
   );
 };
 
-export const AlertModal = ({ isOpen, onClose, title, message, type = 'success' }: any) => {
+export const AlertModal = ({ isOpen, onClose, title, message, type = 'success', buttonText = 'Rozumiem' }: any) => {
   if (!isOpen) return null;
 
   return (
@@ -122,16 +130,20 @@ export const AlertModal = ({ isOpen, onClose, title, message, type = 'success' }
           {type === 'error' ? <AlertTriangle size={32}/> : <CheckCircle2 size={32}/>}
         </div>
         <p className="text-slate-600 mb-6 leading-relaxed">{message}</p>
-        <Button fullWidth onClick={onClose}>Rozumiem</Button>
+        <Button fullWidth onClick={onClose}>{buttonText}</Button>
       </div>
     </Modal>
   );
 };
 
-export const Input = (props: any) => (
+export const Input = ({ label, ...props }: any) => (
   <div className="mb-4">
-    {props.label && <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">{props.label}</label>}
-    <input {...props} className={`w-full p-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition disabled:bg-slate-50 disabled:text-slate-500 ${props.className || ''}`} />
+    {label && <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>}
+    <input 
+      {...props} 
+      value={props.value ?? ''} 
+      className={`w-full p-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition disabled:bg-slate-50 disabled:text-slate-500 ${props.className || ''}`} 
+    />
   </div>
 );
 

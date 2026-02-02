@@ -44,7 +44,7 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
   const [organization, setOrganization] = useState(initialOrg);
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(true);
-  const [alert, setAlert] = useState({ open: false, title: '', message: '', type: 'success' });
+  const [alertState, setAlertState] = useState({ open: false, title: '', message: '', type: 'success' });
   const [justPaid, setJustPaid] = useState(false);
   const [attempts, setAttempts] = useState(0);
   
@@ -113,7 +113,7 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
       if (error) throw error;
       if (checkoutData?.url) window.location.href = checkoutData.url;
     } catch (err: any) {
-      setAlert({ open: true, title: 'Chyba', message: err.message, type: 'error' });
+      setAlertState({ open: true, title: 'Chyba', message: err.message, type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -232,7 +232,7 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
                                 'Telefonická a e-mailová podpora'
                              ].map(item => (
                                  <div key={item} className="flex items-center gap-3 text-sm text-slate-600 font-bold">
-                                     <div className="bg-green-500 text-white p-0.5 rounded-full shrink-0"><Check size={12}/></div> {item}
+                                     <div className="bg-green-50 text-white p-0.5 rounded-full shrink-0"><Check size={12}/></div> {item}
                                  </div>
                              ))}
                           </div>
@@ -314,11 +314,11 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
       </div>
       
       <AlertModal 
-        isOpen={alert.open} 
-        onClose={() => setAlert({ ...alert, open: false })} 
-        title={alert.title} 
-        message={alert.message} 
-        type={alert.type as any} 
+        isOpen={alertState.open} 
+        onClose={() => setAlertState({ ...alertState, open: false })} 
+        title={alertState.title} 
+        message={alertState.message} 
+        type={alertState.type as any} 
       />
     </div>
   );

@@ -1,13 +1,11 @@
-
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Modal, Card } from '../components/UI';
-import { Users, AlertCircle, Calendar, LayoutGrid, MapPin, User, Plus, BookOpen, CheckCircle2, Loader2, Clock, XCircle, ChevronRight, Search, Activity, Briefcase } from 'lucide-react';
+import { Users, AlertCircle, Calendar, LayoutGrid, MapPin, User, Plus, BookOpen, CheckCircle2, Loader2, Clock, XCircle, ChevronRight, Search, Activity, Briefcase, History } from 'lucide-react';
 import { formatMoney } from '../lib/utils';
 
 const PRIORITY_FLAG = "#PRIORITY";
 
-// Fix: Added missing helper function to check if a date string represents today's date
 const isDateToday = (dateStr: string) => {
   if (!dateStr) return false;
   const d = new Date(dateStr);
@@ -19,6 +17,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
   const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
   const [upcomingTasks, setUpcomingTasks] = useState<any[]>([]);
   const [attendanceStatus, setAttendanceStatus] = useState<{logged: any[], missing: any[]}>({ logged: [], missing: [] });
+  const [retroactiveLogs, setRetroactiveLogs] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attendanceSearch, setAttendanceSearch] = useState('');
@@ -28,27 +27,27 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
   const fetchDashboardData = useCallback(async () => {
     if (!profile.organization_id) return;
     
-    // Používame lokálny dátum bez UTC posunu
     const nowLocal = new Date();
     const todayStr = `${nowLocal.getFullYear()}-${(nowLocal.getMonth() + 1).toString().padStart(2, '0')}-${nowLocal.getDate().toString().padStart(2, '0')}`;
     
     const startOfToday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate(), 0, 0, 0, 0).toISOString();
+    const endOfToday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate(), 23, 59, 59, 999).toISOString();
     const endOfFuture = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate() + 4, 23, 59, 59, 999).toISOString();
 
-    const [overdue, upcoming, workers, logs] = await Promise.all([
+    const [overdue, upcoming, workers, logsToday, logsCreatedToday] = await Promise.all([
       supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').lt('start_date', startOfToday).order('start_date'),
       supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').gte('start_date', startOfToday).lte('start_date', endOfFuture).order('start_date'),
       supabase.from('profiles').select('id, full_name').eq('organization_id', profile.organization_id).eq('is_active', true).eq('role', 'employee'),
-      supabase.from('attendance_logs').select('*, sites(name)').eq('organization_id', profile.organization_id).eq('date', todayStr).order('start_time', { ascending: true })
+      supabase.from('attendance_logs').select('*, sites(name)').eq('organization_id', profile.organization_id).eq('date', todayStr).order('start_time', { ascending: true }),
+      supabase.from('attendance_logs').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).gte('created_at', startOfToday).lte('created_at', endOfToday)
     ]);
     
     if(overdue.data) setOverdueTasks(overdue.data);
     if(upcoming.data) setUpcomingTasks(upcoming.data);
     
     if (workers.data) {
-        // Zoskupovanie logov pod zamestnanca (aby sa neprepísali, ak ich má viac)
         const logsByUser = new Map();
-        (logs.data || []).forEach(l => {
+        (logsToday.data || []).forEach(l => {
             if (!logsByUser.has(l.user_id)) logsByUser.set(l.user_id, []);
             logsByUser.get(l.user_id).push(l);
         });
@@ -59,6 +58,12 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
         
         const missing = workers.data.filter(w => !logsByUser.has(w.id));
         setAttendanceStatus({ logged, missing });
+    }
+
+    // Detekcia spätných zápisov (vytvorené dnes, ale pre iný dátum)
+    if (logsCreatedToday.data) {
+        const retro = logsCreatedToday.data.filter(l => l.date !== todayStr);
+        setRetroactiveLogs(retro);
     }
 
     setLoading(false);
@@ -125,6 +130,35 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
               <div><div className="text-xs font-bold text-slate-900">Moji zamestnanci</div><div className="text-[10px] text-slate-400">Správa tímu</div></div>
           </button>
       </div>
+
+      {/* ALERT PRE SPÄTNÉ ZÁPISY */}
+      {retroactiveLogs.length > 0 && (
+          <div className="bg-white border-2 border-orange-200 p-4 rounded-2xl shadow-md animate-in slide-in-from-top-4">
+              <div className="flex items-center gap-3 mb-3">
+                  <div className="bg-orange-500 text-white p-2 rounded-lg shadow-sm">
+                      <History size={20}/>
+                  </div>
+                  <div>
+                      <h3 className="font-black text-orange-900 text-sm uppercase tracking-tight">Upozornenie na spätný zápis</h3>
+                      <p className="text-[10px] text-orange-700 font-bold uppercase tracking-widest">Dnes boli dopísané hodiny za iné dni</p>
+                  </div>
+              </div>
+              <div className="space-y-2">
+                  {retroactiveLogs.map(l => (
+                      <div key={l.id} className="flex justify-between items-center p-3 bg-orange-50 rounded-xl border border-orange-100">
+                          <div className="flex items-center gap-2">
+                              <User size={14} className="text-orange-400"/>
+                              <span className="text-xs font-bold text-slate-800">{l.profiles?.full_name}</span>
+                              <span className="text-[10px] text-orange-600 font-black uppercase ml-2 bg-white px-2 py-0.5 rounded border border-orange-100">Za deň {new Date(l.date).toLocaleDateString('sk-SK')}</span>
+                          </div>
+                          <div className="text-right">
+                              <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Zapísané o {new Date(l.created_at).toLocaleTimeString('sk-SK', {hour:'2-digit', minute:'2-digit'})}</div>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      )}
 
       <Card 
         onClick={() => setShowAttendanceModal(true)}

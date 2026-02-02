@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select, AlertModal, CustomLogo } from '../components/UI';
@@ -29,6 +28,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
 
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Funkcia na výpočet hodín z textového reťazca "07:00 - 15:30"
   const parseTimeToHours = (timeStr: string): number | null => {
       if (!timeStr) return null;
       const regex = /(\d{1,2})[:.](\d{2})\s*[-–,]\s*(\d{1,2})[:.](\d{2})/;
@@ -43,7 +43,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
       const startMins = h1 * 60 + m1;
       let endMins = h2 * 60 + m2;
       
-      if (endMins < startMins) endMins += 24 * 60;
+      if (endMins < startMins) endMins += 24 * 60; // Cez polnoc
 
       return parseFloat(((endMins - startMins) / 60).toFixed(1));
   };
@@ -51,7 +51,10 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
   useEffect(() => {
     if (profile.role === 'admin') {
       const loadEmployees = async () => {
-        const { data } = await supabase.from('profiles').select('id, full_name').eq('organization_id', profile.organization_id).order('full_name');
+        const { data } = await supabase.from('profiles')
+            .select('id, full_name, hourly_rate, cost_rate')
+            .eq('organization_id', profile.organization_id)
+            .order('full_name');
         if (data) setEmployees(data);
       };
       loadEmployees();
@@ -91,11 +94,13 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
       return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
 
+  // Formátovanie času podľa šablóny (napr. 7:00 - 12:00, 12:30 - 16:00)
   const formatWithTemplate = (totalHours: number) => {
       const start = exportOptions.templateStart;
       const breakS = exportOptions.breakStart;
       const breakDur = exportOptions.breakDuration;
       const totalMins = Math.round(totalHours * 60);
+      
       const [sh, sm] = start.split(':').map(Number);
       const [bh, bm] = breakS.split(':').map(Number);
       const minsBeforeBreak = (bh * 60 + bm) - (sh * 60 + sm);
@@ -108,17 +113,13 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
       }
   };
 
-  const resetToDatabase = () => {
-      if (!logs) return;
-      processLogs(logs);
-  };
-
   const processLogs = (sourceLogs: any[]) => {
       let processed: any[] = [];
       if (exportOptions.viewMode === 'summarized') {
           const groupMap: Record<string, any> = {};
           sourceLogs.forEach(l => {
               const siteId = l.site_id || 'none';
+              // Zoskupujeme podľa dňa a stavby
               const groupKey = `${l.date}_${siteId}_${l.payment_type || 'hourly'}`;
               
               if (!groupMap[groupKey]) {
@@ -134,9 +135,8 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
               } else {
                   groupMap[groupKey].totalHours += parseFloat(l.hours) || 0;
                   if (l.description && !groupMap[groupKey].descriptions.includes(l.description)) groupMap[groupKey].descriptions.push(l.description);
-                  if (l.sites?.name && !groupMap[groupKey].siteNames.includes(l.sites.name)) {
-                      groupMap[groupKey].siteNames.push(l.sites.name);
-                  }
+                  const sName = l.sites?.name;
+                  if (sName && !groupMap[groupKey].siteNames.includes(sName)) groupMap[groupKey].siteNames.push(sName);
                   if (l.start_time && (!groupMap[groupKey].start_time || l.start_time < groupMap[groupKey].start_time)) groupMap[groupKey].start_time = l.start_time;
                   if (l.end_time && (!groupMap[groupKey].end_time || l.end_time > groupMap[groupKey].end_time)) groupMap[groupKey].end_time = l.end_time;
               }
@@ -168,6 +168,8 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
   useEffect(() => {
     if (logs.length > 0) {
         processLogs(logs);
+    } else {
+        setEditableLogs([]);
     }
   }, [logs, exportOptions]);
 
@@ -194,7 +196,6 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
               newLogs[index].hours = calculatedHours.toFixed(1);
           }
       }
-
       setEditableLogs(newLogs);
   };
 
@@ -203,16 +204,13 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
     setExporting(true);
     const empName = employees.find(e => e.id === selectedEmpId)?.full_name || profile.full_name;
     const monthName = currentDate.toLocaleString('sk-SK', { month: 'long', year: 'numeric' });
+    // Fix: Added 'as const' to string literals in Html2PdfOptions to fix TypeScript type incompatibility error.
     const opt = {
       margin: 8,
       filename: `Dochadzka_${empName.replace(' ', '_')}_${monthName.replace(' ', '_')}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { 
-          scale: 2.5, 
-          useCORS: true, 
-          allowTaint: true 
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+      html2canvas: { scale: 2.5, useCORS: true, allowTaint: true },
+      jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
     html2pdf().set(opt).from(printRef.current).save().then(() => setExporting(false));
   };
@@ -248,8 +246,8 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                 <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2 text-xs uppercase tracking-widest"><Calendar size={16} className="text-orange-500"/> Obdobie</h3>
                 {profile.role === 'admin' && (
                     <Select label="Zamestnanec" value={selectedEmpId} onChange={(e: any) => setSelectedEmpId(e.target.value)}>
-                    <option value="">-- Vyberte --</option>
-                    {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+                        <option value="">-- Vyberte zamestnanca --</option>
+                        {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
                     </Select>
                 )}
                 <div className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-200 shadow-inner">
@@ -324,7 +322,6 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                  </div>
              </div>
              
-             {/* Opravený vizuál bannerov pre mobil: flex-wrap a justify-end pre správne zarovnanie */}
              <div className="flex flex-wrap sm:flex-nowrap justify-end gap-2 sm:gap-4 w-full sm:w-auto">
                 <div className="bg-white border-2 border-slate-100 px-3 sm:px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm group hover:border-orange-100 transition-colors flex-1 sm:flex-none">
                     <div className="text-right flex-1 sm:flex-none">
@@ -427,8 +424,9 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
         </Card>
       </div>
 
+      {/* Skrytá sekcia pre PDF export */}
       <div className="fixed left-[-9999px]">
-        <div ref={printRef} className="w-[190mm] bg-white p-12 text-slate-900 font-sans text-sm leading-normal relative box-border">
+        <div ref={printRef} className="w-[190mm] bg-white p-12 text-slate-900 font-sans text-sm leading-normal relative box-border text-left flex flex-col min-h-[277mm]">
           <div className="flex justify-between items-start mb-8 border-b-4 border-slate-900 pb-6">
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">Mesačný výkaz prác</h1>
@@ -506,13 +504,13 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
             </tfoot>
           </table>
 
-          <div className="mt-20 grid grid-cols-2 gap-20">
+          <div className="mt-auto pt-20 grid grid-cols-2 gap-20 pb-10">
             <div className="text-center">
               <div className="h-16 border-b-2 border-slate-200 mb-2"></div>
               <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Podpis zamestnanca</div>
             </div>
             <div className="text-center relative">
-              <div className="h-16 border-b-2 border-slate-200 mb-2 flex items-center justify-center">
+              <div className="h-16 border-b-2 border-slate-200 mb-2 flex items-center justify-center text-center">
                    {organization.stamp_url && (
                         <img 
                           src={organization.stamp_url} 
@@ -527,7 +525,6 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
           </div>
         </div>
       </div>
-      <AlertModal isOpen={false} onClose={() => {}} title="" message="" />
     </div>
   );
 };

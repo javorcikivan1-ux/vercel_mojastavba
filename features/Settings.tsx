@@ -80,7 +80,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingStamp, setUploadingStamp] = useState(false);
-  const [alert, setAlert] = useState({ open: false, title: '', message: '', type: 'success' });
+  const [alertState, setAlertState] = useState({ open: false, title: '', message: '', type: 'success' });
   const [copied, setCopied] = useState(false);
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -161,7 +161,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
             await supabase.from('organizations').update({ logo_url: publicUrl }).eq('id', profile.organization_id);
             onUpdateOrg({ ...organization, logo_url: publicUrl });
         } catch (err: any) {
-            setAlert({ open: true, title: 'Chyba', message: 'Nepodarilo sa nahrať logo: ' + err.message, type: 'error' });
+            setAlertState({ open: true, title: 'Chyba', message: 'Nepodarilo sa nahrať logo: ' + err.message, type: 'error' });
         } finally {
             setUploading(false);
         }
@@ -182,9 +182,9 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
               setOrgData(prev => ({ ...prev, stamp_url: publicUrl }));
               await supabase.from('organizations').update({ stamp_url: publicUrl }).eq('id', profile.organization_id);
               onUpdateOrg({ ...organization, stamp_url: publicUrl });
-              setAlert({ open: true, title: 'Úspech', message: 'Pečiatka a podpis boli nahraté.', type: 'success' });
+              setAlertState({ open: true, title: 'Úspech', message: 'Pečiatka a podpis boli nahraté.', type: 'success' });
           } catch (err: any) {
-              setAlert({ open: true, title: 'Chyba', message: 'Nepodarilo sa nahrať pečiatku: ' + err.message, type: 'error' });
+              setAlertState({ open: true, title: 'Chyba', message: 'Nepodarilo sa nahrať pečiatku: ' + err.message, type: 'error' });
           } finally {
               setUploadingStamp(false);
           }
@@ -202,9 +202,9 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
           if (profError) throw profError;
           onUpdateOrg({ ...organization, ...orgData });
           if(onUpdateProfile) onUpdateProfile({ ...profile, settings: updatedSettings });
-          setAlert({ open: true, title: 'Uložené', message: 'Nastavenia boli úspešne aktualizované.', type: 'success' });
+          setAlertState({ open: true, title: 'Uložené', message: 'Nastavenia boli úspešne aktualizované.', type: 'success' });
       } catch (err: any) {
-          setAlert({ open: true, title: 'Chyba', message: err.message, type: 'error' });
+          setAlertState({ open: true, title: 'Chyba', message: err.message, type: 'error' });
       } finally {
           setLoading(false);
       }
@@ -217,9 +217,9 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
           const { error } = await supabase.from('profiles').update({ settings: updatedSettings }).eq('id', profile.id);
           if (error) throw error;
           if (onUpdateProfile) onUpdateProfile({ ...profile, settings: updatedSettings });
-          setAlert({ open: true, title: 'Uložené', message: 'Kategórie boli aktualizované.', type: 'success' });
+          setAlertState({ open: true, title: 'Uložené', message: 'Kategórie boli aktualizované.', type: 'success' });
       } catch (err: any) {
-          setAlert({ open: true, title: 'Chyba', message: err.message, type: 'error' });
+          setAlertState({ open: true, title: 'Chyba', message: err.message, type: 'error' });
       } finally {
           setLoading(false);
       }
@@ -238,20 +238,20 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   const changePassword = async (e: React.FormEvent) => {
       e.preventDefault();
       if (newPassword !== confirmPassword) {
-          setAlert({ open: true, title: 'Chyba', message: 'Heslá sa nezhodujú.', type: 'error' });
+          setAlertState({ open: true, title: 'Chyba', message: 'Heslá sa nezhodujú.', type: 'error' });
           return;
       }
       if (newPassword.length < 6) {
-           setAlert({ open: true, title: 'Chyba', message: 'Heslo musí mať aspoň 6 znakov.', type: 'error' });
+           setAlertState({ open: true, title: 'Chyba', message: 'Heslo musí mať aspoň 6 znakov.', type: 'error' });
            return;
       }
       setLoading(true);
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       setLoading(false);
       if (error) {
-          setAlert({ open: true, title: 'Chyba', message: error.message, type: 'error' });
+          setAlertState({ open: true, title: 'Chyba', message: error.message, type: 'error' });
       } else {
-          setAlert({ open: true, title: 'Úspech', message: 'Vaše heslo bolo úspešne zmenené.', type: 'success' });
+          setAlertState({ open: true, title: 'Úspech', message: 'Vaše heslo bolo úspešne zmenené.', type: 'success' });
           setNewPassword('');
           setConfirmPassword('');
       }
@@ -267,14 +267,14 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
               org_name: organization.name,
               message: "ŽIADOSŤ O ZMAZANIE ÚČTU A VŠETKÝCH DÁT FIRMY. Používateľ potvrdil vymazanie v nastaveniach aplikácie."
           }]);
-          setAlert({ 
+          setAlertState({ 
               open: true, 
               title: 'Žiadosť odoslaná', 
               message: 'Vaša žiadosť o zmazanie účtu bola prijatá. Budeme vás kontaktovať e-mailom pre potvrdenie totožnosti a následne dôjde k trvalému zmazaniu všetkých dát do 48 hodín.', 
               type: 'success' 
           });
       } catch (e: any) {
-          setAlert({ open: true, title: 'Chyba', message: e.message, type: 'error' });
+          setAlertState({ open: true, title: 'Chyba', message: e.message, type: 'error' });
       } finally {
           setLoading(false);
       }
@@ -436,11 +436,11 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
         </div>
 
         <AlertModal
-            isOpen={alert.open}
-            onClose={() => setAlert({ ...alert, open: false })}
-            title={alert.title}
-            message={alert.message}
-            type={alert.type as any}
+            isOpen={alertState.open}
+            onClose={() => setAlertState({ ...alertState, open: false })}
+            title={alertState.title}
+            message={alertState.message}
+            type={alertState.type as any}
         />
 
         {showLegalModal && <LegalModal type={showLegalModal} onClose={() => setShowLegalModal(null)} />}

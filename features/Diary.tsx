@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Input, Select, AlertModal, CustomLogo } from '../components/UI';
+import { Card, Button, Input, Select, AlertModal } from '../components/UI';
 import { 
   BookOpen, Calendar, Cloud, Sun, CloudRain, Wind, Thermometer, Truck, 
   Users, Package, Save, FileDown, ArrowLeft, Plus, PenTool, ArrowRight, 
@@ -11,9 +11,6 @@ import { formatDate } from '../lib/utils';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
-/**
- * Bezpečné formátovanie dátumu na YYYY-MM-DD bez posunu časového pásma.
- */
 const getLocalDateString = (date: Date) => {
     const y = date.getFullYear();
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -21,9 +18,6 @@ const getLocalDateString = (date: Date) => {
     return `${y}-${m}-${d}`;
 };
 
-/**
- * Optimalizovaná funkcia pre kompresiu obrazu.
- */
 const compressImageToBlob = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -64,44 +58,240 @@ const compressImageToBlob = (file: File): Promise<Blob> => {
     });
 };
 
-export const DiaryScreen = ({ profile, organization }: any) => {
+const DIARY_TRANSLATIONS: any = {
+  sk: {
+    manage_diary: 'Stavebný Denník', back_to_overview: 'Späť',
+    diary_section_weather: '1. Poveternostné podmienky', diary_section_weather_sub: 'Teplota a počasie počas dňa',
+    weather_status: 'Stav počasia', temp_morning: 'Teplota Ráno', temp_noon: 'Teplota Obed',
+    weather_sunny: 'Slnečno', weather_partly_cloudy: 'Polooblačno', weather_cloudy: 'Oblačno',
+    weather_rainy: 'Dážď', weather_storm: 'Búrka', weather_windy: 'Vietor', weather_snow: 'Sneženie',
+    diary_section_notes: '2. Popis vykonaných prác', diary_section_notes_sub: 'Detailný záznam postupu prác',
+    diary_section_mechanisms: '3. Mechanizmy a Stroje', diary_section_mechanisms_sub: 'Nasadenie techniky na stavbe',
+    diary_section_photos: '4. Fotodokumentácia', diary_section_photos_sub: 'Fotografie sú bezpečne uložené v cloude',
+    diary_notes_placeholder: 'Sem zapíšte priebeh prác...', mechanisms_placeholder: 'Napr. Bager (8h), žeriav...',
+    save_draft: 'Uložiť (Rozpracované)', sign_and_close: 'Uzavrieť a Podpísať', take_photo: 'Pridať foto',
+    daily_summary: 'Denný Súhrn', workers_on_site: 'pracovníkov na zákazke', hours_unit: 'hodín',
+    available_works: 'Dostupné práce', from_today_attendance: 'Z dnešnej dochádzky', material_purchases: 'Nákupy materiálu',
+    from_today_costs: 'Z dnešných nákladov', no_purchases: 'Žiadne nákupy.', status_draft: 'Rozpracovaný',
+    status_signed: 'Uzavretý', loading_record: 'Načítavam záznam...', copy_yesterday: 'Kopírovať včerajšok',
+    import_from_attendance: 'Importovať z dochádzky', last_saved: 'Naposledy uložené', not_saved_yet: 'Zatiaľ neuložené',
+    details: 'Podrobnosti', workers: 'Pracovníci', record: 'Záznam', click_to_edit: 'Kliknutím otvorte na úpravu',
+    no_day_records: 'Žiadne záznamy pre tento deň.', no_records: 'Žiadne záznamy', unlock_for_edits: 'Odomknúť pre úpravy',
+    diary_signed_msg: 'Denník bol uzavretý a podpísaný.', diary_unlocked_msg: 'Záznam bol odomknutý pre úpravy.',
+    diary_saved: 'Denník bol uložený.', prev_day_copied: 'Dáta z predchádzajúceho dňa boli skopírované.',
+    no_prev_day_record: 'Pre predchádzajúci deň sa nenašiel žiadny záznam.', search_site_placeholder: 'Hľadať a vybrať stavbu',
+    export_pdf: 'Export PDF', generating: 'Generujem...', archive_label: 'Archív', active_label: 'Aktívna',
+    total_materials: 'Súčet materiálov', stamp_signature: 'Pečiatka a podpis zhotoviteľa', morning_7: 'Teplota 7:00', noon_13: 'Teplota 13:00',
+    days_short: ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'], site_label: 'Stavba', date_label: 'Dátum', generated_via: 'Vygenerované cez MojaStavba', unlock_for_edits_desc: 'Pre úpravy je potrebné záznam najskôr odomknúť.',
+    confirm: 'Potvrdiť', cancel: 'Zrušiť', understand: 'Rozumiem'
+  },
+  en: {
+    manage_diary: 'Site Diary', back_to_overview: 'Back',
+    diary_section_weather: '1. Weather conditions', diary_section_weather_sub: 'Temperature and weather during the day',
+    weather_status: 'Weather status', temp_morning: 'Morning Temp', temp_noon: 'Noon Temp',
+    weather_sunny: 'Sunny', weather_partly_cloudy: 'Partly Cloudy', weather_cloudy: 'Cloudy',
+    weather_rainy: 'Rainy', weather_storm: 'Stormy', weather_windy: 'Windy', weather_snow: 'Snowing',
+    diary_section_notes: '2. Description of work', diary_section_notes_sub: 'Detailed record of work progress',
+    diary_section_mechanisms: '3. Mechanisms & Machinery', diary_section_mechanisms_sub: 'Deployment of machinery on site',
+    diary_section_photos: '4. Photo documentation', diary_section_photos_sub: 'Photos are securely stored in the cloud',
+    diary_notes_placeholder: 'Describe work progress here...', mechanisms_placeholder: 'e.g. Excavator (8h), crane...',
+    save_draft: 'Save (Draft)', sign_and_close: 'Close and Sign', take_photo: 'Add photo',
+    daily_summary: 'Daily Summary', workers_on_site: 'workers on site', hours_unit: 'hours',
+    available_works: 'Available works', from_today_attendance: 'From today\'s attendance', material_purchases: 'Material purchases',
+    from_today_costs: 'From today\'s costs', no_purchases: 'No purchases.', status_draft: 'Draft',
+    status_signed: 'Closed', loading_record: 'Loading record...', copy_yesterday: 'Copy yesterday',
+    import_from_attendance: 'Import from attendance', last_saved: 'Last saved', not_saved_yet: 'Not saved yet',
+    details: 'Details', workers: 'Workers', record: 'Record', click_to_edit: 'Click to edit',
+    no_day_records: 'No records for this day.', no_records: 'No records', unlock_for_edits: 'Unlock for edits',
+    diary_signed_msg: 'Diary has been closed and signed.', diary_unlocked_msg: 'Record unlocked for editing.',
+    diary_saved: 'Diary has been saved.', prev_day_copied: 'Data from the previous day copied.',
+    no_prev_day_record: 'No record found for the previous day.', search_site_placeholder: 'Search and select site',
+    export_pdf: 'Export PDF', generating: 'Generating...', archive_label: 'Archive', active_label: 'Active',
+    total_materials: 'Total materials', stamp_signature: 'Contractor stamp and signature', morning_7: 'Temp 7:00', noon_13: 'Temp 13:00',
+    days_short: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], site_label: 'Site', date_label: 'Date', generated_via: 'Generated via MojaStavba', unlock_for_edits_desc: 'To make changes, the record must first be unlocked.',
+    confirm: 'Confirm', cancel: 'Cancel', understand: 'I understand'
+
+  },
+  de: {
+    manage_diary: 'Bautagebuch', back_to_overview: 'Zurück',
+    diary_section_weather: '1. Wetterbedingungen', diary_section_weather_sub: 'Temperatur und Wetter während des Tages',
+    weather_status: 'Wetterzustand', temp_morning: 'Temp. Morgen', temp_noon: 'Temp. Mittag',
+    weather_sunny: 'Sonnig', weather_partly_cloudy: 'Teilweise bewölkt', weather_cloudy: 'Bewölkt',
+    weather_rainy: 'Regnerisch', weather_storm: 'Stürmisch', weather_windy: 'Windig', weather_snow: 'Schneit',
+    diary_section_notes: '2. Arbeitsbeschreibung', diary_section_notes_sub: 'Detaillierte Aufzeichnung des Arbeitsfortschritts',
+    diary_section_mechanisms: '3. Mechanismen & Maschinen', diary_section_mechanisms_sub: 'Einsatz von Maschinen vor Ort',
+    diary_section_photos: '4. Fotodokumentation', diary_section_photos_sub: 'Fotos werden sicher in der Cloud gespeichert',
+    diary_notes_placeholder: 'Arbeitsfortschritt hier beschreiben...', mechanisms_placeholder: 'z.B. Bagger (8h), Kran...',
+    save_draft: 'Speichern (Entwurf)', sign_and_close: 'Schließen und Unterschreiben', take_photo: 'Foto hinzufügen',
+    daily_summary: 'Tägliche Zusammenfassung', workers_on_site: 'Mitarbeiter vor Ort', hours_unit: 'Stunden',
+    available_works: 'Verfügbare Arbeiten', from_today_attendance: 'Aus der heutigen Anwesenheit', material_purchases: 'Materialeinkäufe',
+    from_today_costs: 'Aus den heutigen Kosten', no_purchases: 'Keine Einkäufe.', status_draft: 'Entwurf',
+    status_signed: 'Geschlossen', loading_record: 'Lade Datensatz...', copy_yesterday: 'Gestern kopieren',
+    import_from_attendance: 'Aus Anwesenheit importieren', last_saved: 'Zuletzt gespeichert', not_saved_yet: 'Noch ne gespeichert',
+    details: 'Details', workers: 'Mitarbeiter', record: 'Eintrag', click_to_edit: 'Zum Bearbeiten klicken',
+    no_day_records: 'Keine Einträge für diesen Tag.', no_records: 'Keine Einträge', unlock_for_edits: 'Bearbeitung freischalten',
+    diary_signed_msg: 'Tagebuch wurde geschlossen und unterschrieben.', diary_unlocked_msg: 'Datensatz zur Bearbeitung freigeschaltet.',
+    diary_saved: 'Tagebuch wurde gespeichert.', prev_day_copied: 'Daten vom Vortag kopiert.',
+    no_prev_day_record: 'Kein Eintrag für den Vortag gefunden.', search_site_placeholder: 'Standort suchen',
+    export_pdf: 'PDF Export', generating: 'Generiere...', archive_label: 'Archiv', active_label: 'Aktiv',
+    total_materials: 'Materialien gesamt', stamp_signature: 'Stempel und Unterschrift des Auftragnehmers', morning_7: 'Temp 7:00', noon_13: 'Temp 13:00',
+    days_short: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], site_label: 'Baustelle', date_label: 'Datum', generated_via: 'Generiert über MojaStavba', unlock_for_edits_desc: 'Für Änderungen muss der Eintrag zuerst entsperrt werden.',
+    confirm: 'Bestätigen', cancel: 'Abbrechen', understand: 'Verstanden'
+
+  },
+  hu: {
+    manage_diary: 'Építési Napló', back_to_overview: 'Vissza',
+    diary_section_weather: '1. Időjárási viszonyok', diary_section_weather_sub: 'Hőmérséklet és időjárás a nap folyamán',
+    weather_status: 'Időjárás állapota', temp_morning: 'Reggeli hőm.', temp_noon: 'Déli hőm.',
+    weather_sunny: 'Napos', weather_partly_cloudy: 'Részben felhős', weather_cloudy: 'Felhős',
+    weather_rainy: 'Esős', weather_storm: 'Viharos', weather_windy: 'Szeles', weather_snow: 'Havazás',
+    diary_section_notes: '2. Elvégzett munkák leírása', diary_section_notes_sub: 'A munkafolyamat részletes rögzítése',
+    diary_section_mechanisms: '3. Gépek és berendezések', diary_section_mechanisms_sub: 'Gépek bevetése a helyszínen',
+    diary_section_photos: '4. Fotódokumentáció', diary_section_photos_sub: 'A fotók biztonságosan a felhőben tárolódnak',
+    diary_notes_placeholder: 'Írja le a munka menetét...', mechanisms_placeholder: 'pl. Kotrógép (8ó), daru...',
+    save_draft: 'Mentés (Vázlat)', sign_and_close: 'Lezárás és Aláírás', take_photo: 'Fotó hozzáadása',
+    daily_summary: 'Napi Összegzés', workers_on_site: 'munkás a helyszínen', hours_unit: 'óra',
+    available_works: 'Elérhető munkák', from_today_attendance: 'A mai jelenlétből', material_purchases: 'Materialeinkäufe',
+    from_today_costs: 'A mai költségekből', no_purchases: 'Nincs vásárlás.', status_draft: 'Vázlat',
+    status_signed: 'Lezárt', loading_record: 'Bejegyzés betöltése...', copy_yesterday: 'Tegnapi másolása',
+    import_from_attendance: 'Importálás jelenlétből', last_saved: 'Utoljára mentve', not_saved_yet: 'Még nincs mentve',
+    details: 'Részletek', workers: 'Munkások', record: 'Bejegyzés', click_to_edit: 'Kattintson a szerkesztéshez',
+    no_day_records: 'Nincsenek bejegyzések erre a napra.', no_records: 'Nincsenek adatok', unlock_for_edits: 'Szerkesztés feloldása',
+    diary_signed_msg: 'A napló lezárva és aláírva.', diary_unlocked_msg: 'Bejegyzés feloldva szerkesztéshez.',
+    diary_saved: 'A napló mentve lett.', prev_day_copied: 'A tegnapi adatok átmásolva.',
+    no_prev_day_record: 'Nem található bejegyzés a tegnapi napra.', search_site_placeholder: 'Helyszín keresése',
+    export_pdf: 'PDF Export', generating: 'Generálás...', archive_label: 'Archív', active_label: 'Aktív',
+    total_materials: 'Anyagok összesen', stamp_signature: 'Vállalkozó bélyegzője és aláírása', morning_7: 'Hőm 7:00', noon_13: 'Hőm 13:00',
+    days_short: ['Hé', 'Ke', 'Sze', 'Csü', 'Pé', 'Szo', 'Vas'], site_label: 'Építkezés', date_label: 'Dátum', generated_via: 'MojaStavba által generálva', unlock_for_edits_desc: 'A módosításhoz először fel kell oldani a bejegyzést.',
+    confirm: 'Megerősítés', cancel: 'Mégse', understand: 'Értem'
+
+  },
+  pl: {
+    manage_diary: 'Dziennik Budowy', back_to_overview: 'Wstecz',
+    diary_section_weather: '1. Warunki pogodowe', diary_section_weather_sub: 'Temperatura i pogoda w ciągu dnia',
+    weather_status: 'Status pogody', temp_morning: 'Temp. rano', temp_noon: 'Temp. w południe',
+    weather_sunny: 'Słonecznie', weather_partly_cloudy: 'Częściowe zachmurzenie', weather_cloudy: 'Pochmurno',
+    weather_rainy: 'Deszczowo', weather_storm: 'Burzowo', weather_windy: 'Wietrznie', weather_snow: 'Śnieg',
+    diary_section_notes: '2. Opis wykonanych prac', diary_section_notes_sub: 'Szczegółowy zapis postępu prac',
+    diary_section_mechanisms: '3. Mechanizmy i maszyny', diary_section_mechanisms_sub: 'Użycie sprzętu na budowie',
+    diary_section_photos: '4. Dokumentacja fotograficzna', diary_section_photos_sub: 'Zdjęcia są bezpiecznie zapisane w chmurze',
+    diary_notes_placeholder: 'Opisz postęp prac tutaj...', mechanisms_placeholder: 'np. Koparka (8h), dźwig...',
+    save_draft: 'Zapisz (Szkic)', sign_and_close: 'Zamknij i podpisz', take_photo: 'Dodaj zdjęcie',
+    daily_summary: 'Podsumowanie dnia', workers_on_site: 'pracowników na budowie', hours_unit: 'godzin',
+    available_works: 'Dostępne prace', from_today_attendance: 'Z dzisiejszej obecności', material_purchases: 'Zakupy materiałów',
+    from_today_costs: 'Z dzisiejszych kosztów', no_purchases: 'Brak zakupów.', status_draft: 'Szkic',
+    status_signed: 'Zamknięty', loading_record: 'Ładowanie wpisu...', copy_yesterday: 'Kopiuj wczoraj',
+    import_from_attendance: 'Importuj z obecności', last_saved: 'Ostatnio zapisano', not_saved_yet: 'Jeszcze nie zapisano',
+    details: 'Szczegóły', workers: 'Pracownicy', record: 'Wpis', click_to_edit: 'Kliknij, aby edytować',
+    no_day_records: 'Brak wpisów na ten dzień.', no_records: 'Brak wpisów', unlock_for_edits: 'Odblokuj edycję',
+    diary_signed_msg: 'Dziennik został zamknięty i podpisany.', diary_unlocked_msg: 'Wpis odblokowany do edycji.',
+    diary_saved: 'Dziennik został zapisany.', prev_day_copied: 'Dane z poprzedniego dnia skopiowane.',
+    no_prev_day_record: 'Nie znaleziono wpisu z poprzedniego dnia.', search_site_placeholder: 'Szukaj budowy',
+    export_pdf: 'Eksport PDF', generating: 'Generowanie...', archive_label: 'Archiwum', active_label: 'Aktywna',
+    total_materials: 'Materiały razem', stamp_signature: 'Pieczątka i podpis wykonawcy', morning_7: 'Temp 7:00', noon_13: 'Temp 13:00',
+    days_short: ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'], site_label: 'Budowa', date_label: 'Data', generated_via: 'Wygenerowano przez MojaStavba', unlock_for_edits_desc: 'Aby wprowadzić zmiany, należy najpierw odblokować wpis.',
+    confirm: 'Potwierdź', cancel: 'Anuluj', understand: 'Rozumiem'
+
+  },
+  ua: {
+    manage_diary: 'Будівельний Журнал', back_to_overview: 'Назад',
+    diary_section_weather: '1. Погодні умови', diary_section_weather_sub: 'Температура та погода протягом дня',
+    weather_status: 'Стан погоди', temp_morning: 'Темп. вранці', temp_noon: 'Темп. вдень',
+    weather_sunny: 'Сонячно', weather_partly_cloudy: 'Мінлива хмарність', weather_cloudy: 'Хмарно',
+    weather_rainy: 'Дощ', weather_storm: 'Гроза', weather_windy: 'Вітер', weather_snow: 'Сніг',
+    diary_section_notes: '2. Опис виконаних робіт', diary_section_notes_sub: 'Детальний запис ходу робіт',
+    diary_section_mechanisms: '3. Механізми та машини', diary_section_mechanisms_sub: 'Використання техніки на об\'єкті',
+    diary_section_photos: '4. Фотофіксація', diary_section_photos_sub: 'Фотографії надійно зберігаються в хмарі',
+    diary_notes_placeholder: 'Опишіть хід робіт тут...', mechanisms_placeholder: 'напр. Екскаватор (8г), кран...',
+    save_draft: 'Зберегти (Чернетка)', sign_and_close: 'Закрити та підписати', take_photo: 'Додати фото',
+    daily_summary: 'Підсумок дня', workers_on_site: 'працівників на об\'єкті', hours_unit: 'годин',
+    available_works: 'Доступні роботи', from_today_attendance: 'З сьогоднішньої присутності', material_purchases: 'Закупівля матеріалів',
+    from_today_costs: 'З сьогоднішніх витрат', no_purchases: 'Закупівель немає.', status_draft: 'Чернетка',
+    status_signed: 'Закрито', loading_record: 'Завантаження запису...', copy_yesterday: 'Копіювати вчорашній день',
+    import_from_attendance: 'Імпортувати з присутності', last_saved: 'Востаннє збережено', not_saved_yet: 'Ще не збережено',
+    details: 'Деталі', workers: 'Працівники', record: 'Запис', click_to_edit: 'Натисніть для редагування',
+    no_day_records: 'Записів за цей день немає.', no_records: 'Записів немає', unlock_for_edits: 'Розблокувати для редагування',
+    diary_signed_msg: 'Журнал закрито та підписано.', diary_unlocked_msg: 'Запис розблоковано для редагування.',
+    diary_saved: 'Журнал збережено.', prev_day_copied: 'Дані за попередній день скопійовано.',
+    no_prev_day_record: 'Запису за попередній день не знайдено.', search_site_placeholder: 'Пошук об\'єкта',
+    export_pdf: 'Експорт PDF', generating: 'Генерую...', archive_label: 'Архів', active_label: 'Активний',
+    total_materials: 'Матеріали разом', stamp_signature: 'Печатка та підпис підрядника', morning_7: 'Темп 7:00', noon_13: 'Темп 13:00',
+    days_short: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'], site_label: 'Об’єкт', date_label: 'Дата', generated_via: 'Згенеровано через MojaStavba', unlock_for_edits_desc: 'Щоб внести зміни, запис потрібно спочатку розблокувати.',
+    confirm: 'Підтвердити', cancel: 'Скасувати', understand: 'Розумію'
+  }
+};
+
+interface DiaryScreenProps {
+    profile: any;
+    organization: any;
+    fixedSiteId?: string; 
+    t?: (key: string) => string;
+}
+
+export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: DiaryScreenProps) => {
+  const [lang, setLang] = useState(() => {
+    if (profile.role === 'admin') return 'sk';
+    return localStorage.getItem('ms_worker_lang') || 'sk';
+  });
+
+  const t = tProp || ((key: string) => {
+      const currentLang = DIARY_TRANSLATIONS[lang] ? lang : 'sk';
+      return DIARY_TRANSLATIONS[currentLang][key] || DIARY_TRANSLATIONS['sk'][key] || key;
+  });
+
+  const getLocaleCode = () => {
+    if (profile.role === 'admin') return 'sk-SK';
+    switch(lang) {
+      case 'en': return 'en-US';
+      case 'de': return 'de-DE';
+      case 'hu': return 'hu-HU';
+      case 'pl': return 'pl-PL';
+      case 'ua': return 'uk-UA';
+      default: return 'sk-SK';
+    }
+  };
+
   const [sites, setSites] = useState<any[]>([]);
-  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
+  const [selectedSiteId, setSelectedSiteId] = useState<string>(fixedSiteId || '');
   const [searchSiteQuery, setSearchSiteQuery] = useState('');
   const [currentDate, setCurrentDate] = useState(new Date()); 
   
-  // Daily View State
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [diaryEntry, setDiaryEntry] = useState<any>(null);
   const [isLocked, setIsLocked] = useState(false);
   
-  // Data State
   const [dailyAttendance, setDailyAttendance] = useState<any[]>([]);
   const [dailyMaterials, setDailyMaterials] = useState<any[]>([]);
   
-  // Monthly Overview Data
   const [monthStats, setMonthStats] = useState<Record<string, any>>({});
   
-  // Preview State
   const [previewDay, setPreviewDay] = useState<any>(null);
   const [previewPos, setPreviewPos] = useState({ x: 0, y: 0 });
   const longPressTimer = useRef<any>(null);
   const touchStartPos = useRef<{x: number, y: number} | null>(null);
 
-  // Full Export State
   const [fullExportData, setFullExportData] = useState<any[] | null>(null);
   const [exporting, setExporting] = useState(false);
   
   const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{open: boolean, message: string, type: 'success' | 'error'}>({ open: false, message: '', type: 'success' });
+  const [alertState, setAlertState] = useState<{open: boolean, message: string, type: 'success' | 'error'}>({ open: false, message: '', type: 'success' });
 
-  // Refs
   const printRef = useRef<HTMLDivElement>(null);
   const fullPrintRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loadSites = async () => {
+        if (fixedSiteId) {
+            const { data } = await supabase.from('sites').select('id, name, status').eq('id', fixedSiteId).single();
+            if (data) {
+                setSites([data]);
+                setSelectedSiteId(data.id);
+                setSearchSiteQuery(data.name);
+            }
+            return;
+        }
+
         const { data } = await supabase.from('sites')
             .select('id, name, status')
             .eq('organization_id', profile.organization_id)
@@ -128,7 +318,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
         }
     };
     loadSites();
-  }, [profile]);
+  }, [profile, fixedSiteId]);
 
   const handleSiteChange = (id: string, name: string) => {
       setSelectedSiteId(id);
@@ -140,7 +330,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
       if (selectedSiteId && !selectedDay) {
           fetchMonthOverview();
       }
-  }, [currentDate, selectedSiteId, selectedDay]);
+  }, [currentDate, selectedSiteId, selectedDay, lang]);
 
   const fetchMonthOverview = async () => {
       if(!selectedSiteId) return;
@@ -172,7 +362,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
           if(l.description) {
               stats[l.date].logs.push(`${l.profiles?.full_name}: ${l.description}`);
           } else {
-              stats[l.date].logs.push(`${l.profiles?.full_name}: (Bez popisu)`);
+              stats[l.date].logs.push(`${l.profiles?.full_name}: (${t('no_records')})`);
           }
       });
 
@@ -199,10 +389,8 @@ export const DiaryScreen = ({ profile, organization }: any) => {
       try {
           const { record, attendance, materials } = await fetchDayData(day, selectedSiteId);
 
-          // Čistý prístup: Ak záznam neexistuje, poznámky sú PRÁZDNE. 
-          // Žiadne automatické sranie do DB.
           setDiaryEntry(record || { 
-              weather: 'Slnečno', 
+              weather: t('weather_sunny'), 
               temperature_morning: '', 
               temperature_noon: '', 
               mechanisms: '', 
@@ -255,7 +443,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
 
   const importAttendanceToNotes = () => {
       if (!dailyAttendance.length) {
-          setAlert({ open: true, message: 'Žiadne popisy v dochádzky pre tento deň.', type: 'error' });
+          setAlertState({ open: true, message: t('no_day_records'), type: 'error' });
           return;
       }
       
@@ -267,7 +455,6 @@ export const DiaryScreen = ({ profile, organization }: any) => {
           .map((l: any) => `• ${l.profiles?.full_name}: ${l.description}`);
 
       newLines.forEach((line: string) => {
-          // Ochrana duplicity: Vložíme len ak riadok v poznámkach presne v tejto forme ešte nie je
           if (!currentNotes.includes(line)) {
               currentNotes += (currentNotes ? "\n" : "") + line;
               addedCount++;
@@ -276,9 +463,9 @@ export const DiaryScreen = ({ profile, organization }: any) => {
 
       if (addedCount > 0) {
           setDiaryEntry({ ...diaryEntry, notes: currentNotes });
-          setAlert({ open: true, message: `Pridaných ${addedCount} nových záznamov prác.`, type: 'success' });
+          setAlertState({ open: true, message: t('diary_saved'), type: 'success' });
       } else {
-          setAlert({ open: true, message: 'Všetky záznamy prác sú už v denníku zahrnuté.', type: 'success' });
+          setAlertState({ open: true, message: t('no_records'), type: 'success' });
       }
   };
 
@@ -296,9 +483,9 @@ export const DiaryScreen = ({ profile, organization }: any) => {
               temperature_morning: record.temperature_morning,
               temperature_noon: record.temperature_noon
           }));
-          setAlert({ open: true, message: 'Dáta z predchádzajúceho dňa boli skopírované.', type: 'success' });
+          setAlertState({ open: true, message: t('prev_day_copied'), type: 'success' });
       } else {
-          setAlert({ open: true, message: 'Pre predchádzajúci deň sa nenašiel žiadny záznam.', type: 'error' });
+          setAlertState({ open: true, message: t('no_prev_day_record'), type: 'error' });
       }
       setLoading(false);
   };
@@ -308,12 +495,13 @@ export const DiaryScreen = ({ profile, organization }: any) => {
       if(!selectedDay || !selectedSiteId || !diaryEntry) return;
       const dateStr = getLocalDateString(selectedDay);
       const payload = {
+          ...diaryEntry,
           site_id: selectedSiteId,
           organization_id: profile.organization_id,
           date: dateStr,
-          ...diaryEntry,
           status
       };
+
       const { id, ...saveData } = payload; 
       try {
           if (diaryEntry.id) {
@@ -324,13 +512,13 @@ export const DiaryScreen = ({ profile, organization }: any) => {
           }
           if (status === 'signed') {
               setIsLocked(true);
-              setAlert({ open: true, message: 'Denník bol uzavretý a podpísaný.', type: 'success' });
+              setAlertState({ open: true, message: t('diary_signed_msg'), type: 'success' });
           } else {
-              setAlert({ open: true, message: 'Denník bol uložený.', type: 'success' });
+              setAlertState({ open: true, message: t('diary_saved'), type: 'success' });
           }
           fetchMonthOverview();
       } catch (err: any) {
-          setAlert({ open: true, message: err.message, type: 'error' });
+          setAlertState({ open: true, message: err.message, type: 'error' });
       }
   };
 
@@ -341,10 +529,10 @@ export const DiaryScreen = ({ profile, organization }: any) => {
           await supabase.from('diary_records').update({ status: 'draft' }).eq('id', diaryEntry.id);
           setDiaryEntry({ ...diaryEntry, status: 'draft' });
           setIsLocked(false);
-          setAlert({ open: true, message: 'Záznam bol odomknutý pre úpravy.', type: 'success' });
+          setAlertState({ open: true, message: t('diary_unlocked_msg'), type: 'success' });
           fetchMonthOverview();
       } catch (err: any) {
-          setAlert({ open: true, message: err.message, type: 'error' });
+          setAlertState({ open: true, message: err.message, type: 'error' });
       } finally {
           setLoading(false);
       }
@@ -377,7 +565,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
               
           } catch (err: any) {
               console.error(err);
-              setAlert({ open: true, message: "Nepodarilo sa nahrať fotku: " + err.message, type: 'error' });
+              setAlertState({ open: true, message: t('no_records') + ": " + err.message, type: 'error' });
           } finally {
               e.target.value = '';
               setLoading(false);
@@ -395,7 +583,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
   const handleExportPDF = () => {
       if (!printRef.current) return;
       try {
-          const dateStr = selectedDay?.toLocaleDateString('sk-SK');
+          const dateStr = selectedDay?.toLocaleDateString(getLocaleCode());
           const siteName = sites.find(s => s.id === selectedSiteId)?.name || 'Stavba';
           const opt = { 
               margin: [10, 10, 10, 10] as [number, number, number, number], 
@@ -407,7 +595,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
           html2pdf().set(opt).from(printRef.current).save();
       } catch (e: any) {
           console.error(e);
-          setAlert({ open: true, message: "Nepodarilo sa vytvoriť PDF.", type: 'error' });
+          setAlertState({ open: true, message: t('no_records'), type: 'error' });
       }
   };
 
@@ -459,7 +647,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
           }, 1500);
       } catch (e: any) {
           console.error(e);
-          setAlert({ open: true, message: "Chyba pri exporte celého denníka.", type: 'error' });
+          setAlertState({ open: true, message: t('no_records'), type: 'error' });
           setExporting(false);
       }
   };
@@ -487,7 +675,28 @@ export const DiaryScreen = ({ profile, organization }: any) => {
   const filteredSitesList = sites.filter(s => 
     s.name.toLowerCase().includes(searchSiteQuery.toLowerCase())
   );
-  const currentSiteName = sites.find(s => s.id === selectedSiteId)?.name || 'Stavba';
+  const currentSiteName = sites.find(s => s.id === selectedSiteId)?.name || t('site_label');
+
+   const renderWeatherIcon = (weather?: string) => {
+      switch (weather) {
+          case 'Slnečno':
+              return <Sun size={16} className="text-yellow-500" />;
+          case 'Polooblačno':
+              return <Cloud size={16} className="text-orange-400" />;
+          case 'Oblačno':
+              return <Cloud size={16} className="text-slate-400" />;
+          case 'Dážď':
+              return <CloudRain size={16} className="text-blue-500" />;
+          case 'Búrka':
+              return <CloudRain size={16} className="text-purple-500" />;
+          case 'Vietor':
+              return <Wind size={16} className="text-sky-500" />;
+          case 'Sneženie':
+              return <Cloud size={16} className="text-cyan-400" />;
+          default:
+              return <Cloud size={16} className="text-slate-400" />;
+      }
+  };
 
   return (
     <div className="space-y-6 relative">
@@ -496,54 +705,55 @@ export const DiaryScreen = ({ profile, organization }: any) => {
             <div>
                <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                   <BookOpen className="text-orange-600" size={32} />
-                  Stavebný Denník
+                  {t('manage_diary')}
                </h2>
                <p className="text-sm text-slate-500 mt-1 font-medium">Elektronický stavebný denník</p>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-end">
-                <div className="w-full sm:w-80 relative">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                        <Search size={12}/> Hľadať a vybrať stavbu
-                    </label>
-                    <input 
-                        type="text" 
-                        placeholder="Vyhľadať projekt..."
-                        value={searchSiteQuery}
-                        onChange={(e) => setSearchSiteQuery(e.target.value)}
-                        onFocus={() => { if(searchSiteQuery === currentSiteName) setSearchSiteQuery(''); }}
-                        className="w-full p-2.5 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:border-orange-500 shadow-sm transition-all"
-                    />
-                    {searchSiteQuery !== currentSiteName && searchSiteQuery.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border-2 border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto custom-scrollbar">
-                            {filteredSitesList.map(s => (
-                                <button 
-                                    key={s.id} 
-                                    onClick={() => handleSiteChange(s.id, s.name)}
-                                    className="w-full text-left p-4 hover:bg-orange-50 border-b border-slate-50 flex items-center justify-between group transition"
-                                >
-                                    <div>
-                                        <div className="font-bold text-slate-900 group-hover:text-orange-700">{s.name}</div>
-                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{s.status === 'completed' ? 'Archív' : 'Aktívna'}</div>
-                                    </div>
-                                    <Building2 size={16} className="text-slate-200 group-hover:text-orange-300"/>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                {!fixedSiteId && (
+                    <div className="w-full sm:w-80 relative">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                            <Search size={12}/> {t('search_site_placeholder')}
+                        </label>
+                        <input 
+                            type="text" 
+                            placeholder={t('search_site_placeholder') + "..."}
+                            value={searchSiteQuery}
+                            onChange={(e) => setSearchSiteQuery(e.target.value)}
+                            onFocus={() => { if(searchSiteQuery === currentSiteName) setSearchSiteQuery(''); }}
+                            className="w-full p-2.5 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:border-orange-500 shadow-sm transition-all"
+                        />
+                        {searchSiteQuery !== currentSiteName && searchSiteQuery.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border-2 border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto custom-scrollbar">
+                                {filteredSitesList.map(s => (
+                                    <button 
+                                        key={s.id} 
+                                        onClick={() => handleSiteChange(s.id, s.name)}
+                                        className="w-full text-left p-4 hover:bg-orange-50 border-b border-slate-50 flex items-center justify-between group transition"
+                                    >
+                                        <div>
+                                            <div className="font-bold text-slate-900 group-hover:text-orange-700">{s.name}</div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{s.status === 'completed' ? t('archive_label') : t('active_label')}</div>
+                                        </div>
+                                        <Building2 size={16} className="text-slate-200 group-hover:text-orange-300"/>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
                 
                 {selectedSiteId && (
                     <Button onClick={handleExportFullPDF} disabled={exporting} className="whitespace-nowrap h-[46px] mt-auto">
                         {exporting ? <Loader2 className="animate-spin" size={18}/> : <Printer size={18}/>} 
-                        {exporting ? 'Generujem...' : 'Export PDF'}
+                        {exporting ? t('generating') : t('export_pdf')}
                     </Button>
                 )}
             </div>
           </div>
       )}
 
-      {/* Floating Preview Popover */}
       {previewDay && (
           <div 
             className="fixed z-[100] w-64 md:w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 animate-in zoom-in-95 duration-200 pointer-events-none backdrop-blur-sm bg-white/95"
@@ -553,26 +763,30 @@ export const DiaryScreen = ({ profile, organization }: any) => {
             }}
           >
               <div className="flex justify-between items-start mb-3">
-                  <h4 className="font-extrabold text-slate-900">{previewDay.date.toLocaleDateString('sk-SK', { day: 'numeric', month: 'long' })}</h4>
+                  <h4 className="font-extrabold text-slate-900">{previewDay.date.toLocaleDateString(getLocaleCode(), { day: 'numeric', month: 'long' })}</h4>
                   <div className="flex gap-1">
-                    {previewDay.stats?.status === 'signed' && <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold uppercase">Uzavreté</span>}
+                    {previewDay.stats?.status === 'signed' && <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold uppercase">{t('status_signed')}</span>}
                     {previewDay.stats?.totalHours > 0 && <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">{previewDay.stats.totalHours.toFixed(1)}h</span>}
                   </div>
               </div>
               
               <div className="space-y-3">
                 {previewDay.stats?.record && (
-                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-100/50 p-2 rounded-lg border border-slate-200/50">
-                        <Cloud size={14} className="text-slate-400" />
-                        <span>{previewDay.stats.record.weather || '-'}</span>
-                        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                        <span>{previewDay.stats.record.temperature_noon || '-'}°C</span>
-                    </div>
-                )}
+    <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-100/50 p-2 rounded-lg border border-slate-200/50">
+        <div className="flex items-center gap-2">
+            {renderWeatherIcon(previewDay.stats.record.weather)}
+        </div>
+
+        <span className="font-bold text-slate-700">
+            {previewDay.stats.record.temperature_noon || '-'}°C
+        </span>
+    </div>
+)}
+
                 
                 {previewDay.stats?.logs?.length > 0 && (
                     <div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pracovníci</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('workers')}</div>
                         <div className="text-xs text-slate-600 line-clamp-2 italic leading-relaxed">
                             {previewDay.stats.logs.join(', ')}
                         </div>
@@ -581,7 +795,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
 
                 {previewDay.stats?.record?.notes && (
                     <div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Záznam</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('record')}</div>
                         <div className="text-xs text-slate-700 line-clamp-3 bg-yellow-50/50 p-2 rounded border border-yellow-100/50 leading-relaxed font-mono">
                             {previewDay.stats.record.notes}
                         </div>
@@ -589,60 +803,106 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                 )}
 
                 {!previewDay.stats?.hasRecord && !previewDay.stats?.logs?.length && (
-                    <div className="text-xs text-slate-400 italic text-center py-4">Žiadne záznamy pre tento deň.</div>
+                    <div className="text-xs text-slate-400 italic text-center py-4">{t('no_day_records')}</div>
                 )}
                 
-                <div className="text-[9px] text-center text-slate-400 font-bold uppercase tracking-tighter mt-1 opacity-60">Kliknutím otvorte na úpravu</div>
+                <div className="text-[9px] text-center text-slate-400 font-bold uppercase tracking-tighter mt-1 opacity-60">{t('click_to_edit')}</div>
               </div>
           </div>
       )}
 
-      {!selectedSiteId ? (
-          <div className="p-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white shadow-sm">
-              Vyberte stavba pre zobrazenie denníka cez vyhľadávacie pole vyššie.
-          </div>
-      ) : selectedDay ? (
+      {selectedSiteId && selectedDay ? (
           (loading || !diaryEntry) ? (
               <div className="h-96 flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-200 shadow-sm animate-in fade-in">
                   <Loader2 className="animate-spin text-orange-600 mb-4" size={40} />
-                  <p className="text-slate-500 font-medium">Načítavam záznam...</p>
+                  <p className="text-slate-500 font-medium">{t('loading_record')}</p>
               </div>
           ) : (
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 sticky top-0 z-20">
-                  <div className="flex items-center gap-4">
-                    <button onClick={() => setSelectedDay(null)} className="text-slate-500 hover:text-slate-900 font-bold text-sm flex items-center gap-2 transition group">
-                        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform"/> Späť
-                    </button>
-                    <div className="hidden lg:flex items-center gap-2 text-slate-300">
-                        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-tight">{currentSiteName}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="text-center">
-                      <h2 className="text-lg font-extrabold text-slate-900 leading-tight">
-                          {selectedDay.toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                      </h2>
-                      <div className="flex items-center justify-center gap-2 text-[10px] font-bold mt-0.5">
-                          {isLocked ? (
-                              <span className="text-green-700 flex items-center gap-1 bg-green-100 px-2 py-0.5 rounded-full border border-green-200 uppercase tracking-wider"><Lock size={10}/> Uzavretý</span>
-                          ) : (
-                              <span className="text-orange-700 flex items-center gap-1 bg-orange-100 px-2 py-0.5 rounded-full border border-orange-200 uppercase tracking-wider"><PenTool size={10}/> Rozpracovaný</span>
-                          )}
-                      </div>
-                  </div>
-                  <div className="flex gap-2">
-                      {!isLocked && (
-                          <Button variant="secondary" size="sm" onClick={handleCopyPreviousDay} title="Kopírovať údaje z predchádzajúceho dňa">
-                              <Copy size={16}/> <span className="hidden lg:inline">Kopírovať včerajšok</span>
-                          </Button>
-                      )}
-                      <Button variant="secondary" size="sm" onClick={handleExportPDF}>
-                          <FileDown size={16}/> <span className="hidden lg:inline">PDF</span>
-                      </Button>
-                  </div>
-              </div>
+             <div className="sticky top-0 z-30 mb-6 bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+  
+  {/* HORNÝ RIADOK – názov stavby + status */}
+  <div className="bg-slate-50 border-b border-slate-100 px-4 py-2 flex items-center justify-between">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Building2 size={14} className="text-slate-400 flex-shrink-0"/>
+          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest truncate">
+              {currentSiteName}
+          </span>
+      </div>
+
+      {isLocked ? (
+          <span className="text-green-700 flex items-center gap-1 bg-green-100 px-2 py-0.5 rounded-full border border-green-200 text-[9px] font-bold uppercase tracking-wider">
+              <Lock size={10}/> {t('status_signed')}
+          </span>
+      ) : (
+          <span className="text-orange-700 flex items-center gap-1 bg-orange-100 px-2 py-0.5 rounded-full border border-orange-200 text-[9px] font-bold uppercase tracking-wider">
+              <PenTool size={10}/> {t('status_draft')}
+          </span>
+      )}
+  </div>
+
+  {/* HLAVNÝ RIADOK – späť / dátum / akcie */}
+  <div className="p-3 md:p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+
+      {/* ĽAVO */}
+      <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+          <button
+              onClick={() => setSelectedDay(null)}
+              className="text-slate-500 hover:text-slate-900 font-bold text-sm flex items-center gap-2 transition group whitespace-nowrap"
+          >
+              <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform"/>
+              <span className="hidden xs:inline">{t('back_to_overview')}</span>
+          </button>
+
+          {/* MOBILE – dátum */}
+          <div className="sm:hidden text-center flex-1">
+              <h2 className="text-sm font-extrabold text-slate-900">
+                  {selectedDay.toLocaleDateString(getLocaleCode(), {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short'
+                  })}
+              </h2>
+          </div>
+      </div>
+
+      {/* DESKTOP – dátum */}
+      <h2 className="hidden sm:block text-lg font-extrabold text-slate-900 text-center">
+          {selectedDay.toLocaleDateString(getLocaleCode(), {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+          })}
+      </h2>
+
+      {/* PRAVO – akcie */}
+      <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
+          {!isLocked && (
+              <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleCopyPreviousDay}
+                  className="flex-1 sm:flex-none"
+              >
+                  <Copy size={16}/>
+                  <span className="hidden lg:inline ml-1">{t('copy_yesterday')}</span>
+              </Button>
+          )}
+
+          <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExportPDF}
+              className="flex-1 sm:flex-none"
+          >
+              <FileDown size={16}/>
+              <span className="hidden lg:inline ml-1">PDF</span>
+          </Button>
+      </div>
+  </div>
+</div>
+
 
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                   <div className="xl:col-span-2 space-y-6">
@@ -652,39 +912,39 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                                   <div className="bg-white p-6 rounded-2xl shadow-2xl font-bold flex flex-col items-center gap-4 text-center border border-slate-200 max-w-sm">
                                       <div className="bg-green-100 p-3 rounded-full text-green-600"><Lock size={32}/></div>
                                       <div>
-                                          <h3 className="text-lg text-slate-900">Záznam je uzavretý</h3>
-                                          <p className="text-xs text-slate-500 font-medium mt-1">Údaje sú podpísané a chránené proti zmenám.</p>
+                                          <h3 className="text-lg text-slate-900">{t('status_signed')}</h3>
+                                          <p className="text-xs text-slate-500 font-medium mt-1">{t('unlock_for_edits_desc')}</p>
                                       </div>
                                       <Button variant="secondary" onClick={handleUnlock} size="sm" className="mt-2 w-full text-red-600 hover:bg-red-50 hover:border-red-200">
-                                          <Unlock size={16}/> Odomknúť pre úpravy
+                                          <Unlock size={16}/> {t('unlock_for_edits')}
                                       </Button>
                                   </div>
                               </div>
                           )}
                           
-                          <SectionHeader icon={Cloud} title="1. Poveternostné podmienky" sub="Teplota a počasie počas dňa" />
+                          <SectionHeader icon={Cloud} title={t('diary_section_weather')} sub={t('diary_section_weather_sub')} />
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                              <Select label="Stav počasia" value={diaryEntry.weather} onChange={(e: any) => setDiaryEntry({...diaryEntry, weather: e.target.value})}>
-                                  <option value="Slnečno">Slnečno ☀️</option>
-                                  <option value="Polooblačno">Polooblačno ⛅</option>
-                                  <option value="Oblačno">Oblačno ☁️</option>
-                                  <option value="Dážď">Dážď 🌧️</option>
-                                  <option value="Búrka">Búrka ⛈️</option>
-                                  <option value="Vietor">Vietor 💨</option>
-                                  <option value="Sneženie">Sneženie ❄️</option>
+                              <Select label={t('weather_status')} value={diaryEntry.weather} onChange={(e: any) => setDiaryEntry({...diaryEntry, weather: e.target.value})}>
+                                  <option value="Slnečno">{t('weather_sunny')} ☀️</option>
+                                  <option value="Polooblačno">{t('weather_partly_cloudy')} ⛅</option>
+                                  <option value="Oblačno">{t('weather_cloudy')} ☁️</option>
+                                  <option value="Dážď">{t('weather_rainy')} 🌧️</option>
+                                  <option value="Búrka">{t('weather_storm')} ⛈️</option>
+                                  <option value="Vietor">{t('weather_windy')} 💨</option>
+                                  <option value="Sneženie">{t('weather_snow')} ❄️</option>
                               </Select>
-                              <Input label="Teplota Ráno (7:00)" value={diaryEntry.temperature_morning} onChange={(e: any) => setDiaryEntry({...diaryEntry, temperature_morning: e.target.value})} placeholder="°C" />
-                              <Input label="Teplota Obed (13:00)" value={diaryEntry.temperature_noon} onChange={(e: any) => setDiaryEntry({...diaryEntry, temperature_noon: e.target.value})} placeholder="°C" />
+                              <Input label={t('temp_morning')} value={diaryEntry.temperature_morning} onChange={(e: any) => setDiaryEntry({...diaryEntry, temperature_morning: e.target.value})} placeholder="°C" />
+                              <Input label={t('temp_noon')} value={diaryEntry.temperature_noon} onChange={(e: any) => setDiaryEntry({...diaryEntry, temperature_noon: e.target.value})} placeholder="°C" />
                           </div>
 
                           <SectionHeader 
                             icon={PenTool} 
-                            title="2. Popis vykonaných prác" 
-                            sub="Detailný záznam postupu prác" 
+                            title={t('diary_section_notes')} 
+                            sub={t('diary_section_notes_sub')} 
                             action={
                                 !isLocked && dailyAttendance.length > 0 && (
-                                    <button onClick={importAttendanceToNotes} className="text-[10px] flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 transition font-bold" title="Doplní popisy z dochádzky do poznámky">
-                                        <RefreshCw size={12}/> Importovať z dochádzky
+                                    <button onClick={importAttendanceToNotes} className="text-[10px] flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 transition font-bold" title={t('import_from_attendance')}>
+                                        <RefreshCw size={12}/> {t('import_from_attendance')}
                                     </button>
                                 )
                             }
@@ -692,22 +952,22 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                           <div className="mb-8 relative">
                               <textarea 
                                   className="w-full p-4 bg-yellow-50/30 border border-slate-300 rounded-xl outline-none focus:border-orange-500 min-h-[250px] text-sm font-medium text-slate-800 leading-relaxed resize-y font-mono" 
-                                  placeholder="• Začiatok výkopových prác...&#10;• Betonáž základových pásov..."
+                                  placeholder={t('diary_notes_placeholder')}
                                   value={diaryEntry.notes || ''}
                                   onChange={(e) => setDiaryEntry({...diaryEntry, notes: e.target.value})}
                               />
                           </div>
 
-                          <SectionHeader icon={Truck} title="3. Mechanizmy a Stroje" sub="Nasadenie techniky na stavbe" />
+                          <SectionHeader icon={Truck} title={t('diary_section_mechanisms')} sub={t('diary_section_mechanisms_sub')} />
                           <div className="mb-8">
                               <Input 
                                 value={diaryEntry.mechanisms || ''} 
                                 onChange={(e: any) => setDiaryEntry({...diaryEntry, mechanisms: e.target.value})} 
-                                placeholder="Napr. Bager JCB (8h), Žeriav (4h)..." 
+                                placeholder={t('mechanisms_placeholder')}
                               />
                           </div>
 
-                          <SectionHeader icon={Camera} title="4. Fotodokumentácia" sub="Fotografie sú bezpečne uložené v cloude" />
+                          <SectionHeader icon={Camera} title={t('diary_section_photos')} sub={t('diary_section_photos_sub')} />
                           
                           <input 
                               type="file" 
@@ -723,7 +983,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                                 className="aspect-square border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-orange-400 cursor-pointer transition active:scale-95"
                               >
                                   {loading ? <Loader2 size={24} className="animate-spin mb-2"/> : <Camera size={24} className="mb-2"/>}
-                                  <span className="text-xs font-bold uppercase">{loading ? 'Spracúvam...' : 'Pridať foto'}</span>
+                                  <span className="text-xs font-bold uppercase">{loading ? '...' : t('take_photo')}</span>
                               </div>
 
                               {diaryEntry.photos?.map((photo: string, index: number) => (
@@ -744,14 +1004,14 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                           <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-100">
                               <div className="flex flex-col gap-3 w-full md:flex-row md:justify-end md:gap-3 order-1 md:order-2">
                                   <Button variant="secondary" onClick={(e: any) => handleSave(e, 'draft')} fullWidth className="md:w-auto justify-center">
-                                      <Save size={18}/> Uložiť (Rozpracované)
+                                      <Save size={18}/> {t('save_draft')}
                                   </Button>
                                   <Button variant="primary" onClick={(e: any) => handleSave(e, 'signed')} fullWidth className="md:w-auto bg-green-600 hover:bg-green-700 shadow-green-200 border-none text-white justify-center">
-                                      <CheckCircle2 size={18}/> Uzavrieť a Podpísať
+                                      <CheckCircle2 size={18}/> {t('sign_and_close')}
                                   </Button>
                               </div>
                               <div className="text-xs text-slate-400 text-center md:text-left order-2 md:order-1 w-full md:w-auto mt-2 md:mt-0">
-                                  {diaryEntry.updated_at ? `Naposledy uložené: ${new Date(diaryEntry.updated_at).toLocaleTimeString()}` : 'Zatiaľ neuložené'}
+                                  {diaryEntry.updated_at ? `${t('last_saved')}: ${new Date(diaryEntry.updated_at).toLocaleTimeString()}` : t('not_saved_yet')}
                               </div>
                           </div>
                       </Card>
@@ -760,11 +1020,11 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                   <div className="space-y-6">
                       <div className="bg-gradient-to-br from-orange-50 to-white text-slate-800 p-5 rounded-2xl shadow-md border border-orange-100 relative overflow-hidden">
                           <div className="relative z-10">
-                              <h4 className="font-bold text-xs uppercase tracking-wider mb-2 text-orange-600 opacity-80">Denný Súhrn</h4>
+                              <h4 className="font-bold text-xs uppercase tracking-wider mb-2 text-orange-600 opacity-80">{t('daily_summary')}</h4>
                               <div className="text-3xl font-extrabold flex items-baseline gap-2 text-slate-900">
-                                  {dailyAttendance.reduce((a,b) => a + Number(b.hours), 0).toFixed(1)} <span className="text-lg font-medium opacity-60">hodín</span>
+                                  {dailyAttendance.reduce((a,b) => a + Number(b.hours), 0).toFixed(1)} <span className="text-lg font-medium opacity-60">{t('hours_unit')}</span>
                               </div>
-                              <div className="mt-2 text-xs font-medium text-slate-500">{dailyAttendance.length} pracovníkov na stavbe</div>
+                              <div className="mt-2 text-xs font-medium text-slate-500">{dailyAttendance.length} {t('workers_on_site')}</div>
                           </div>
                           <div className="absolute right-[-10px] bottom-[-10px] text-orange-500/10 transform rotate-12">
                               <Users size={100} />
@@ -772,8 +1032,8 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                       </div>
 
                       <Card className="bg-white border-slate-200 shadow-sm p-4">
-                          <SectionHeader icon={ListChecks} title="Dostupné práce" sub="Z dnešnej dochádzky" />
-                          {dailyAttendance.length === 0 ? <div className="text-sm text-slate-400 italic py-2 text-center">Žiadne záznamy.</div> : (
+                          <SectionHeader icon={ListChecks} title={t('available_works')} sub={t('from_today_attendance')} />
+                          {dailyAttendance.length === 0 ? <div className="text-sm text-slate-400 italic py-2 text-center">{t('no_records')}.</div> : (
                               <div className="space-y-3">
                                   {dailyAttendance.map(log => (
                                       <div key={log.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs shadow-sm hover:border-blue-200 transition group relative overflow-hidden">
@@ -783,13 +1043,8 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                                               <span className="font-mono font-bold text-blue-600">{Number(log.hours).toFixed(1)}h</span>
                                           </div>
                                           <p className="text-slate-600 italic font-medium leading-relaxed">
-                                              {log.description || '(Bez popisu práce)'}
+                                              {log.description || `(${t('no_records')})`}
                                           </p>
-                                          {diaryEntry?.notes && diaryEntry.notes.includes(log.description) ? (
-                                              <div className="mt-2 flex items-center gap-1 text-green-600 font-bold text-[8px] uppercase">
-                                                  <CheckCircle2 size={10}/> Importované do denníka
-                                              </div>
-                                          ) : null}
                                       </div>
                                   ))}
                               </div>
@@ -797,8 +1052,8 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                       </Card>
 
                       <Card className="bg-white border-slate-200 shadow-sm p-4">
-                          <SectionHeader icon={Package} title="Nákupy materiálu" sub="Z dnešných nákladov" />
-                          {dailyMaterials.length === 0 ? <div className="text-sm text-slate-400 italic py-2 text-center">Žiadne nákupy.</div> : (
+                          <SectionHeader icon={Package} title={t('material_purchases')} sub={t('from_today_costs')} />
+                          {dailyMaterials.length === 0 ? <div className="text-sm text-slate-400 italic py-2 text-center">{t('no_purchases')}</div> : (
                               <div className="space-y-2">
                                   {dailyMaterials.map(mat => (
                                       <div key={mat.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs hover:border-orange-200 transition">
@@ -815,83 +1070,71 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                   </div>
               </div>
 
-              {/* HIDDEN PDF TEMPLATE */}
               <div className="fixed left-[-9999px]">
-                  <div ref={printRef} className="w-[190mm] bg-white p-8 text-slate-900 font-sans text-sm leading-normal relative box-border text-left">
-                      <div className="absolute top-4 right-4 text-[10px] text-slate-400">Digitálny Denník vygenerovaný cez MojaStavba</div>
+                  <div ref={printRef} className="w-[190mm] bg-white p-8 text-slate-900 font-sans text-sm leading-normal relative box-border text-left flex flex-col min-h-[277mm]">
+                      <div className="absolute top-4 right-4 text-[10px] text-slate-400">{t('generated_via')}</div>
                       <div className="border-b-2 border-black pb-4 mb-6">
-                          <h1 className="text-2xl font-bold uppercase tracking-widest text-center mb-2">Stavebný Denník</h1>
+                          <h1 className="text-2xl font-bold uppercase tracking-widest text-center mb-2">{t('manage_diary')}</h1>
                           <div className="flex justify-between items-end mt-4">
                               <div>
                                   <div className="font-bold text-lg">{currentSiteName}</div>
-                                  <div className="text-xs uppercase tracking-wide text-slate-500">Objekt / Stavba</div>
+                                  <div className="text-xs uppercase tracking-wide text-slate-500">{t('site_label')}</div>
                               </div>
                               <div className="text-right">
-                                  <div className="font-bold text-xl">{selectedDay.toLocaleDateString('sk-SK')}</div>
-                                  <div className="text-xs uppercase tracking-wide text-slate-500">Dátum</div>
+                                  <div className="font-bold text-xl">{selectedDay.toLocaleDateString(getLocaleCode())}</div>
+                                  <div className="text-xs uppercase tracking-wide text-slate-500">{t('date_label')}</div>
                               </div>
                           </div>
                       </div>
                       <div className="border border-black mb-6">
-                          <div className="bg-slate-100 border-b border-black p-1 text-center font-bold uppercase text-xs">Poveternostné podmienky</div>
+                          <div className="bg-slate-100 border-b border-black p-1 text-center font-bold uppercase text-xs">{t('diary_section_weather')}</div>
                           <div className="grid grid-cols-3 divide-x divide-black text-center p-2">
                               <div>
-                                  <span className="block text-[10px] text-slate-500 uppercase">Stav</span>
+                                  <span className="block text-[10px] text-slate-500 uppercase">{t('weather_status')}</span>
                                   <span className="font-bold">{diaryEntry.weather || '-'}</span>
                               </div>
                               <div>
-                                  <span className="block text-[10px] text-slate-500 uppercase">Teplota 7:00</span>
+                                  <span className="block text-[10px] text-slate-500 uppercase">{t('morning_7')}</span>
                                   <span className="font-bold">{diaryEntry.temperature_morning || '-'} °C</span>
                               </div>
                               <div>
-                                  <span className="block text-[10px] text-slate-500 uppercase">Teplota 13:00</span>
+                                  <span className="block text-[10px] text-slate-500 uppercase">{t('noon_13')}</span>
                                   <span className="font-bold">{diaryEntry.temperature_noon || '-'} °C</span>
                               </div>
                           </div>
                       </div>
                       {[
-                          { title: '1. Pracovníci (Menovitý zoznam)', content: dailyAttendance.length > 0 ? dailyAttendance.map(l => `${l.profiles?.full_name} (${Number(l.hours).toFixed(1)}h)`).join(', ') : 'Bez záznamu' },
-                          { title: '2. Mechanizmy a Doprava', content: diaryEntry.mechanisms || 'Bez nasadenia' },
-                          { title: '3. Dodaný materiál a hmoty', content: dailyMaterials.length > 0 ? dailyMaterials.map(m => `${m.name} (${m.quantity} ${m.unit})`).join(', ') : 'Žiadne dodávky' },
+                          { title: `1. ${t('workers')}`, content: dailyAttendance.length > 0 ? dailyAttendance.map(l => `${l.profiles?.full_name} (${Number(l.hours).toFixed(1)}h)`).join(', ') : t('no_records') },
+                          { title: `2. ${t('diary_section_mechanisms')}`, content: diaryEntry.mechanisms || t('no_records') },
+                          { title: `3. ${t('material_purchases')}`, content: dailyMaterials.length > 0 ? dailyMaterials.map(m => `${m.name} (${m.quantity} ${m.unit})`).join(', ') : t('no_purchases') },
                       ].map((sec, i) => (
                           <div key={i} className="mb-6">
-                              <div className="font-bold uppercase text-xs border-b border-slate-300 mb-2">{sec.title}</div>
+                              <div className="font-bold uppercase text-xs border-b border-slate-300 mb-2 pb-1">{sec.title}</div>
                               <div className="text-justify leading-snug">{sec.content}</div>
                           </div>
                       ))}
-                      {diaryEntry.photos?.length > 0 && (
-                          <div className="mb-6">
-                              <div className="font-bold uppercase text-xs border-b border-black mb-2 pb-1">4. Fotodokumentácia</div>
-                              <div className="grid grid-cols-3 gap-2">
-                                  {diaryEntry.photos.slice(0, 6).map((p: string, i: number) => (
-                                      <div key={i} className="aspect-video bg-slate-100 overflow-hidden border border-slate-300">
-                                          <img src={p} crossOrigin="anonymous" className="w-full h-full object-cover" />
-                                      </div>
-                                  ))}
-                              </div>
-                          </div>
-                      )}
                       <div className="mb-8 flex-1">
-                          <div className="font-bold uppercase text-xs border-b border-black mb-2 pb-1">5. Popis prác a záznamy</div>
-                          <div className="whitespace-pre-wrap text-justify min-h-[100px] text-sm leading-relaxed border-l-2 border-slate-100 pl-4">{diaryEntry.notes || 'Žiadny popis.'}</div>
+                          <div className="font-bold uppercase text-xs border-b border-black mb-2 pb-1">4. {t('diary_section_notes')}</div>
+                          <div className="whitespace-pre-wrap text-justify min-h-[100px] text-sm leading-relaxed border-l-2 border-slate-100 pl-4">{diaryEntry.notes || t('no_records')}</div>
                       </div>
-                      <div className="mt-auto pt-10 border-t-2 border-black grid grid-cols-2 gap-20">
+
+                      <div className="mt-auto pt-10 border-t border-slate-200 grid grid-cols-2 gap-10">
                           <div className="text-center">
-                              <div className="h-12 border-b border-dotted border-black mb-2"></div>
-                              <div className="text-xs uppercase font-bold">Stavbyvedúci (Meno, Podpis)</div>
+                              <div className="h-16 border-b border-slate-300 mb-2"></div>
+                              <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{t('stamp_signature')}</div>
                           </div>
                           <div className="text-center relative">
-                                <div className="h-12 border-b border-dotted border-black mb-2 flex items-center justify-center">
-                                    {organization.stamp_url ? (
-                                        <img 
+                              <div className="h-16 border-b border-slate-300 mb-2 flex items-center justify-center">
+                                  {organization.stamp_url && (
+                                      <img 
                                           src={organization.stamp_url} 
                                           alt="Pečiatka" 
                                           crossOrigin="anonymous" 
-                                          className="h-24 absolute -top-10 rotate-3 opacity-90" 
-                                        />
-                                    ) : null}
-                                </div>
-                                <div className="text-xs uppercase font-bold">Pečiatka a Podpis Firmy</div>
+                                          className="h-28 absolute -top-12 rotate-3 opacity-95 pointer-events-none" 
+                                      />
+                                  )}
+                              </div>
+                              <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{t('stamp_signature')}</div>
                           </div>
                       </div>
                   </div>
@@ -904,19 +1147,14 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                   <div className="flex items-center gap-4">
                       <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-2 hover:bg-slate-100 rounded-full transition"><ArrowLeft size={18}/></button>
                       <h3 className="text-xl font-bold capitalize w-48 text-center text-slate-800">
-                          {currentDate.toLocaleDateString('sk-SK', { month: 'long', year: 'numeric' })}
+                          {currentDate.toLocaleDateString(getLocaleCode(), { month: 'long', year: 'numeric' })}
                       </h3>
                       <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-2 hover:bg-slate-100 rounded-full transition"><ArrowRight size={18}/></button>
-                  </div>
-                  <div className="hidden sm:block">
-                      <div className="bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-orange-100">
-                          {currentSiteName}
-                      </div>
                   </div>
               </div>
 
               <div className="grid grid-cols-7 gap-1 md:gap-2 mb-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  {['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'].map(d => <div key={d}>{d}</div>)}
+                  {t('days_short').map((d: string) => <div key={d}>{d}</div>)}
               </div>
               
               <div className="grid grid-cols-7 gap-1 md:gap-2 p-1 md:p-2 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
@@ -959,7 +1197,7 @@ export const DiaryScreen = ({ profile, organization }: any) => {
                                 )}
                               </div>
                               <div className="mt-auto w-full opacity-0 md:group-hover:opacity-100 transition-opacity flex justify-between items-end relative z-10">
-                                  <div className="bg-slate-900/5 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase hidden md:block">Podrobnosti</div>
+                                  <div className="bg-slate-900/5 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase hidden md:block">{t('details')}</div>
                                   {stats?.totalHours > 0 && <span className="text-[9px] md:text-[10px] font-black text-blue-600 mb-0.5">{stats.totalHours.toFixed(1)}h</span>}
                               </div>
                           </button>
@@ -971,48 +1209,88 @@ export const DiaryScreen = ({ profile, organization }: any) => {
 
       {fullExportData && (
           <div className="fixed left-[-9999px]">
-              <div ref={fullPrintRef} className="w-[210mm] bg-white p-8 text-slate-900 font-sans text-xs leading-normal">
-                  <div className="text-right text-[10px] text-slate-400 mb-2">MojaStavba.app - Kompletný Denník</div>
-                  <div className="border-b-2 border-black pb-4 mb-6">
-                      <h1 className="text-2xl font-bold uppercase tracking-widest text-center">Stavebný Denník</h1>
-                      <div className="text-center text-lg mt-2 font-bold">{currentSiteName}</div>
+              <div ref={fullPrintRef} className="w-[190mm] bg-white p-8 text-slate-900 font-sans text-xs leading-normal box-border text-left">
+                  <div className="text-right text-[10px] text-slate-400 mb-2">{t('generated_via')}</div>
+                  <div className="border-b-2 border-black pb-4 mb-8">
+                      <h1 className="text-2xl font-bold uppercase tracking-widest text-center mb-1">{t('manage_diary')}</h1>
+                      <div className="text-center text-lg font-bold text-slate-700 uppercase">{currentSiteName}</div>
                   </div>
-                  <table className="w-full border-collapse border border-slate-300 text-left">
-                      <thead className="bg-slate-100">
-                          <tr>
-                              <th className="border border-slate-300 p-2 w-[15%]">Dátum</th>
-                              <th className="border border-slate-300 p-2 w-[25%]">Pracovníci</th>
-                              <th className="border border-slate-300 p-2 w-[40%]">Popis prác</th>
-                              <th className="border border-slate-300 p-2 w-[20%]">Materiál</th>
-                          </tr>
-                      </thead>
-                      <tbody>
-                          {fullExportData.map((day, idx) => (
-                              <tr key={idx} className="break-inside-avoid">
-                                  <td className="border border-slate-300 p-2 align-top">
-                                      <div className="font-bold">{formatDate(day.date)}</div>
-                                      {day.record?.weather && <div className="mt-1">Poč: {day.record.weather}</div>}
-                                  </td>
-                                  <td className="border border-slate-300 p-2 align-top">
-                                      {day.logs?.map((l: any, i: number) => (
-                                          <div key={i}>{l.profiles?.full_name} ({Number(l.hours).toFixed(1)}h)</div>
-                                      ))}
-                                  </td>
-                                  <td className="border border-slate-300 p-2 align-top whitespace-pre-wrap">{day.record?.notes || '-'}</td>
-                                  <td className="border border-slate-300 p-2 align-top">
-                                      {day.materials?.map((m: any, i: number) => (
-                                          <div key={i}>{m.name} ({m.quantity} {m.unit})</div>
-                                      ))}
-                                  </td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
+
+                  {fullExportData.map((day, idx) => (
+                      <div key={idx} className="mb-12 border-b border-slate-200 pb-12 break-inside-avoid">
+                          <div className="flex justify-between items-center mb-4 bg-slate-50 p-2 border-l-4 border-black">
+                              <div className="text-lg font-bold">{formatDate(day.date)}</div>
+                              <div className="text-[10px] uppercase font-bold text-slate-500">{t('record')}</div>
+                          </div>
+
+                          <div className="grid grid-cols-3 border border-black text-center mb-4 bg-slate-100/30">
+                              <div className="p-2 border-r border-black">
+                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center">{t('weather_status')}</div>
+                                  <div className="font-bold text-xs text-center">{day.record?.weather || '-'}</div>
+                              </div>
+                              <div className="p-2 border-r border-black">
+                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center">{t('morning_7')}</div>
+                                  <div className="font-bold text-xs text-center">{day.record?.temperature_morning ? `${day.record.temperature_morning}°C` : '-'}</div>
+                              </div>
+                              <div className="p-2">
+                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center">{t('noon_13')}</div>
+                                  <div className="font-bold text-xs text-center">{day.record?.temperature_noon ? `${day.record.temperature_noon}°C` : '-'}</div>
+                              </div>
+                          </div>
+
+                          <div className="space-y-4">
+                              <div>
+                                  <div className="font-bold uppercase text-[10px] border-b border-slate-300 mb-2 pb-1">1. {t('workers')}</div>
+                                  <div className="text-xs leading-relaxed">
+                                      {day.logs?.length > 0 
+                                          ? day.logs.map((l: any, i: number) => `${l.profiles?.full_name} (${Number(l.hours).toFixed(1)}h)`).join(', ') 
+                                          : t('no_records')}
+                                  </div>
+                              </div>
+
+                              <div>
+                                  <div className="font-bold uppercase text-[10px] border-b border-slate-300 mb-2 pb-1">2. {t('diary_section_mechanisms')}</div>
+                                  <div className="text-xs">{day.record?.mechanisms || t('no_records')}</div>
+                              </div>
+
+                              <div>
+                                  <div className="font-bold uppercase text-[10px] border-b border-slate-300 mb-2 pb-1">3. {t('material_purchases')}</div>
+                                  <div className="text-xs">
+                                      {day.materials?.length > 0 
+                                          ? day.materials.map((m: any, i: number) => `${m.name} (${m.quantity} ${m.unit})`).join(', ') 
+                                          : t('no_purchases')}
+                                  </div>
+                              </div>
+
+                              <div>
+                                  <div className="font-bold uppercase text-[10px] border-b border-black mb-2 pb-1">4. {t('diary_section_notes')}</div>
+                                  <div className="text-xs whitespace-pre-wrap text-justify leading-relaxed bg-slate-50/50 p-2 rounded">
+                                      {day.record?.notes || t('no_records')}
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  ))}
+                  
+                  <div className="mt-12 pt-8 border-t-2 border-black flex justify-between items-start">
+                      <div className="text-[10px] text-slate-400">
+                          {t('generated_via')}<br/>
+                          {new Date().toLocaleString(getLocaleCode())}
+                      </div>
+                      <div className="text-center relative w-48">
+                            <div className="h-12 border-b border-dotted border-black mb-1 flex items-center justify-center">
+                                {organization.stamp_url && (
+                                    <img src={organization.stamp_url} crossOrigin="anonymous" className="h-20 absolute -top-8 rotate-2 opacity-80" />
+                                )}
+                            </div>
+                            <div className="text-[9px] uppercase font-bold">{t('stamp_signature')}</div>
+                      </div>
+                  </div>
               </div>
           </div>
       )}
 
-      <AlertModal isOpen={alert.open} onClose={() => setAlert({...alert, open: false})} title={alert.type === 'error' ? 'Chyba' : 'Úspech'} message={alert.message} type={alert.type} />
+      <AlertModal isOpen={alertState.open} onClose={() => setAlertState({...alertState, open: false})} title={alertState.type === 'error' ? '!' : '✓'} message={alertState.message} buttonText={t('understand')} type={alertState.type} />
     </div>
   );
 };

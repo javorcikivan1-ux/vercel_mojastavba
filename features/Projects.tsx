@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, CustomLogo } from '../components/UI';
-import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus, Fuel } from 'lucide-react';
+// Added BookOpen to lucide-react imports to fix line 162 error
+import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus, Fuel, Users, Settings2, Save, Shield, BookOpen } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -22,10 +23,8 @@ declare global {
 }
 
 const PAGE_SIZE = 12;
-
 const UNIT_OPTIONS = ['ks', 'm', 'm2', 'm3', 'kg', 't', 'l', 'bal', 'paleta', 'hod', 'súbor', 'km'];
 
-// Pomocná funkcia pre presné finančné zaokrúhľovanie
 const roundFin = (num: number): number => {
     return Math.round((num + Number.EPSILON) * 100) / 100;
 };
@@ -37,20 +36,12 @@ const EmptyState = ({ message }: { message: string }) => (
     </div>
 );
 
-const calculateSmartHours = (start: string, end: string): number => {
-    if (!start || !end) return 0;
-    const [sH, sM] = start.split(':').map(Number);
-    const [eH, eM] = end.split(':').map(Number);
-    let totalMinutes = (eH * 60 + eM) - (sH * 60 + sM);
-    if (totalMinutes < 0) totalMinutes += 24 * 60; 
-    return totalMinutes / 60;
-};
-
 const parseNotesData = (rawNotes: string = '') => {
     let breakdown: any[] = [];
     let cleanNotes = rawNotes || '';
     let hasVat = false;
-    let vatRate = 23;
+    let vatRate = 20;
+    let isIndividualVat = false;
 
     const startTag = '[JSON_BREAKDOWN:';
     const startIndex = cleanNotes.indexOf(startTag);
@@ -66,7 +57,8 @@ const parseNotesData = (rawNotes: string = '') => {
                 } else {
                     breakdown = parsed.items || [];
                     hasVat = parsed.hasVat || false;
-                    vatRate = parsed.vatRate ?? 23;
+                    vatRate = parsed.vatRate ?? 20;
+                    isIndividualVat = parsed.isIndividualVat || false;
                 }
                 const before = cleanNotes.substring(0, startIndex);
                 const after = cleanNotes.substring(lastIndex + 1);
@@ -77,7 +69,117 @@ const parseNotesData = (rawNotes: string = '') => {
         }
     }
     
-    return { breakdown, cleanNotes, hasVat, vatRate };
+    return { breakdown, cleanNotes, hasVat, vatRate, isIndividualVat };
+};
+
+// --- NOVÁ TABUĽKA PRE POVERENIA ---
+const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string, organizationId: string }) => {
+    const [workers, setWorkers] = useState<any[]>([]);
+    const [permissions, setPermissions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [savingId, setSavingId] = useState<string | null>(null);
+
+    const load = async () => {
+        setLoading(true);
+        const [wRes, pRes] = await Promise.all([
+            supabase.from('profiles').select('*').eq('organization_id', organizationId).eq('is_active', true).eq('role', 'employee'),
+            supabase.from('site_permissions').select('*').eq('site_id', siteId)
+        ]);
+        if (wRes.data) setWorkers(wRes.data);
+        if (pRes.data) setPermissions(pRes.data);
+        setLoading(false);
+    };
+
+    useEffect(() => { load(); }, [siteId]);
+
+    const togglePermission = async (userId: string, field: 'can_manage_diary' | 'can_manage_finance') => {
+        setSavingId(userId + '_' + field);
+        const existing = permissions.find(p => p.user_id === userId);
+        
+        try {
+            if (existing) {
+                const newVal = !existing[field];
+                // Ak sú obe false, záznam zmažeme, inak update
+                if (!newVal && !existing[field === 'can_manage_diary' ? 'can_manage_finance' : 'can_manage_diary']) {
+                    await supabase.from('site_permissions').delete().eq('id', existing.id);
+                    setPermissions(permissions.filter(p => p.id !== existing.id));
+                } else {
+                    await supabase.from('site_permissions').update({ [field]: newVal }).eq('id', existing.id);
+                    setPermissions(permissions.map(p => p.id === existing.id ? { ...p, [field]: newVal } : p));
+                }
+            } else {
+                const { data, error } = await supabase.from('site_permissions').insert([{
+                    user_id: userId,
+                    site_id: siteId,
+                    organization_id: organizationId,
+                    [field]: true,
+                    [field === 'can_manage_diary' ? 'can_manage_finance' : 'can_manage_diary']: false
+                }]).select().single();
+                if (data) setPermissions([...permissions, data]);
+            }
+        } finally {
+            setSavingId(null);
+        }
+    };
+
+    if (loading) return <div className="py-10 text-center"><Loader2 className="animate-spin mx-auto text-orange-600"/></div>;
+
+    return (
+        <div className="space-y-6 animate-in fade-in">
+            <div className="p-5 bg-blue-50 border border-blue-100 rounded-3xl flex items-start gap-4">
+                <div className="bg-blue-600 text-white p-2 rounded-xl shadow-lg shadow-blue-200">
+                    <Shield size={20}/>
+                </div>
+                <div>
+                    <h4 className="font-black text-blue-900 text-sm uppercase tracking-tight">Delegovanie právomocí</h4>
+                    <p className="text-xs text-blue-700 font-medium leading-relaxed mt-1">
+                        Tu môžete určiť, ktorí zamestnanci majú právo spravovať túto zákazku s možnosťou zápisov do <strong>Stavebného denníka</strong> a zaznamenávaním <strong>nákladov a PHM</strong>.
+                    </p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+                {workers.map(w => {
+                    const p = permissions.find(x => x.user_id === w.id);
+                    return (
+                        <Card key={w.id} className="p-4 border-slate-200 hover:border-orange-200 transition bg-white shadow-sm">
+                            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-400 border border-slate-200">
+                                        {w.full_name?.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-900">{w.full_name}</div>
+                                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{w.job_title || 'zamestnanec'}</div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => togglePermission(w.id, 'can_manage_diary')}
+                                        disabled={savingId === w.id + '_can_manage_diary'}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${p?.can_manage_diary ? 'bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-100' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                                    >
+                                        {savingId === w.id + '_can_manage_diary' ? <Loader2 size={14} className="animate-spin"/> : <BookOpen size={14}/>}
+                                        Vedenie denníka
+                                    </button>
+                                    <button 
+                                        onClick={() => togglePermission(w.id, 'can_manage_finance')}
+                                        disabled={savingId === w.id + '_can_manage_finance'}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${p?.can_manage_finance ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                                    >
+                                        {savingId === w.id + '_can_manage_finance' ? <Loader2 size={14} className="animate-spin"/> : <Package size={14}/>}
+                                        Správa nákupov
+                                    </button>
+                                </div>
+                            </div>
+                        </Card>
+                    );
+                })}
+                {workers.length === 0 && <div className="text-center py-10 text-slate-300 font-bold uppercase text-[10px]">Žiadni aktívni zamestnanci na priradenie.</div>}
+            </div>
+        </div>
+    );
 };
 
 export const ProjectsScreen = ({ profile, onSelect, selectedSiteId, organization }: { profile: UserProfile, onSelect: (id: string | null) => void, selectedSiteId: string | null, organization: any }) => {
@@ -110,11 +212,11 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
   
   const [showModal, setShowModal] = useState(false);
   const [editingSite, setEditingSite] = useState<any>(null);
-  const [formData, setFormData] = useState<any>({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 23 });
-  const [budgetBreakdown, setBudgetBreakdown] = useState<{id: string, label: string, amount: number}[]>([]);
+  const [formData, setFormData] = useState<any>({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 20, isIndividualVat: false });
+  const [budgetBreakdown, setBudgetBreakdown] = useState<{id: string, label: string, amount: number, vatRate?: number}[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
   
-  const [alert, setAlert] = useState<{open: boolean, title: string, message: string, type: string}>({ open: false, title: '', message: '', type: 'success' });
+  const [alertState, setAlertState] = useState<{open: boolean, title: string, message: string, type: string}>({ open: false, title: '', message: '', type: 'success' });
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string | null}>({ open: false, action: '', id: null });
 
   const handleTabChange = (newTab: 'leads' | 'active' | 'archive') => {
@@ -177,7 +279,6 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
             const enriched = sitesData.map(site => {
                 const s = statsRes?.find(st => st.site_id === site.id);
                 const income = roundFin(Number(s?.total_income || 0));
-                // PRIDANÉ: total_fuel_cost do výpočtu celkových nákladov
                 const totalCost = roundFin(
                     Number(s?.total_direct_expenses || 0) + 
                     Number(s?.total_material_cost || 0) + 
@@ -206,7 +307,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
 
   const handleEditSite = (site: any) => {
       setEditingSite(site);
-      const { breakdown, cleanNotes, hasVat, vatRate } = parseNotesData(site.notes);
+      const { breakdown, cleanNotes, hasVat, vatRate, isIndividualVat } = parseNotesData(site.notes);
 
       setFormData({
           name: site.name,
@@ -217,47 +318,64 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
           lead_stage: site.lead_stage || 'new',
           notes: cleanNotes,
           hasVat: hasVat,
-          vatRate: vatRate
+          vatRate: vatRate,
+          isIndividualVat: isIndividualVat
       });
       setBudgetBreakdown(breakdown);
       setShowBreakdown(breakdown.length > 0);
       setShowModal(true);
   };
 
-  const calculateTotalWithVat = (items: any[], hasVat: boolean, rate: number) => {
-    const subtotal = items.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0);
-    if (!hasVat) return roundFin(subtotal);
-    const vatAmount = roundFin(subtotal * (rate / 100));
-    return roundFin(subtotal + vatAmount);
+  const calculateTotalWithVat = (items: any[], hasVat: boolean, isIndividual: boolean, globalRate: number) => {
+    if (!hasVat) return roundFin(items.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0));
+    
+    if (isIndividual) {
+        const total = items.reduce((acc, i) => {
+            const sub = Math.max(0, Number(i.amount)) || 0;
+            const rate = i.vatRate ?? globalRate;
+            return acc + roundFin(sub * (1 + (rate / 100)));
+        }, 0);
+        return roundFin(total);
+    } else {
+        const subtotal = items.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0);
+        const vatAmount = roundFin(subtotal * (globalRate / 100));
+        return roundFin(subtotal + vatAmount);
+    }
   };
 
   const addBudgetLine = () => {
-    const newList = [...budgetBreakdown, { id: crypto.randomUUID(), label: '', amount: 0 }];
+    const newList = [...budgetBreakdown, { id: crypto.randomUUID(), label: '', amount: 0, vatRate: formData.vatRate }];
     setBudgetBreakdown(newList);
-    setFormData({ ...formData, budget: calculateTotalWithVat(newList, formData.hasVat, formData.vatRate) });
+    setFormData({ ...formData, budget: calculateTotalWithVat(newList, formData.hasVat, formData.isIndividualVat, formData.vatRate) });
   };
 
   const removeBudgetLine = (id: string) => {
     const newList = budgetBreakdown.filter(i => i.id !== id);
     setBudgetBreakdown(newList);
-    setFormData({ ...formData, budget: calculateTotalWithVat(newList, formData.hasVat, formData.vatRate) });
+    setFormData({ ...formData, budget: calculateTotalWithVat(newList, formData.hasVat, formData.isIndividualVat, formData.vatRate) });
   };
 
-  const updateBudgetLine = (id: string, field: 'label' | 'amount', value: any) => {
+  const updateBudgetLine = (id: string, field: 'label' | 'amount' | 'vatRate', value: any) => {
     let finalValue = value;
-    if (field === 'amount') finalValue = Math.max(0, parseFloat(value) || 0);
+    if (field === 'amount' || field === 'vatRate') finalValue = Math.max(0, parseFloat(value) || 0);
     const newList = budgetBreakdown.map(i => i.id === id ? { ...i, [field]: finalValue } : i);
     setBudgetBreakdown(newList);
-    setFormData({ ...formData, budget: calculateTotalWithVat(newList, formData.hasVat, formData.vatRate) });
+    setFormData({ ...formData, budget: calculateTotalWithVat(newList, formData.hasVat, formData.isIndividualVat, formData.vatRate) });
   };
 
   const toggleVat = (enabled: boolean) => {
-    setFormData({ ...formData, hasVat: enabled, budget: calculateTotalWithVat(budgetBreakdown, enabled, formData.vatRate) });
+    setFormData({ ...formData, hasVat: enabled, budget: calculateTotalWithVat(budgetBreakdown, enabled, formData.isIndividualVat, formData.vatRate) });
+  };
+
+  const toggleIndividualVat = (enabled: boolean) => {
+    const newList = budgetBreakdown.map(item => ({...item, vatRate: item.vatRate ?? formData.vatRate}));
+    setBudgetBreakdown(newList);
+    setFormData({ ...formData, isIndividualVat: enabled, budget: calculateTotalWithVat(newList, formData.hasVat, enabled, formData.vatRate) });
   };
 
   const updateVatRate = (rate: number) => {
     const cleanRate = Math.max(0, rate);
-    setFormData({ ...formData, vatRate: cleanRate, budget: calculateTotalWithVat(budgetBreakdown, formData.hasVat, cleanRate) });
+    setFormData({ ...formData, vatRate: cleanRate, budget: calculateTotalWithVat(budgetBreakdown, formData.hasVat, formData.isIndividualVat, cleanRate) });
   };
 
   const handleSaveSite = async (e: React.FormEvent) => {
@@ -271,7 +389,8 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
             const dataToStore = {
                 items: budgetBreakdown,
                 hasVat: formData.hasVat,
-                vatRate: formData.vatRate
+                vatRate: formData.vatRate,
+                isIndividualVat: formData.isIndividualVat
             };
             finalNotes += `\n\n[JSON_BREAKDOWN:${JSON.stringify(dataToStore)}]`;
         }
@@ -285,6 +404,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
         
         delete payload.hasVat;
         delete payload.vatRate;
+        delete payload.isIndividualVat;
 
         let result;
         if(editingSite) {
@@ -304,7 +424,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
         }
 
     } catch (err: any) {
-        setAlert({ open: true, title: 'Chyba', message: err.message, type: 'error' });
+        setAlertState({ open: true, title: 'Chyba', message: err.message, type: 'error' });
     }
   };
 
@@ -312,7 +432,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
       if(!confirm.id) return;
       const { error } = await supabase.from('sites').delete().eq('id', confirm.id);
       if (error) {
-          setAlert({ 
+          setAlertState({ 
               open: true, 
               title: 'Chyba pri mazaní', 
               message: "Nepodarilo sa vymazať stavbu.", 
@@ -365,7 +485,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
             <div className="flex gap-2 w-full md:w-auto">
                 <Button fullWidth onClick={() => {
                     setEditingSite(null);
-                    setFormData({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 23 });
+                    setFormData({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 20, isIndividualVat: false });
                     setBudgetBreakdown([]);
                     setShowBreakdown(false);
                     setShowModal(true);
@@ -538,50 +658,95 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
 
                 {showBreakdown && (
                     <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-2">
-                        <div className="flex flex-col sm:flex-row gap-4 p-3 bg-white border border-slate-200 rounded-xl mb-2 shadow-sm">
-                             <label className="flex items-center gap-2 cursor-pointer group flex-1">
-                                <input 
-                                    type="checkbox" 
-                                    className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
-                                    checked={formData.hasVat}
-                                    onChange={(e) => toggleVat(e.target.checked)}
-                                />
-                                <span className="text-sm font-bold text-slate-700">Som platiteľ DPH</span>
-                             </label>
-                             {formData.hasVat && (
-                                <div className="flex items-center gap-2 animate-in slide-in-from-left-2">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase">Sadzba:</span>
+                        <div className="flex flex-col gap-2 p-3 bg-white border border-slate-200 rounded-xl mb-2 shadow-sm">
+                             <div className="flex flex-col sm:flex-row gap-4 items-center">
+                                <label className="flex items-center gap-2 cursor-pointer group flex-1">
                                     <input 
-                                        type="number" 
-                                        className="w-16 p-1 text-center font-bold text-slate-800 border-b-2 border-orange-200 focus:border-orange-500 outline-none" 
-                                        value={formData.vatRate} 
-                                        onChange={(e) => updateVatRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                                        type="checkbox" 
+                                        className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
+                                        checked={formData.hasVat}
+                                        onChange={(e) => toggleVat(e.target.checked)}
                                     />
-                                    <span className="text-sm font-bold text-slate-500">%</span>
+                                    <span className="text-sm font-bold text-slate-700">Som platiteľ DPH</span>
+                                </label>
+                                {formData.hasVat && !formData.isIndividualVat && (
+                                    <div className="flex items-center gap-2 animate-in slide-in-from-left-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase">Sadzba:</span>
+                                        <input 
+                                            type="number" 
+                                            className="w-16 p-1 text-center font-bold text-slate-800 border-b-2 border-orange-200 focus:border-orange-500 outline-none" 
+                                            value={formData.vatRate} 
+                                            onChange={(e) => updateVatRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                                        />
+                                        <span className="text-sm font-bold text-slate-500">%</span>
+                                    </div>
+                                )}
+                             </div>
+                             
+                             {formData.hasVat && (
+                                <div className="pt-2 mt-2 border-t border-slate-50 flex items-center gap-2">
+                                    <input 
+                                        type="checkbox" 
+                                        id="isIndividualVat"
+                                        className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
+                                        checked={formData.isIndividualVat}
+                                        onChange={(e) => toggleIndividualVat(e.target.checked)}
+                                    />
+                                    <label htmlFor="isIndividualVat" className="text-sm font-bold text-slate-700 cursor-pointer">Priradiť individuálne sadzby DPH</label>
                                 </div>
                              )}
                         </div>
 
-                        {budgetBreakdown.map((line) => (
-                            <div key={line.id} className="flex gap-2 items-center">
-                                <input 
-                                    type="text" 
-                                    placeholder="Položka (napr. Okná)" 
-                                    className="flex-1 text-sm p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-orange-500 font-bold shadow-sm" 
-                                    value={line.label}
-                                    onChange={(e) => updateBudgetLine(line.id, 'label', e.target.value)}
-                                />
-                                <input 
-                                    type="number" 
-                                    placeholder="Suma" 
-                                    className="w-24 text-sm p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-orange-500 font-mono text-right shadow-sm" 
-                                    value={line.amount === 0 ? '' : line.amount}
-                                    onFocus={(e) => e.target.select()}
-                                    onChange={(e) => updateBudgetLine(line.id, 'amount', Math.max(0, parseFloat(e.target.value) || 0))}
-                                />
-                                <button type="button" onClick={() => removeBudgetLine(line.id)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
-                            </div>
-                        ))}
+                        <div className="w-full overflow-x-auto custom-scrollbar">
+                            <table className="w-full text-left text-xs min-w-[350px]">
+                                <thead className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                    <tr>
+                                        <th className="pb-2">Názov položky</th>
+                                        <th className="pb-2 w-24 text-right">Suma (€)</th>
+                                        {formData.isIndividualVat && <th className="pb-2 w-20 text-center">DPH %</th>}
+                                        <th className="pb-2 w-8"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {budgetBreakdown.map((line) => (
+                                        <tr key={line.id} className="group">
+                                            <td className="py-2">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Položka (napr. Okná)" 
+                                                    className="w-full text-sm p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-orange-500 font-bold shadow-sm" 
+                                                    value={line.label}
+                                                    onChange={(e) => updateBudgetLine(line.id, 'label', e.target.value)}
+                                                />
+                                            </td>
+                                            <td className="py-2 pl-2">
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="0" 
+                                                    className="w-full text-sm p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-orange-500 font-mono text-right shadow-sm" 
+                                                    value={line.amount === 0 ? '' : line.amount}
+                                                    onFocus={(e) => e.target.select()}
+                                                    onChange={(e) => updateBudgetLine(line.id, 'amount', e.target.value)}
+                                                />
+                                            </td>
+                                            {formData.isIndividualVat && (
+                                                <td className="py-2 pl-2">
+                                                    <input 
+                                                        type="number" 
+                                                        className="w-full text-sm p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-orange-500 font-mono text-center shadow-sm text-slate-800" 
+                                                        value={line.vatRate ?? formData.vatRate}
+                                                        onChange={(e) => updateBudgetLine(line.id, 'vatRate', e.target.value)}
+                                                    />
+                                                </td>
+                                            )}
+                                            <td className="py-2 text-right">
+                                                <button type="button" onClick={() => removeBudgetLine(line.id)} className="p-2 text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                         <button 
                             type="button" 
                             onClick={addBudgetLine}
@@ -591,13 +756,13 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
                         </button>
                         <div className="pt-2 border-t border-slate-200 space-y-1 px-1">
                             <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Súčet položiek:</span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Súčet položiek (Základ):</span>
                                 <span className="font-bold text-slate-600">{formatMoney(budgetBreakdown.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0))}</span>
                             </div>
                             {formData.hasVat && (
                                 <div className="flex justify-between items-center text-slate-400">
-                                    <span className="text-[10px] font-black uppercase tracking-widest">DPH ({formData.vatRate}%):</span>
-                                    <span className="font-bold">+{formatMoney(calculateTotalWithVat(budgetBreakdown, true, formData.vatRate) - budgetBreakdown.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0))}</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">DPH SPOLU:</span>
+                                    <span className="font-bold">+{formatMoney(formData.budget - budgetBreakdown.reduce((acc, i) => acc + (Math.max(0, Number(i.amount)) || 0), 0))}</span>
                                 </div>
                             )}
                             <div className="flex justify-between items-center border-t border-slate-100 pt-1 mt-1">
@@ -620,9 +785,129 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
       )}
 
       <ConfirmModal isOpen={confirm.open} onClose={() => setConfirm({...confirm, open: false})} onConfirm={deleteSite} title="Naozaj zmazať?" message="Všetky údaje spojené s touto zákazkou (transakcie, materiály, dochádzka) budú natrvalo odstránené." type="danger" />
-      <AlertModal isOpen={alert.open} onClose={() => setAlert({...alert, open: false})} title={alert.title} message={alert.message} type={alert.type} />
+      <AlertModal isOpen={alertState.open} onClose={() => setAlertState({...alertState, open: false})} title={alertState.title} message={alertState.message} type={alertState.type} />
     </div>
   );
+};
+
+const WorkerRatesManager = ({ siteId, organizationId }: { siteId: string, organizationId: string }) => {
+    const [workers, setWorkers] = useState<any[]>([]);
+    const [rates, setRates] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [savingId, setSavingId] = useState<string | null>(null);
+
+    const load = async () => {
+        setLoading(true);
+        const [wRes, rRes] = await Promise.all([
+            supabase.from('profiles').select('*').eq('organization_id', organizationId).eq('is_active', true).eq('role', 'employee'),
+            supabase.from('site_worker_rates').select('*').eq('site_id', siteId)
+        ]);
+        if (wRes.data) setWorkers(wRes.data);
+        if (rRes.data) setRates(rRes.data);
+        setLoading(false);
+    };
+
+    useEffect(() => { load(); }, [siteId]);
+
+    const handleRateChange = (userId: string, field: string, val: string) => {
+        const numVal = parseFloat(val) || 0;
+        const existing = rates.find(r => r.user_id === userId);
+        if (existing) {
+            setRates(rates.map(r => r.user_id === userId ? { ...r, [field]: numVal } : r));
+        } else {
+            setRates([...rates, { site_id: siteId, user_id: userId, [field]: numVal, organization_id: organizationId }]);
+        }
+    };
+
+    const saveRate = async (userId: string) => {
+        setSavingId(userId);
+        const rateObj = rates.find(r => r.user_id === userId);
+        if (!rateObj) return;
+
+        try {
+            if (rateObj.id) {
+                await supabase.from('site_worker_rates').update({
+                    hourly_rate: rateObj.hourly_rate,
+                    cost_rate: rateObj.cost_rate
+                }).eq('id', rateObj.id);
+            } else {
+                const { data } = await supabase.from('site_worker_rates').insert([rateObj]).select().single();
+                if (data) setRates(rates.map(r => r.user_id === userId ? data : r));
+            }
+        } finally {
+            setSavingId(null);
+        }
+    };
+
+    if (loading) return <div className="py-10 text-center"><Loader2 className="animate-spin mx-auto text-orange-600"/></div>;
+
+    return (
+        <div className="space-y-4 animate-in fade-in">
+            <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3 mb-4">
+                <Info size={18} className="text-blue-500 mt-0.5 shrink-0"/>
+                <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                    Tu môžete nastaviť <strong>špecifické sadzby</strong> zamestnancov pre tento projekt. Ak políčko necháte prázdne (0), systém použije ich základnú sadzbu z profilu.
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+                {workers.map(w => {
+                    const r = rates.find(x => x.user_id === w.id);
+                    const hRate = r?.hourly_rate || 0;
+                    const cRate = r?.cost_rate || 0;
+
+                    return (
+                        <Card key={w.id} className="p-4 border-slate-200 hover:border-orange-200 transition shadow-sm bg-white">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-400 border border-slate-200">
+                                        {w.full_name?.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-900">{w.full_name}</div>
+                                        <div className="text-[10px] text-slate-400 font-bold uppercase">Základ: {formatMoney(w.hourly_rate)} / {formatMoney(w.cost_rate)}</div>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex flex-wrap items-end gap-3 w-full md:w-auto">
+                                    <div className="flex-1 md:w-32">
+                                        <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Hodinovka (€/h)</label>
+                                        <input 
+                                            type="number" 
+                                            step="0.5"
+                                            value={hRate === 0 ? '' : hRate} 
+                                            onChange={e => handleRateChange(w.id, 'hourly_rate', e.target.value)}
+                                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:border-orange-500 outline-none"
+                                            placeholder={w.hourly_rate.toString()}
+                                        />
+                                    </div>
+                                    <div className="flex-1 md:w-32">
+                                        <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Cena práce (€/h)</label>
+                                        <input 
+                                            type="number" 
+                                            step="0.5"
+                                            value={cRate === 0 ? '' : cRate} 
+                                            onChange={e => handleRateChange(w.id, 'cost_rate', e.target.value)}
+                                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:border-orange-500 outline-none"
+                                            placeholder={w.cost_rate.toString()}
+                                        />
+                                    </div>
+                                    <button 
+                                        
+                                        onClick={() => saveRate(w.id)}
+                                        disabled={savingId === w.id}
+                                        className="h-9 w-9 flex items-center justify-center bg-slate-900 text-white rounded-lg hover:bg-orange-600 transition disabled:opacity-50"
+                                    >
+                                        {savingId === w.id ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>}
+                                    </button>
+                                </div>
+                            </div>
+                        </Card>
+                    );
+                })}
+            </div>
+        </div>
+    );
 };
 
 interface CalcRow {
@@ -645,7 +930,6 @@ const IntegratedCalculator = () => {
         } else if (val === '=') {
             try {
                 const fullEquation = (equation + display).replace(/[^0-9+\-*/.]/g, '');
-                // Bezpečnejšia alternatíva k eval pre jednoduché matematické výrazy
                 const calculate = new Function(`return ${fullEquation}`);
                 const res = calculate();
                 setDisplay(String(roundFin(Number(res))));
@@ -718,11 +1002,11 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     useEffect(() => { load(); }, [siteId]);
 
     const handleUpdateNotes = async (e: any) => {
-        const { breakdown, hasVat, vatRate } = parseNotesData(lead.notes);
+        const { breakdown, hasVat, vatRate, isIndividualVat } = parseNotesData(lead.notes);
         let finalNotes = e.target.value; 
         
         if (breakdown.length > 0) {
-            const dataToStore = { items: breakdown, hasVat, vatRate };
+            const dataToStore = { items: breakdown, hasVat, vatRate, isIndividualVat };
             finalNotes += `\n\n[JSON_BREAKDOWN:${JSON.stringify(dataToStore)}]`;
         }
         await supabase.from('sites').update({ notes: finalNotes }).eq('id', siteId);
@@ -802,7 +1086,6 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                             className="bg-orange-600 hover:bg-orange-700 shadow-orange-200 md:w-auto" 
                             onClick={() => {
                                 setShowQuoteModal(true);
-                                // Prepare data for transfer
                                 const quoteItems = calcRows.filter(row => row.description && row.qty > 0).map(row => {
                                     const cost = row.qty * row.unit_cost;
                                     const price = row.margin < 100 ? cost / ((100 - row.margin) / 100) : cost;
@@ -811,10 +1094,9 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                         quantity: row.qty,
                                         unit: row.unit,
                                         unit_price: roundFin(price),
-                                        vat_rate: 23
+                                        vat_rate: 20
                                     };
                                 });
-                                // This will be used in QuoteBuilder
                                 window.quoteItemsFromCalc = quoteItems;
                             }}
                         >
@@ -995,19 +1277,17 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
     const [header, setHeader] = useState({ 
         client_name: '', client_address: '', site_id: initialSiteId || '', 
         issue_date: new Date().toISOString().split('T')[0], valid_until: '', 
-        has_vat: true, vat_rate: 23 
+        has_vat: true, vat_rate: 20 
     });
-    const [items, setTableItems] = useState([{ description: '', quantity: 1, unit: 'ks', unit_price: 0, vat_rate: 23 }]);
+    const [items, setTableItems] = useState([{ description: '', quantity: 1, unit: 'ks', unit_price: 0, vat_rate: 20 }]);
     const [saving, setSaving] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [hasImportedFromCalc, setHasImportedFromCalc] = useState(false);
 
     useEffect(() => {
-        // Check if we have items from calculator
         if (window.quoteItemsFromCalc && window.quoteItemsFromCalc.length > 0) {
             setTableItems(window.quoteItemsFromCalc);
             setHasImportedFromCalc(true);
-            // Clear the global variable after use
             delete window.quoteItemsFromCalc;
         }
     }, []);
@@ -1089,7 +1369,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
 
             onSave();
         } catch (e: any) {
-            alert("Chyba: " + e.message);
+            window.alert("Chyba: " + e.message);
         } finally {
             setSaving(false);
         }
@@ -1232,7 +1512,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
             html2pdf().set(opt).from(printRef.current).save();
         } catch (e) {
             console.error(e);
-            alert("Chyba pri generovaní PDF.");
+            window.alert("Chyba pri generovaní PDF.");
         }
     };
 
@@ -1260,7 +1540,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                             className="bg-white text-slate-900 relative shadow-2xl mx-auto flex flex-col"
                             style={{ width: '210mm', minHeight: '297mm', padding: '15mm 15mm' }} 
                         >
-                            <div className="flex justify-between items-start mb-10 border-b-2 border-orange-500 pb-6">
+                            <div className="flex justify-between items-start mb-10 border-b-2 border-orange-50 pb-6">
                                 <div className="flex items-center gap-4">
                                     {organization.logo_url && <img src={organization.logo_url} crossOrigin="anonymous" className="h-16 w-16 object-contain" alt="Logo" />}
                                     <div>
@@ -1395,9 +1675,7 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
         if (!acc[name]) acc[name] = { hours: 0, cost: 0, count: 0 };
         acc[name].hours += Number(log.hours || 0);
         const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
-        
         const entryCost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : (Number(log.hours || 0) * rate);
-        
         acc[name].cost = roundFin(acc[name].cost + entryCost);
         acc[name].count += 1;
         return acc;
@@ -1490,7 +1768,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   const [exportSettings, setExportSettings] = useState({ type: 'client' as 'client' | 'owner', includeFinancials: false });
   const [formState, setFormState] = useState<any>({});
   const [confirmAction, setConfirmAction] = useState<{open: boolean, table: string, id: string}>({ open: false, table: '', id: '' });
-  const [alert, setAlert] = useState<{open: boolean, title: string, message: string, type?: string}>({ open: false, title: '', message: '' });
+  const [alertState, setAlertState] = useState<{open: boolean, title: string, message: string, type?: string}>({ open: false, title: '', message: '' });
   const [statusModalOpen, setStatusModalOpen] = useState(false); 
   const [selectedLog, setSelectedLog] = useState<any>(null);
   const [exporting, setExporting] = useState(false);
@@ -1512,7 +1790,9 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       const expenses = roundFin(tr.data?.filter(x => x.type === 'expense').reduce((sum, x) => sum + Number(x.amount), 0) || 0);
       const paid = roundFin(tr.data?.filter(x => x.type === 'invoice' && x.is_paid).reduce((sum, x) => sum + Number(x.amount), 0) || 0);
       const matCost = roundFin(m.data?.reduce((sum, x) => sum + Number(x.total_price), 0) || 0);
-      const fuelCost = roundFin(f.data?.reduce((sum, x) => sum + Number(x.amount), 0) || 0);
+      const fuelCost = roundFin(
+        f.data?.reduce((sum, x) => sum + Number(x.amount), 0) ?? 0
+      );
       
       const laborCost = roundFin(l.data?.reduce((sum, log: any) => {
         if (log.payment_type === 'fixed') {
@@ -1532,7 +1812,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
         paid, 
         totalCost, 
         profit: roundFin(paid - totalCost),
-        laborHours: l.data?.reduce((sum, x) => sum + Number(x.hours || 0), 0) || 0,
+        laborHours: l.data?.reduce((sum, x:any) => sum + Number(x.hours || 0), 0) || 0,
         materialCost: matCost,
         laborCost: laborCost,
         fuelCost: fuelCost
@@ -1564,7 +1844,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             await html2pdf().set(opt).from(printRef.current).save();
             setModals({...modals, export: false});
         } catch(e) {
-            setAlert({ open: true, title: 'Chyba', message: "Chyba pri generovaní PDF.", type: 'error' });
+            setAlertState({ open: true, title: 'Chyba', message: "Chyba pri generovaní PDF.", type: 'error' });
         } finally {
             setExporting(false);
         }
@@ -1585,10 +1865,39 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       const newVal = !transaction.is_paid;
       const { error } = await supabase.from('transactions').update({ is_paid: newVal }).eq('id', transaction.id);
       if(error) {
-          setAlert({ open: true, title: 'Chyba', message: "Chyba pri aktualizácii: " + error.message, type: 'error' });
+          setAlertState({ open: true, title: 'Chyba', message: "Chyba pri aktualizácii: " + error.message, type: 'error' });
       } else {
           loadData();
       }
+  };
+
+  const handleEditFinance = (item: any) => {
+      if (item.itemType === 'material') {
+          setFormState({
+              id: item.id,
+              type: 'material',
+              is_material: true,
+              description: item.name,
+              quantity: item.quantity,
+              unit: item.unit,
+              unit_price: item.unit_price,
+              amount: item.total_price,
+              date: item.purchase_date,
+              supplier: item.supplier
+          });
+      } else {
+          setFormState({
+              id: item.id,
+              type: item.type,
+              is_material: false,
+              category: item.category,
+              amount: item.amount,
+              date: item.date,
+              description: item.description,
+              is_paid: item.is_paid
+          });
+      }
+      setModals({...modals, transaction: true});
   };
 
   const handleSaveTransaction = async (e: React.FormEvent) => {
@@ -1598,7 +1907,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
           if (formState.type === 'material') {
               const materialPayload = {
                   ...common,
-                  name: formState.description || formState.category,
+                  name: formState.description || 'Materiál',
                   quantity: Math.max(0, formState.quantity),
                   unit: formState.unit,
                   unit_price: roundFin(Math.max(0, formState.unit_price)),
@@ -1606,8 +1915,16 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                   purchase_date: formState.date,
                   supplier: formState.supplier
               };
-              const { error } = await supabase.from('materials').insert([materialPayload]);
-              if(error) throw error;
+              
+              let err;
+              if (formState.id) {
+                  const { error } = await supabase.from('materials').update(materialPayload).eq('id', formState.id);
+                  err = error;
+              } else {
+                  const { error = null } = await supabase.from('materials').insert([materialPayload]);
+                  err = error;
+              }
+              if(err) throw err;
           } else {
               const transPayload = {
                   ...common,
@@ -1618,14 +1935,23 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                   description: formState.description,
                   is_paid: formState.is_paid
               };
-              const { error } = await supabase.from('transactions').insert([transPayload]);
-              if(error) throw error;
+              
+              let err;
+              if (formState.id) {
+                  {/* Fix: corrected id to formState.id */}
+                  const { error } = await supabase.from('transactions').update(transPayload).eq('id', formState.id);
+                  err = error;
+              } else {
+                  const { error = null } = await supabase.from('transactions').insert([transPayload]);
+                  err = error;
+              }
+              if(err) throw err;
           }
           setModals({...modals, transaction: false});
           setFormState({});
           loadData();
       } catch (e: any) {
-          setAlert({ open: true, title: 'Chyba', message: "Chyba: " + e.message, type: 'error' });
+          setAlertState({ open: true, title: 'Chyba', message: "Chyba: " + e.message, type: 'error' });
       }
   };
 
@@ -1647,7 +1973,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
         setFormState({});
         loadData();
     } catch(e: any) {
-        setAlert({ open: true, title: 'Chyba', message: "Chyba: " + e.message, type: 'error' });
+        setAlertState({ open: true, title: 'Chyba', message: "Chyba: " + e.message, type: 'error' });
     }
   };
 
@@ -1731,8 +2057,10 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
           {[
             { id: 'overview', label: 'Prehľad', icon: BarChart3 },
             { id: 'labor', label: 'Dochádzka', icon: HardHat },
+            { id: 'rates', label: 'Sadzby tímu', icon: Settings2 },
             { id: 'finance', label: 'Príjmy & výdavky', icon: Euro },
             { id: 'phm', label: 'PHM', icon: Fuel },
+            { id: 'permissions', label: 'Prístupy', icon: Shield },
           ].map(tab => (
             <button
               key={tab.id}
@@ -1749,8 +2077,6 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
         <div className="p-4 md:p-8 flex-1">
           {activeTab === 'overview' && (
             <div className="space-y-8 animate-in fade-in">
-             
-
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <Card className="bg-white border-slate-200 shadow-sm">
                     <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2"><BarChart3 size={20} className="text-orange-500"/> Finančný Rozbor</h3>
@@ -1827,7 +2153,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                                         <span>{formatMoney(roundFin(budgetItems.reduce((acc, i) => acc + Number(i.amount), 0)))}</span>
                                     </div>
                                     <div className="flex gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        <span>DPH ({vatRate}%):</span>
+                                        <span>DPH:</span>
                                         <span>{formatMoney(roundFin(site.budget - budgetItems.reduce((acc, i) => acc + Number(i.amount), 0)))}</span>
                                     </div>
                                 </>
@@ -1863,7 +2189,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                         type: 'expense', 
                         date: new Date().toISOString().split('T')[0], 
                         is_material: false, 
-                        is_paid: false, 
+                        is_paid: true, 
                         unit: 'ks', 
                         quantity: 1
                     }); 
@@ -1878,7 +2204,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {financeItems.map((t: any) => (
-                          <tr key={t.id} className="hover:bg-slate-50 transition">
+                          <tr key={t.id} onClick={() => handleEditFinance(t)} className="hover:bg-slate-50 transition group cursor-pointer">
                             <td className="p-4 font-mono text-slate-400 text-xs whitespace-nowrap">{formatDate(t.date)}</td>
                             <td className="p-4">
                                 <div className="font-bold flex items-center gap-2 text-slate-700">
@@ -1886,8 +2212,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                                     {t.itemType === 'transaction' && t.type === 'invoice' && <div className="p-1.5 bg-green-100 text-green-600 rounded-md"><Euro size={14}/></div>}
                                     {t.itemType === 'transaction' && t.type === 'expense' && <div className="p-1.5 bg-red-100 text-red-600 rounded-md"><Euro size={14}/></div>}
                                     <div>
-                                        <span>{t.category}</span>
-                                        <div className="text-[10px] text-slate-400 font-medium">{t.description}</div>
+                                        <span>{t.itemType === 'material' ? t.description : t.category}</span>
+                                        <div className="text-[10px] text-slate-400 font-medium">{t.itemType === 'material' ? t.category : t.description}</div>
                                     </div>
                                 </div>
                             </td>
@@ -1897,7 +2223,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                             <td className="p-4 text-center">
                               {t.itemType === 'transaction' ? (
                                   <button 
-                                    onClick={() => togglePaid(t)}
+                                    onClick={(e) => { e.stopPropagation(); togglePaid(t); }}
                                     className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border cursor-pointer hover:opacity-80 transition shadow-sm ${t.is_paid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}
                                   >
                                     {t.is_paid ? 'Uhradené' : 'Čaká'}
@@ -1907,7 +2233,10 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                               )}
                             </td>
                             <td className="p-4 text-right">
-                                <button onClick={() => requestDelete(t.itemType === 'material' ? 'materials' : 'transactions', t.id)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition active:scale-[0.90]"><Trash2 size={16}/></button>
+                                <div className="flex gap-1 justify-end">
+                                    <button onClick={(e) => { e.stopPropagation(); handleEditFinance(t); }} className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-full transition opacity-0 group-hover:opacity-100"><Pencil size={16}/></button>
+                                    <button onClick={(e) => { e.stopPropagation(); requestDelete(t.itemType === 'material' ? 'materials' : 'transactions', t.id); }} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
+                                </div>
                             </td>
                           </tr>
                         ))}
@@ -1961,8 +2290,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                                 {l.payment_type === 'fixed' ? <Briefcase className="text-orange-300" size={24}/> : formatDuration(Number(l.hours || 0))}
                               </div>
                               <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                <button onClick={(e) => { e.stopPropagation(); handleEditLog(l); }} className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-[0.90]"><Pencil size={18}/></button>
-                                <button onClick={(e) => { e.stopPropagation(); requestDelete('attendance_logs', l.id); }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition active:scale-[0.90]"><Trash2 size={18}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); handleEditLog(l); }} className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-90"><Pencil size={18}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); requestDelete('attendance_logs', l.id); }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition active:scale-90"><Trash2 size={18}/></button>
                               </div>
                           </div>
                       </div>
@@ -1973,14 +2302,22 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             </div>
           )}
 
+          {activeTab === 'rates' && (
+              <WorkerRatesManager siteId={siteId} organizationId={profile.organization_id} />
+          )}
+
           {activeTab === 'phm' && (
               <ProjectPHM siteId={siteId} profile={profile} organization={organization} />
+          )}
+
+          {activeTab === 'permissions' && (
+              <ProjectPermissionsManager siteId={siteId} organizationId={profile.organization_id} />
           )}
         </div>
       </div>
 
       <ConfirmModal isOpen={confirmAction.open} onClose={() => setConfirmAction({...confirmAction, open: false})} onConfirm={performDelete} title="Odstrániť položku?" message="Táto akcia je nevratná." type="danger" />
-      <AlertModal isOpen={alert.open} onClose={() => setAlert({...alert, open: false})} title={alert.title} message={alert.message} type={alert.type as any} />
+      <AlertModal isOpen={alertState.open} onClose={() => setAlertState({...alertState, open: false})} title={alertState.title} message={alertState.message} type={alertState.type as any} />
       
       {statusModalOpen && (
           <Modal title="Zmeniť Status" onClose={() => setStatusModalOpen(false)}>
@@ -2012,7 +2349,11 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
         <Modal title={formState.id ? "Upraviť záznam" : "Zapísať dochádzku"} onClose={() => { setModals({...modals, log: false}); setFormState({}); }}>
           <form onSubmit={(e) => { 
               e.preventDefault(); 
-              const calculatedHours = calculateSmartHours(formState.start_time, formState.end_time);
+              const [sH, sM] = (formState.start_time || "00:00").split(':').map(Number);
+              const [eH, eM] = (formState.end_time || "00:00").split(':').map(Number);
+              let totalMinutes = (eH * 60 + eM) - (sH * 60 + sM);
+              if (totalMinutes < 0) totalMinutes += 24 * 60;
+              const calculatedHours = totalMinutes / 60;
               const payload = { ...formState, hours: calculatedHours }; 
               submitForm('attendance_logs', payload, 'log'); 
           }}>
@@ -2051,7 +2392,15 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex flex-col justify-center shadow-inner">
                     <span className="text-[10px] font-black text-orange-400 uppercase block mb-1 tracking-widest">Trvanie prác</span>
-                    <span className="text-2xl font-black text-slate-800 tracking-tight">{formatDuration(calculateSmartHours(formState.start_time, formState.end_time))}</span>
+                    <span className="text-2xl font-black text-slate-800 tracking-tight">
+                        {(() => {
+                            const [sH, sM] = (formState.start_time || "00:00").split(':').map(Number);
+                            const [eH, eM] = (formState.end_time || "00:00").split(':').map(Number);
+                            let tm = (eH * 60 + eM) - (sH * 60 + sM);
+                            if (tm < 0) tm += 24 * 60;
+                            return formatDuration(tm / 60);
+                        })()}
+                    </span>
                 </div>
                 {formState.payment_type === 'hourly' && (
                     <Input 
@@ -2074,21 +2423,21 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       )}
 
       {modals.transaction && (
-        <Modal title="Záznam o pohybe financií" onClose={() => setModals({...modals, transaction: false})}>
+        <Modal title={formState.id ? "Upraviť záznam" : "Záznam o pohybe financií"} onClose={() => setModals({...modals, transaction: false})}>
           <form onSubmit={handleSaveTransaction} className="space-y-5">
             <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl mb-2">
-              <button type="button" onClick={() => setFormState({...formState, type: 'expense', is_material: false})} className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition ${formState.type === 'expense' ? 'bg-white shadow-sm text-red-600' : 'text-slate-500'}`}>Výdavok / Nákup</button>
+              <button type="button" onClick={() => setFormState({...formState, type: 'expense', is_material: false, category: formState.category || '', description: formState.description || ''})} className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition ${formState.type === 'expense' || formState.type === 'material' ? 'bg-white shadow-sm text-red-600' : 'text-slate-500'}`}>Výdavok / Nákup</button>
               <button type="button" onClick={() => setFormState({...formState, type: 'invoice', is_material: false})} className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition ${formState.type === 'invoice' ? 'bg-white shadow-sm text-green-600' : 'text-slate-500'}`}>Príjem / Platba</button>
             </div>
             
-            {formState.type === 'expense' && (
+            {(formState.type === 'expense' || formState.type === 'material') && (
                 <div className="flex items-center gap-2 mb-2 p-4 bg-orange-50 border border-orange-100 rounded-2xl">
-                    <input type="checkbox" id="is_material" checked={formState.is_material || false} onChange={(e) => setFormState({...formState, is_material: e.target.checked, type: 'material'})} className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" />
+                    <input type="checkbox" id="is_material" checked={formState.is_material || formState.type === 'material'} onChange={(e) => setFormState({...formState, is_material: e.target.checked, type: e.target.checked ? 'material' : 'expense', description: e.target.checked ? (formState.description || '') : formState.description, category: e.target.checked ? 'Materiál' : formState.category})} className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" />
                     <label htmlFor="is_material" className="text-sm font-black text-slate-800 flex items-center gap-2 cursor-pointer"><Package size={18}/> Je to nákup materiálu?</label>
                 </div>
             )}
 
-            {formState.is_material ? (
+            {formState.is_material || formState.type === 'material' ? (
                 <>
                     <Input label="Názov materiálu" value={formState.description || ''} onChange={(e: any) => setFormState({...formState, description: e.target.value, category: 'Materiál'})} required autoFocus placeholder="Napr. Cement 25kg, SDK Profily..." />
                     <div className="grid grid-cols-2 gap-4">
@@ -2117,11 +2466,22 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                     <Input label="Kategória / Hlavný popis" value={formState.category || ''} onChange={(e: any) => setFormState({...formState, category: e.target.value})} required autoFocus placeholder="Napr. Zálohová platba, Odvoz odpadu..." />
                     <Input label="Celková Suma €" type="number" step="0.01" value={formState.amount || ''} onFocus={(e:any) => e.target.select()} onChange={(e: any) => setFormState({...formState, amount: roundFin(Math.max(0, parseFloat(e.target.value)))})} required />
                     <Input label="Detailná poznámka (Voliteľné)" value={formState.description || ''} onChange={(e: any) => setFormState({...formState, description: e.target.value})} />
+                    
+                    <div className="flex items-center gap-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-4">
+                        <input 
+                            type="checkbox" 
+                            id="form_is_paid_proj" 
+                            checked={formState.is_paid} 
+                            onChange={(e) => setFormState({...formState, is_paid: e.target.checked})} 
+                            className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" 
+                        />
+                        <label htmlFor="form_is_paid_proj" className="text-sm font-bold text-slate-800 flex items-center gap-2 cursor-pointer">Uhradené</label>
+                    </div>
                 </>
             )}
             
             <Input label="Dátum transakcie" type="date" value={formState.date || ''} onChange={(e: any) => setFormState({...formState, date: e.target.value})} required />
-            <Button type="submit" fullWidth className="mt-4 shadow-sm" size="lg">Uložiť záznam</Button>
+            <Button type="submit" fullWidth className="mt-4 shadow-sm" size="lg">{formState.id ? 'Uložiť zmeny' : 'Uložiť záznam'}</Button>
           </form>
         </Modal>
       )}
