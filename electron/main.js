@@ -78,7 +78,16 @@ ipcMain.on('start-download', () => {
 });
 
 ipcMain.on('install-update', () => {
-  autoUpdater.quitAndInstall();
+  try {
+    autoUpdater.quitAndInstall();
+  } catch (error) {
+    console.error('Error during quitAndInstall:', error);
+    // Alternatívne riešenie: reštartovať aplikáciu
+    setTimeout(() => {
+      app.relaunch();
+      app.exit();
+    }, 1000);
+  }
 });
 
 // --- EVENTY OD UPDATERU (Posielame na frontend) ---
@@ -91,7 +100,7 @@ autoUpdater.on('update-available', (info) => {
   if (mainWindow) mainWindow.webContents.send('update-status', 'available', info.version);
 });
 
-autoUpdater.on('update-not-available', () => {
+autoUpdater.on('update-not-available', (info) => {
   if (mainWindow) mainWindow.webContents.send('update-status', 'no-update');
 });
 
@@ -104,5 +113,24 @@ autoUpdater.on('download-progress', (progressObj) => {
 });
 
 autoUpdater.on('update-downloaded', () => {
-  if (mainWindow) mainWindow.webContents.send('update-status', 'ready');
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', 'ready');
+    // Automaticky spustiť inštaláciu po 2 sekundách
+    setTimeout(() => {
+      try {
+        autoUpdater.quitAndInstall();
+      } catch (error) {
+        console.error('Error during quitAndInstall:', error);
+        // Alternatívne riešenie: reštartovať aplikáciu
+        setTimeout(() => {
+          app.relaunch();
+          app.exit();
+        }, 1000);
+      }
+    }, 2000);
+  }
+});
+
+autoUpdater.on('before-quit-for-update', () => {
+  if (mainWindow) mainWindow.webContents.send('update-status', 'installing');
 });

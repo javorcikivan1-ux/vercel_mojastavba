@@ -360,8 +360,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           type: "wave",
           title: "ELEKTRONICKÁ",
           subtitle: "DOCHÁDZKA",
-          category: "MOBILNÁ APLIKÁCIA",
-          description: "Vaši zamestnanci si zapisujú odpracované hodiny priamo na stavbe cez mobil. Žiadne papierové hárky ani prepisovanie do Excelu.",
+          category: "ZÁPIS HODÍN",
+          description: "Vaši zamestnanci si zapisujú odpracované hodiny priamo na stavbe cez mobil. Zabudnite na papierové hárky alebo prepisovanie dochádzky do neprehľadného  Excelu.",
           icon: <FileCheck size={32} />,
           gradient: ["#ff6b35", "#ff8c42"]
         },
@@ -369,8 +369,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           type: "wave",
           title: "DIGITÁLNY",
           subtitle: "STAVEBNÝ DENNÍK",
-          category: "DOKUMENTÁCIA",
-          description: "Zaznamenávajte priebeh prác, počasie a fotodokumentáciu každý deň. Denník je bezpečne uložený v cloude a kedykoľvek exportovateľný.",
+          category: "DOKUMENTOVANIE ZÁKAZKY",
+          description: "Zaznamenávajte priebeh prác, počasie a fotodokumentáciu každý deň na pár klikov v mobile. Denník automaticky načíta zápisy práce zamestnancov a ďalšie dôležité údaje  .",
           icon: <BookOpen size={32} />,
           gradient: ["#ff8c42", "#ffa947"]
         },
@@ -378,8 +378,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           type: "wave",
           title: "KONTROLA",
           subtitle: "NÁKLADOV A ZISKU",
-          category: "FINANCIE",
-          description: "Sledujte ziskovosť každej zákazky zvlášť. Majte okamžitý prehľad o tom, ktoré stavby vám reálne zarábajú.",
+          category: "FINANCIE A ŠTATISTIKY",
+          description: "Sledujte ziskovosť každej zákazky, spravujte príjmy výdavky, mzdy a PHM. MojaStavba ponúka komplexnú analytiku Vašej práce vrátane grafov a umelej inteligencie.",
           icon: <TrendingUp size={32} />,
           gradient: ["#ffa947", "#ffc34d"]
         }
@@ -390,9 +390,9 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
         {
           type: "text",
           title: "SPRÁVA",
-          subtitle: "TÍMU A MZDY",
+          subtitle: "ZAMESTNANCOVY",
           category: "PERSONÁL",
-          description: "Priraďte pracovníkom hodinovú sadzbu a sledujte ich výkon. MojaStavba pre vás prepočíta odpracované hodiny na mzdové náklady.",
+          description: "Pošlite zamestnancom registračné pozvánky, priraďte im role, hodinovú sadzbu alebo definujte ich celkovú cenu práce a sledujte ich výkon a rozsah prác na Vašich zákazkách.",
           icon: <Users size={32} />,
           gradient: ["#ff8c42", "#ffa947"]
         },
@@ -400,17 +400,28 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           type: "text",
           title: "HARMONOGRAM",
           subtitle: "A ÚLOHY",
-          category: "PLÁNOVANIE",
-          description: "Plánujte prácu dopredu pomocou integrovaného kalendára úloh. Priraďte zodpovednosť konkrétnym ľuďom.",
+          category: "PLÁNOVANIE A KALENDÁR",
+          description: "Plánujte prácu dopredu pomocou integrovaného kalendára úloh a priraďte úlohy zamestnancom ktoré sa zobrazia v ich účte. Sledujte zápisy dochádzok či vývoj dôležitých udalostí.",
           icon: <LayoutGrid size={32} />,
           gradient: ["#ffa947", "#ffc34d"]
         },
+
+        {
+          type: "text",
+          title: "DOSTUPNÉ V",
+          subtitle: "MOBILOCH A PC",
+          category: "DOSTUPNOSŤ APLIKÁCIE",
+          description: "MojaStavba je dostupná ako mobilná aplikácia (android) a .exe aplikácia pre PC. Na vývoji pre MAC stále prácujeme, avšak úplný prístup je možný aj cez responzívny web moja-stavba.sk",
+          icon: <LayoutGrid size={32} />,
+          gradient: ["#ffa947", "#ffc34d"]
+        },
+
         {
           type: "text",
           title: "MAXIMÁLNA",
           subtitle: "BEZPEČNOSŤ DÁT",
           category: "ZABEZPEČENIE",
-          description: "Vaše dáta sú šifrované a bezpečne uložené na serveroch v EÚ. K citlivým finančným informáciám máte prístup len vy.",
+          description: "Všetky dáta aplikácie MojaStavba sú šifrované a bezpečne uložené na serveroch v EÚ. K citlivým finančným informáciám a ďalším údajom z aplikácie máte prístup len vy.",
           icon: <Shield size={32} />,
           gradient: ["#ffc34d", "#ffda77"]
         }

@@ -113,7 +113,7 @@ export const App = () => {
   const [workerTab, setWorkerTab] = useState('dashboard');
   
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
-  const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying'>('idle');
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying' | 'installing'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
 
   const [isFinanceOpen, setIsFinanceOpen] = useState(() => {
@@ -188,6 +188,8 @@ export const App = () => {
                 } else if (newStatus === 'ready') {
                     setUpdateStatus('applying');
                     setDownloadProgress(100);
+                } else if (newStatus === 'installing') {
+                    setUpdateStatus('installing');
                 } else if (newStatus === 'error') {
                     setUpdateStatus('idle');
                     setUpdateAvailable(null);
@@ -355,8 +357,21 @@ export const App = () => {
     localStorage.removeItem('ms_active_screen');
     localStorage.removeItem('ms_selected_site_id');
     await supabase.auth.signOut();
+    
+    // Force redirect pre všetky platformy
     if (Capacitor.isNativePlatform()) {
       window.location.href = '/';
+    } else if (isElectron) {
+      // Pre Electron - len nastaviť view, nemeňť URL
+      // Aplikácia zostane na rovnakej URL, ale zobrazí landing page
+      setTimeout(() => {
+        setView('landing');
+      }, 100);
+    } else {
+      // Pre web a mobile web - force replace v histórii
+      setTimeout(() => {
+        window.location.replace(window.location.origin);
+      }, 100);
     }
   };
 
@@ -480,7 +495,7 @@ export const App = () => {
                                         <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
                                     </div>
                                 </>
-                            ) : updateStatus === 'applying' && isElectron ? (
+                            ) : (updateStatus === 'applying' && downloadProgress === 100 && isElectron) ? (
                                 <div className="space-y-6 py-4 animate-in fade-in">
                                     <CheckCircle2 className="mx-auto text-green-600 mb-4" size={48} />
                                     <div>
@@ -498,6 +513,36 @@ export const App = () => {
                                     }} className="bg-green-600 hover:bg-green-700">
                                         Inštalovať a reštartovať
                                     </Button>
+                                </div>
+                            ) : (downloadProgress === 100 && isElectron && updateStatus !== 'installing') ? (
+                                <div className="space-y-6 py-4 animate-in fade-in">
+                                    <CheckCircle2 className="mx-auto text-green-600 mb-4" size={48} />
+                                    <div>
+                                        <h3 className="font-black text-green-900">Aktualizácia pripravená!</h3>
+                                        <p className="text-xs text-slate-400 uppercase font-bold mt-1">Pre dokončenie reštartujte aplikáciu</p>
+                                    </div>
+                                    <Button fullWidth onClick={() => {
+                                        try {
+                                            // @ts-ignore
+                                            const { ipcRenderer } = window.require('electron');
+                                            ipcRenderer.send('install-update');
+                                        } catch (e) {
+                                            console.error("Install failed", e);
+                                        }
+                                    }} className="bg-green-600 hover:bg-green-700">
+                                        Inštalovať a reštartovať
+                                    </Button>
+                                </div>
+                            ) : updateStatus === 'installing' ? (
+                                <div className="space-y-6 py-4 animate-in fade-in">
+                                    <Loader2 className="animate-spin text-green-600 mx-auto" size={48} />
+                                    <div>
+                                        <h3 className="font-black text-slate-900">Inštalujem aktualizáciu...</h3>
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">Aplikácia sa teraz reštartuje</p>
+                                    </div>
+                                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                        <div className="bg-green-600 h-full transition-all duration-500 animate-pulse"></div>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="space-y-6 py-4 animate-in fade-in">
