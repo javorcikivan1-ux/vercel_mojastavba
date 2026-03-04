@@ -10,17 +10,32 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon,
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
 
--- 3. POMOCNÉ FUNKCIE (OPTIMALIZOVANÉ PRE VÝKON A BEZPEČNOSŤ)
+-- 3. ZABEZPEČENÉ POMOCNÉ FUNKCIE (SECURITY DEFINER + SEARCH_PATH)
+-- Tieto funkcie eliminujú RLS rekurziu a sú chránené pred search-path útokmi
 CREATE OR REPLACE FUNCTION public.get_my_org()
-RETURNS uuid AS $$
-  -- Obalenie do SELECT pre vynútenie caching-u na úrovni plánovača dopytov (Fix pre Performance Advisor)
-  SELECT organization_id FROM public.profiles WHERE id = (SELECT auth.uid());
-$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+RETURNS uuid
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT organization_id FROM public.profiles WHERE id = auth.uid();
+$$;
 
 CREATE OR REPLACE FUNCTION public.get_my_role()
-RETURNS text AS $$
-  SELECT role FROM public.profiles WHERE id = (SELECT auth.uid());
-$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+RETURNS text
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid();
+$$;
+
+-- Obmedzenie spustenia len pre prihlásených a systémovú rolu
+REVOKE ALL ON FUNCTION public.get_my_org() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_my_org() TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.get_my_role() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_my_role() TO authenticated, service_role;
 
 -- 4. TVORBA TABULIEK
 
@@ -295,129 +310,130 @@ ALTER TABLE public.quote_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_worker_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_permissions ENABLE ROW LEVEL SECURITY;
 
--- 8. RLS POLITIKY (OPTIMALIZOVANÉ PRE PERFORMANCE & BEZPEČNOSŤ)
+-- 8. RLS POLITIKY (HARDENED - Master Key pre Ivana)
 
--- PROFILY: Rozdelené kvôli bezpečnosti (Fix podľa IT experta)
-CREATE POLICY "profiles_select_in_org" ON public.profiles 
-FOR SELECT TO authenticated 
-USING (organization_id = (SELECT public.get_my_org()));
+-- PROFILY
+CREATE POLICY "profiles_select_secure" ON public.profiles FOR SELECT TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
-CREATE POLICY "profiles_update_self" ON public.profiles 
-FOR UPDATE TO authenticated 
-USING (id = (SELECT auth.uid())) 
-WITH CHECK (id = (SELECT auth.uid()));
+CREATE POLICY "profiles_update_self" ON public.profiles FOR UPDATE TO authenticated 
+USING (id = auth.uid()) WITH CHECK (id = auth.uid());
 
-CREATE POLICY "profiles_admin_all" ON public.profiles 
-FOR ALL TO authenticated 
-USING (
-    organization_id = (SELECT public.get_my_org()) 
-    AND (SELECT public.get_my_role()) = 'admin'
-);
+CREATE POLICY "profiles_admin_all" ON public.profiles FOR ALL TO authenticated 
+USING ((organization_id = public.get_my_org() AND public.get_my_role() = 'admin') OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
 -- ORGANIZÁCIE
-CREATE POLICY "org_select" ON public.organizations FOR SELECT TO authenticated USING (id = (SELECT public.get_my_org()));
-CREATE POLICY "org_update_admin" ON public.organizations FOR UPDATE TO authenticated 
-USING (id = (SELECT public.get_my_org()) AND (SELECT public.get_my_role()) = 'admin');
+CREATE POLICY "org_select_secure" ON public.organizations FOR SELECT TO authenticated 
+USING (id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
+
+CREATE POLICY "org_update_secure" ON public.organizations FOR UPDATE TO authenticated 
+USING ((id = public.get_my_org() AND public.get_my_role() = 'admin') OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
 -- STAVBY
-CREATE POLICY "sites_access" ON public.sites FOR ALL TO authenticated 
-USING (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "sites_secure" ON public.sites FOR ALL TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
 -- SITE PERMISSIONS
-CREATE POLICY "site_perms_access" ON public.site_permissions FOR ALL TO authenticated 
-USING (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "site_perms_secure" ON public.site_permissions FOR ALL TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
 -- DOCHÁDZKA
-CREATE POLICY "attendance_access" ON public.attendance_logs FOR ALL TO authenticated 
+CREATE POLICY "attendance_secure" ON public.attendance_logs FOR ALL TO authenticated 
 USING (
-    organization_id = (SELECT public.get_my_org()) 
-    AND (
-        (SELECT public.get_my_role()) = 'admin' 
-        OR user_id = (SELECT auth.uid())
-    )
+    (organization_id = public.get_my_org() AND (public.get_my_role() = 'admin' OR user_id = auth.uid()))
+    OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com'
 );
 
--- STAVEBNÝ DENNÍK (Oprava Auth RLS Plan & Delegované práva)
-CREATE POLICY "diary_access" ON public.diary_records FOR ALL TO authenticated 
+-- STAVEBNÝ DENNÍK
+CREATE POLICY "diary_secure" ON public.diary_records FOR ALL TO authenticated 
 USING (
-    organization_id = (SELECT public.get_my_org()) 
-    AND (
-        (SELECT public.get_my_role()) = 'admin' 
+    (organization_id = public.get_my_org() AND (
+        public.get_my_role() = 'admin' 
         OR EXISTS (
             SELECT 1 FROM public.site_permissions sp 
             WHERE sp.site_id = diary_records.site_id 
-            AND sp.user_id = (SELECT auth.uid()) 
+            AND sp.user_id = auth.uid() 
             AND sp.can_manage_diary = true
         )
-    )
+    ))
+    OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com'
 );
 
 -- MATERIÁL
-CREATE POLICY "materials_access" ON public.materials FOR ALL TO authenticated 
+CREATE POLICY "materials_secure" ON public.materials FOR ALL TO authenticated 
 USING (
-    organization_id = (SELECT public.get_my_org()) 
-    AND (
-        (SELECT public.get_my_role()) = 'admin' 
+    (organization_id = public.get_my_org() AND (
+        public.get_my_role() = 'admin' 
         OR EXISTS (
             SELECT 1 FROM public.site_permissions sp 
             WHERE sp.site_id = materials.site_id 
-            AND sp.user_id = (SELECT auth.uid()) 
+            AND sp.user_id = auth.uid() 
             AND sp.can_manage_finance = true
         )
-    )
+    ))
+    OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com'
 );
 
 -- PHM
-CREATE POLICY "fuel_access" ON public.fuel_logs FOR ALL TO authenticated 
+CREATE POLICY "fuel_secure" ON public.fuel_logs FOR ALL TO authenticated 
 USING (
-    organization_id = (SELECT public.get_my_org()) 
-    AND (
-        (SELECT public.get_my_role()) = 'admin' 
+    (organization_id = public.get_my_org() AND (
+        public.get_my_role() = 'admin' 
         OR EXISTS (
             SELECT 1 FROM public.site_permissions sp 
             WHERE sp.site_id = fuel_logs.site_id 
-            AND sp.user_id = (SELECT auth.uid()) 
+            AND sp.user_id = auth.uid() 
             AND sp.can_manage_finance = true
         )
-    )
+    ))
+    OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com'
 );
 
--- OSTATNÉ (Základná izolácia firmy)
-CREATE POLICY "transactions_access" ON public.transactions FOR ALL TO authenticated 
-USING (organization_id = (SELECT public.get_my_org()));
+-- SUPPORT REQUESTS
+CREATE POLICY "support_select_secure" ON public.support_requests FOR SELECT TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
-CREATE POLICY "quotes_access" ON public.quotes FOR ALL TO authenticated 
-USING (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "support_insert_secure" ON public.support_requests FOR INSERT TO authenticated 
+WITH CHECK (organization_id = public.get_my_org());
 
-CREATE POLICY "quote_items_access" ON public.quote_items FOR ALL TO authenticated 
-USING (EXISTS (
-    SELECT 1 FROM public.quotes q 
-    WHERE q.id = quote_id 
-    AND q.organization_id = (SELECT public.get_my_org())
-));
+CREATE POLICY "support_update_secure" ON public.support_requests FOR UPDATE TO authenticated 
+USING ((organization_id = public.get_my_org() AND public.get_my_role() = 'admin') OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
-CREATE POLICY "tasks_access" ON public.tasks FOR ALL TO authenticated 
-USING (organization_id = (SELECT public.get_my_org()));
+-- OSTATNÉ (Základná izolácia firmy + Ivan)
+CREATE POLICY "transactions_secure" ON public.transactions FOR ALL TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
-CREATE POLICY "advances_access" ON public.advances FOR ALL TO authenticated 
-USING (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "quotes_secure" ON public.quotes FOR ALL TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
-CREATE POLICY "adv_settlements_access" ON public.advance_settlements FOR ALL TO authenticated 
-USING (EXISTS (
-    SELECT 1 FROM public.advances a 
-    WHERE a.id = advance_id 
-    AND a.organization_id = (SELECT public.get_my_org())
-));
+CREATE POLICY "quote_items_secure" ON public.quote_items FOR ALL TO authenticated 
+USING (
+    EXISTS (SELECT 1 FROM public.quotes q WHERE q.id = quote_id AND q.organization_id = public.get_my_org())
+    OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com'
+);
 
-CREATE POLICY "support_access" ON public.support_requests FOR ALL TO authenticated 
-USING (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "tasks_secure" ON public.tasks FOR ALL TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
-CREATE POLICY "site_rates_access" ON public.site_worker_rates FOR ALL TO authenticated 
-USING (organization_id = (SELECT public.get_my_org()));
+CREATE POLICY "advances_secure" ON public.advances FOR ALL TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
+
+CREATE POLICY "adv_settlements_secure" ON public.advance_settlements FOR ALL TO authenticated 
+USING (
+    EXISTS (SELECT 1 FROM public.advances a WHERE a.id = advance_id AND a.organization_id = public.get_my_org())
+    OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com'
+);
+
+CREATE POLICY "site_rates_secure" ON public.site_worker_rates FOR ALL TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
 -- 9. AUTH TRIGGER (Automatická tvorba profilu a firmy)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   new_org_id UUID;
 BEGIN
@@ -434,7 +450,7 @@ BEGIN
   END IF;
   RETURN new;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -444,10 +460,19 @@ CREATE TRIGGER on_auth_user_created
 -- 10. STORAGE (Bucket a Politiky)
 INSERT INTO storage.buckets (id, name, public) VALUES ('diary-photos', 'diary-photos', true) ON CONFLICT (id) DO NOTHING;
 
+-- Storage Politiky (Zohľadňujú Ivana)
+DROP POLICY IF EXISTS "Public Access" ON storage.objects;
 CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'diary-photos');
+
+DROP POLICY IF EXISTS "Auth Upload" ON storage.objects;
 CREATE POLICY "Auth Upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'diary-photos');
+
+DROP POLICY IF EXISTS "Admin Delete" ON storage.objects;
 CREATE POLICY "Admin Delete" ON storage.objects FOR DELETE TO authenticated 
-USING (bucket_id = 'diary-photos' AND (SELECT public.get_my_role()) = 'admin');
+USING (
+    (bucket_id = 'diary-photos' AND public.get_my_role() = 'admin')
+    OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com'
+);
 
 -- KONIEC TRANSAKCIE
 COMMIT;

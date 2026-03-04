@@ -19,17 +19,16 @@ import { AIAssistantWidget } from './components/AIAssistantWidget';
 import { LandingScreen, LoginScreen } from './features/Auth';
 import { SuperAdminScreen } from './features/SuperAdmin';
 import { UpdatesScreen } from './features/Updates';
+import { AboutApp } from './features/AboutApp';
 
-// Import verzie z package.json ako fallback
 import pkg from './package.json';
 
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown, Download, CheckCircle2
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown, Download, CheckCircle2, Lock, Star, Phone, Mail, AlertTriangle
 } from 'lucide-react';
 
 import { App as CapApp } from '@capacitor/app';
-import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
@@ -58,6 +57,43 @@ const OfflineOverlay = () => (
     </div>
 );
 
+const UnpaidLockScreen = ({ onLogout }: { onLogout: () => void }) => (
+    <div className="fixed inset-0 z-[9999] bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-[3rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] p-8 md:p-16 max-w-2xl w-full text-center border border-red-100 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-red-500"></div>
+            <div className="w-24 h-24 bg-red-50 text-red-600 rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-inner">
+                <Lock size={48} />
+            </div>
+            <h2 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-6">Prístup bol pozastavený</h2>
+            <div className="space-y-4 text-slate-600 font-medium leading-relaxed max-w-lg mx-auto">
+                <p>Evidujeme neuhradenú faktúru za používanie systému <strong>MojaStavba</strong>.</p>
+                <p>Prístup k vašim projektom a dátam bude obnovený okamžite po pripísaní platby na náš účet.</p>
+            </div>
+            
+            <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <a href="tel:0948225713" className="flex items-center justify-center gap-3 p-5 bg-slate-900 text-white rounded-2xl hover:bg-black transition-all shadow-xl shadow-slate-200 group">
+                    <Phone size={20} className="group-hover:animate-bounce" />
+                    <div className="text-left">
+                        <div className="text-[10px] font-black uppercase opacity-50">Zavolať nám</div>
+                        <div className="font-bold">0948 225 713</div>
+                    </div>
+                </a>
+                <a href="mailto:sluzby@lordsbenison.eu" className="flex items-center justify-center gap-3 p-5 bg-white border-2 border-slate-100 text-slate-800 rounded-2xl hover:border-orange-500 transition-all group">
+                    <Mail size={20} className="text-orange-500" />
+                    <div className="text-left">
+                        <div className="text-[10px] font-black uppercase text-slate-400">Napísať email</div>
+                        <div className="font-bold">sluzby@lordsbenison.eu</div>
+                    </div>
+                </a>
+            </div>
+
+            <button onClick={onLogout} className="mt-10 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-red-600 transition flex items-center justify-center gap-2 mx-auto">
+                <LogOut size={14}/> Odhlásiť sa z účtu
+            </button>
+        </div>
+    </div>
+);
+
 export const App = () => {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -76,7 +112,6 @@ export const App = () => {
   const [initialLoginView, setInitialLoginView] = useState('login');
   const [workerTab, setWorkerTab] = useState('dashboard');
   
-  // Update state
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -100,7 +135,6 @@ export const App = () => {
     };
   }, []);
 
-  // KONTROLA AKTUALIZÁCIÍ - Len pre natívne aplikácie
   useEffect(() => {
     if (!isNative && !isElectron) return; 
 
@@ -140,6 +174,43 @@ export const App = () => {
         }
     };
 
+    // Nastavenie IPC listenerov pre Electron (pre zamestnanca)
+    if (isElectron) {
+        try {
+            // @ts-ignore
+            const { ipcRenderer } = window.require('electron');
+            
+            const handleStatus = (_: any, newStatus: string, info?: string) => {
+                if (newStatus === 'available') {
+                    setUpdateAvailable(info || '');
+                } else if (newStatus === 'downloading') {
+                    setUpdateStatus('downloading');
+                } else if (newStatus === 'ready') {
+                    setUpdateStatus('applying');
+                    setDownloadProgress(100);
+                } else if (newStatus === 'error') {
+                    setUpdateStatus('idle');
+                    setUpdateAvailable(null);
+                }
+            };
+
+            const handleProgress = (_: any, percent: number) => {
+                setDownloadProgress(Math.round(percent));
+                setUpdateStatus('downloading');
+            };
+
+            ipcRenderer.on('update-status', handleStatus);
+            ipcRenderer.on('download-progress', handleProgress);
+
+            return () => {
+                ipcRenderer.removeAllListeners('update-status');
+                ipcRenderer.removeAllListeners('download-progress');
+            };
+        } catch (e) {
+            console.error("Failed to setup Electron IPC", e);
+        }
+    }
+
     checkUpdates();
     const interval = setInterval(checkUpdates, 15 * 60 * 1000); 
     return () => clearInterval(interval);
@@ -170,6 +241,18 @@ export const App = () => {
               setUpdateStatus('idle');
               setUpdateAvailable(null);
           }
+      } else if (isElectron && updateAvailable) {
+          // Electron update pre zamestnanca
+          try {
+              // @ts-ignore
+              const { ipcRenderer } = window.require('electron');
+              setUpdateStatus('downloading');
+              ipcRenderer.send('start-download');
+          } catch (e) {
+              console.error("Electron update failed", e);
+              setUpdateStatus('idle');
+              setUpdateAvailable(null);
+          }
       } else {
           setActiveScreen('settings'); 
           setInitialSettingsTab('updates'); 
@@ -193,30 +276,15 @@ export const App = () => {
   }, [selectedSiteId]);
 
   useEffect(() => {
-    if (Capacitor.isNativePlatform() && profile && profile.role === 'admin') {
-      const initBackListener = async () => {
-        const handler = await CapApp.addListener('backButton', () => {
-          if (selectedSiteId) {
-            setSelectedSiteId(null);
-          } else if (activeScreen !== 'dashboard') {
-            setActiveScreen('dashboard');
-          } else {
-            CapApp.exitApp();
-          }
-        });
-        return handler;
-      };
-
-      const listenerPromise = initBackListener();
-      return () => {
-        listenerPromise.then(h => h.remove());
-      };
-    }
-  }, [selectedSiteId, activeScreen, profile]);
-
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlAction = params.get('action');
+    const path = window.location.pathname;
+
+    if (path === '/o-aplikacii') {
+        setView('about');
+        setLoading(false);
+        return;
+    }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -240,6 +308,7 @@ export const App = () => {
           fetchProfile(session.user.id, isSilentFetch);
       }
       else {
+          if (window.location.pathname === '/o-aplikacii') return;
           setProfile(null);
           setOrganization(null);
           const p = new URLSearchParams(window.location.search);
@@ -277,27 +346,19 @@ export const App = () => {
       }
   };
 
-const handleLogout = async () => {
-  // 1. Okamžite zruš UI stav (aby sa nič neflashlo)
-  setView('landing');
-  setProfile(null);
-  setOrganization(null);
-  setSession(null);
-  setShowLogoutConfirm(false);
-
-  // 2. Vyčisti lokálny stav aplikácie
-  localStorage.removeItem('ms_active_screen');
-  localStorage.removeItem('ms_selected_site_id');
-
-  // 3. Reálne odhlás Supabase
-  await supabase.auth.signOut();
-
-  // 4. Na mobile je nutný hard reload WebView
-  if (Capacitor.isNativePlatform()) {
-    window.location.href = '/';
-  }
-};
-
+  const handleLogout = async () => {
+    setView('landing');
+    setProfile(null);
+    setOrganization(null);
+    setSession(null);
+    setShowLogoutConfirm(false);
+    localStorage.removeItem('ms_active_screen');
+    localStorage.removeItem('ms_selected_site_id');
+    await supabase.auth.signOut();
+    if (Capacitor.isNativePlatform()) {
+      window.location.href = '/';
+    }
+  };
 
   const handleNavigate = (screen: string, params?: any) => {
       if (screen === 'settings' && params?.tab) {
@@ -333,6 +394,8 @@ const handleLogout = async () => {
 
   if (loading && !profile) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-orange-600" size={40}/></div>;
 
+  if (view === 'about') return <AboutApp />;
+
   if (view === 'landing') return (
     <>
       {!isOnline && <OfflineOverlay />}
@@ -367,6 +430,16 @@ const handleLogout = async () => {
   if (view === 'app' && profile && organization) {
       const isSuperAdmin = profile.email === SUPER_ADMIN_EMAIL;
 
+      // LOCK LOGIC FOR DEBTORS
+      if (organization.subscription_status === 'suspended_unpaid' && !isSuperAdmin) {
+          return <UnpaidLockScreen onLogout={handleLogout} />;
+      }
+
+      // Gating Logic
+      const currentPlan = organization.subscription_plan || 'base';
+      const hasAnalytics = currentPlan !== 'base' || isSuperAdmin;
+      const hasAI = currentPlan === 'pro' || isSuperAdmin;
+
       if (isTrialExpired() && activeScreen !== 'subscription') {
            return (
              <>
@@ -384,7 +457,7 @@ const handleLogout = async () => {
                 {workerTab === 'dashboard' && (
                     <>
                         <SupportWidget profile={profile} organization={organization} />
-                        <AIAssistantWidget profile={profile} organization={organization} />
+                        {hasAI && <AIAssistantWidget profile={profile} organization={organization} />}
                     </>
                 )}
                 
@@ -407,12 +480,31 @@ const handleLogout = async () => {
                                         <button onClick={() => setUpdateAvailable(null)} className="text-[10px] font-black uppercase text-slate-400 p-2">Pripomenúť neskôr</button>
                                     </div>
                                 </>
+                            ) : updateStatus === 'applying' && isElectron ? (
+                                <div className="space-y-6 py-4 animate-in fade-in">
+                                    <CheckCircle2 className="mx-auto text-green-600 mb-4" size={48} />
+                                    <div>
+                                        <h3 className="font-black text-green-900">Aktualizácia pripravená!</h3>
+                                        <p className="text-xs text-slate-400 uppercase font-bold mt-1">Pre dokončenie reštartujte aplikáciu</p>
+                                    </div>
+                                    <Button fullWidth onClick={() => {
+                                        try {
+                                            // @ts-ignore
+                                            const { ipcRenderer } = window.require('electron');
+                                            ipcRenderer.send('install-update');
+                                        } catch (e) {
+                                            console.error("Install failed", e);
+                                        }
+                                    }} className="bg-green-600 hover:bg-green-700">
+                                        Inštalovať a reštartovať
+                                    </Button>
+                                </div>
                             ) : (
                                 <div className="space-y-6 py-4 animate-in fade-in">
                                     <Loader2 className="animate-spin text-orange-600 mx-auto" size={48} />
                                     <div>
                                         <h3 className="font-black text-slate-900">{updateStatus === 'downloading' ? 'Sťahujem aktualizáciu...' : 'Aplikujem zmeny...'}</h3>
-                                        <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">Aplikácia sa po dokončení sama reštartuje</p>
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">{isElectron && updateStatus === 'applying' ? 'Pre dokončenie kliknite na tlačidlo' : 'Aplikácia sa po dokončení sama reštartuje'}</p>
                                     </div>
                                     <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                                         <div 
@@ -430,33 +522,77 @@ const handleLogout = async () => {
            );
       }
 
-      const AdminNavItem = ({ id, label, icon: Icon, color = "text-orange-600", isSubItem = false }: any) => (
-        <button
-          onClick={() => { setActiveScreen(id); setSelectedSiteId(null); }}
-          title={isSidebarCollapsed ? label : ''}
-          className={`group w-full flex items-center gap-3 rounded-xl transition-all font-bold relative shrink-0
-            ${activeScreen === id
-              ? (isSubItem ? 'bg-orange-100/50 text-orange-800' : 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100')
-              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+      const AdminNavItem = ({ id, label, icon: Icon, color = "text-orange-600", isSubItem = false, disabled = false }: any) => {
+        const [showLockedTooltip, setShowLockedTooltip] = useState(false);
+        const timeoutRef = useRef<any>(null);
+
+        const handleClick = (e: React.MouseEvent) => {
+            if (disabled) {
+                e.preventDefault();
+                setShowLockedTooltip(true);
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                timeoutRef.current = setTimeout(() => setShowLockedTooltip(false), 3000);
+            } else {
+                setActiveScreen(id);
+                setSelectedSiteId(null);
             }
-            ${isSidebarCollapsed ? 'justify-center px-0 py-3' : (isSubItem ? 'px-4 py-2 ml-2 w-[calc(100%-8px)]' : 'px-4 py-2.5')}
-            md:shrink
-          `}
-        >
-          <div className={`${activeScreen === id ? 'scale-110 transition-transform' : ''}`}>
-              <Icon
-                size={isSubItem ? 18 : 22}
-                className={`transition-colors shrink-0
-                  ${activeScreen === id
-                    ? color
-                    : 'text-slate-400 group-hover:' + color
-                  }`}
-              />
-          </div>
-          {!isSidebarCollapsed && <span className={`${isSubItem ? 'text-xs' : 'text-sm'}`}>{label}</span>}
-          <span className="md:hidden text-[10px] mt-1 font-medium truncate w-full text-center block">{label}</span>
-        </button>
-      );
+        };
+
+        const handleMouseEnter = () => {
+            if (disabled) setShowLockedTooltip(true);
+        };
+
+        const handleMouseLeave = () => {
+            if (disabled) setShowLockedTooltip(false);
+        };
+
+        return (
+            <div className="relative group">
+                <button
+                    onClick={handleClick}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
+                    title={isSidebarCollapsed && !disabled ? label : ''}
+                    className={`w-full flex items-center gap-3 rounded-xl transition-all font-bold relative shrink-0
+                        ${activeScreen === id
+                            ? (isSubItem ? 'bg-orange-100/50 text-orange-800' : 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100')
+                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                        }
+                        ${isSidebarCollapsed ? 'justify-center px-0 py-3' : (isSubItem ? 'px-4 py-2 ml-2 w-[calc(100%-8px)]' : 'px-4 py-2.5')}
+                        ${disabled ? 'cursor-help opacity-70' : ''}
+                        md:shrink
+                    `}
+                >
+                    <div className={`${activeScreen === id ? 'scale-110 transition-transform' : ''}`}>
+                        <Icon
+                            size={isSubItem ? 18 : 22}
+                            className={`transition-colors shrink-0
+                                ${activeScreen === id
+                                    ? color
+                                    : 'text-slate-400 group-hover:' + color
+                                }`}
+                        />
+                    </div>
+                    {!isSidebarCollapsed && <span className={`${isSubItem ? 'text-xs' : 'text-sm'}`}>{label}</span>}
+                    {disabled && !isSidebarCollapsed && <Lock size={12} className="ml-auto text-slate-300" />}
+                    <span className="md:hidden text-[10px] mt-1 font-medium truncate w-full text-center block">{label}</span>
+                </button>
+
+                {showLockedTooltip && (
+                    <div className={`absolute z-[100] ${isSidebarCollapsed ? 'left-full ml-2' : 'left-4 top-full mt-1'} bg-slate-900 text-white p-3 rounded-xl shadow-2xl animate-in zoom-in-95 fade-in duration-200 min-w-[180px] pointer-events-none`}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <Star size={14} className="text-amber-400 fill-amber-400" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Premium funkcia</span>
+                        </div>
+                        <p className="text-[11px] font-bold leading-snug">
+                            Táto sekcia je dostupná od balíka <span className="text-orange-400 uppercase">GOLD</span> a <span className="text-orange-400 uppercase">PLATINUM</span>.
+                        </p>
+                        <div className="absolute top-0 left-4 w-2 h-2 bg-slate-900 rotate-45 -translate-y-1 sm:block hidden"></div>
+                    </div>
+                )}
+            </div>
+        );
+      };
 
       return (
         <div className="flex h-screen bg-slate-50 overflow-hidden pt-safe-top relative">
@@ -539,8 +675,8 @@ const handleLogout = async () => {
                         
                         {(isFinanceOpen && !isSidebarCollapsed) && (
                             <div className="mt-1 space-y-0.5 animate-in slide-in-from-top-2 duration-200">
-                                <AdminNavItem id="finance" label="Firemná analytika" icon={PieChart} isSubItem={true} />
-                                <AdminNavItem id="analytics" label="Analytika zákaziek" icon={BarChart3} isSubItem={true} />
+                                <AdminNavItem id="finance" label="Firemná analytika" icon={PieChart} isSubItem={true} disabled={!hasAnalytics} />
+                                <AdminNavItem id="analytics" label="Analytika zákaziek" icon={BarChart3} isSubItem={true} disabled={!hasAnalytics} />
                                 <AdminNavItem id="advances" label="Zálohy" icon={Banknote} isSubItem={true} />
                             </div>
                         )}
@@ -631,21 +767,35 @@ const handleLogout = async () => {
                               { id: 'projects', label: 'Stavby', icon: Building2 },
                               { id: 'attendance', label: 'Dochádzky', icon: FileCheck },
                               { id: 'diary', label: 'Denník', icon: BookOpen },
-                              { id: 'finance', label: 'Firemná analytika', icon: PieChart },
-                              { id: 'analytics', label: 'Analytika zákaziek', icon: BarChart3 },
+                              { id: 'finance', label: 'Financie', icon: PieChart, disabled: !hasAnalytics },
+                              { id: 'analytics', label: 'Analytika', icon: BarChart3, disabled: !hasAnalytics },
                               { id: 'advances', label: 'Zálohy', icon: Banknote },
                               { id: 'calendar', label: 'Kalendár', icon: Calendar },
                               { id: 'team', label: 'Tím', icon: Users },
                               { id: 'settings', label: 'Nastavenia', icon: Settings },
                           ].map(item => (
-                              <button 
-                                key={item.id}
-                                onClick={() => setActiveScreen(item.id)} 
-                                className={`flex flex-col items-center justify-center min-w-[80px] flex-shrink-0 py-3 px-1 transition-colors ${activeScreen === item.id ? 'text-orange-600 bg-orange-50' : 'text-slate-400'}`}
-                              >
-                                <div className={activeScreen === item.id ? 'scale-110 transition-transform' : ''}><item.icon size={24}/></div>
-                                <span className="text-sm mt-1 font-medium truncate w-full text-center">{item.label}</span>
-                              </button>
+                              <div key={item.id} className="relative">
+                                  <button 
+                                    onClick={() => {
+                                        if (item.disabled) {
+                                            handleNavigate(item.id);
+                                        } else {
+                                            setActiveScreen(item.id);
+                                        }
+                                    }} 
+                                    className={`flex flex-col items-center justify-center min-w-[80px] flex-shrink-0 py-3 px-1 transition-colors ${activeScreen === item.id ? 'text-orange-600 bg-orange-50' : 'text-slate-400'}`}
+                                  >
+                                    <div className={activeScreen === item.id ? 'scale-110 transition-transform' : ''}>
+                                        {item.disabled ? (
+                                            <div className="relative">
+                                                <item.icon size={24} className="opacity-40" />
+                                                <Lock size={12} className="absolute -top-1 -right-1 text-orange-500" />
+                                            </div>
+                                        ) : <item.icon size={24}/>}
+                                    </div>
+                                    <span className="text-sm mt-1 font-medium truncate w-full text-center">{item.label}</span>
+                                  </button>
+                              </div>
                           ))}
                       </div>
                  </div>
@@ -657,10 +807,10 @@ const handleLogout = async () => {
                       {activeScreen === 'diary' && <DiaryScreen profile={profile} organization={organization} />}
                       {activeScreen === 'attendance' && <AttendanceScreen profile={profile} organization={organization} />}
                       {activeScreen === 'advances' && <AdvancesScreen profile={profile} />}
-                      {activeScreen === 'finance' && <FinanceScreen profile={profile} />}
+                      {activeScreen === 'finance' && (hasAnalytics ? <FinanceScreen profile={profile} /> : <UpgradeGate plan="GOLD" />)}
+                      {activeScreen === 'analytics' && (hasAnalytics ? <AnalyticsScreen profile={profile} /> : <UpgradeGate plan="GOLD" />)}
                       {activeScreen === 'calendar' && <CalendarScreen profile={profile} onNavigate={handleNavigate} />}
                       {activeScreen === 'team' && <TeamScreen profile={profile} />}
-                      {activeScreen === 'analytics' && <AnalyticsScreen profile={profile} />}
                       {activeScreen === 'settings' && <SettingsScreen profile={profile} organization={organization} onUpdateOrg={setOrganization} onUpdateProfile={handleProfileUpdate} initialTab={initialSettingsTab} />}
                       {activeScreen === 'subscription' && <SubscriptionScreen profile={profile} organization={organization} onSuccess={() => { fetchProfile(profile.id); setActiveScreen('dashboard'); }} onLogout={handleLogout} />}
                  </div>
@@ -668,7 +818,7 @@ const handleLogout = async () => {
                  {activeScreen === 'dashboard' && (
                      <>
                         <SupportWidget profile={profile} organization={organization} />
-                        <AIAssistantWidget profile={profile} organization={organization} />
+                        {hasAI && <AIAssistantWidget profile={profile} organization={organization} />}
                     </>
                  )}
              </main>
@@ -734,3 +884,18 @@ const handleLogout = async () => {
 
   return null;
 };
+
+const UpgradeGate = ({ plan }: { plan: string }) => (
+    <div className="flex flex-col items-center justify-center py-20 animate-in zoom-in duration-500">
+        <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-[2rem] flex items-center justify-center mb-6 shadow-xl shadow-orange-50">
+            <Lock size={40} />
+        </div>
+        <h3 className="text-2xl font-black text-slate-900 mb-2">Funkcia je uzamknutá</h3>
+        <p className="text-slate-500 text-center max-w-sm mb-8 font-medium">
+            Pokročilá analytika a sledovanie nákupov sú dostupné od balíka <strong>{plan}</strong>.
+        </p>
+        <Button onClick={() => window.location.href = '?action=subscription'} className="px-10 h-14 uppercase tracking-widest font-black text-xs shadow-orange-200">
+            Prejsť na výber balíka
+        </Button>
+    </div>
+);

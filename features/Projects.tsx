@@ -1,13 +1,14 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, CustomLogo } from '../components/UI';
 // Added BookOpen to lucide-react imports to fix line 162 error
-import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus, Fuel, Users, Settings2, Save, Shield, BookOpen } from 'lucide-react';
+import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus, Fuel, Users, Settings2, Save, Shield, BookOpen, Star } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 import { ProjectPHM } from './ProjectPHM';
+import { PLANS } from './Subscription';
 
 // Type declaration for window object
 declare global {
@@ -79,6 +80,11 @@ const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string,
     const [loading, setLoading] = useState(true);
     const [savingId, setSavingId] = useState<string | null>(null);
 
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmUser, setConfirmUser] = useState<any>(null);
+    const [confirmField, setConfirmField] = useState<'can_manage_diary' | 'can_manage_finance'>('can_manage_diary');
+    const [isGranting, setIsGranting] = useState<boolean>(true);
+
     const load = async () => {
         setLoading(true);
         const [wRes, pRes] = await Promise.all([
@@ -131,7 +137,6 @@ const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string,
                     <Shield size={20}/>
                 </div>
                 <div>
-                    <h4 className="font-black text-blue-900 text-sm uppercase tracking-tight">Delegovanie právomocí</h4>
                     <p className="text-xs text-blue-700 font-medium leading-relaxed mt-1">
                         Tu môžete určiť, ktorí zamestnanci majú právo spravovať túto zákazku s možnosťou zápisov do <strong>Stavebného denníka</strong> a zaznamenávaním <strong>nákladov a PHM</strong>.
                     </p>
@@ -156,7 +161,7 @@ const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string,
 
                                 <div className="flex gap-2">
                                     <button 
-                                        onClick={() => togglePermission(w.id, 'can_manage_diary')}
+                                        onClick={() => { setConfirmUser(w); setConfirmField('can_manage_diary'); setIsGranting(!p?.can_manage_diary); setShowConfirmModal(true); }}
                                         disabled={savingId === w.id + '_can_manage_diary'}
                                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${p?.can_manage_diary ? 'bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-100' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
                                     >
@@ -164,7 +169,7 @@ const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string,
                                         Vedenie denníka
                                     </button>
                                     <button 
-                                        onClick={() => togglePermission(w.id, 'can_manage_finance')}
+                                        onClick={() => { setConfirmUser(w); setConfirmField('can_manage_finance'); setIsGranting(!p?.can_manage_finance); setShowConfirmModal(true); }}
                                         disabled={savingId === w.id + '_can_manage_finance'}
                                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${p?.can_manage_finance ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
                                     >
@@ -178,6 +183,30 @@ const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string,
                 })}
                 {workers.length === 0 && <div className="text-center py-10 text-slate-300 font-bold uppercase text-[10px]">Žiadni aktívni zamestnanci na priradenie.</div>}
             </div>
+
+            {showConfirmModal && confirmUser && confirmField && (
+                <ConfirmModal 
+                    isOpen={showConfirmModal}
+                    title="Potvrdenie právomocí"
+                    message={
+                        (() => {
+                            const permissionName = confirmField === 'can_manage_diary' ? 'Vedenie denníka' : 'Správa nákupov';
+                            let msg = isGranting 
+                                ? `Naozaj chcete pridať zamestnancovi ${confirmUser.full_name} právomoc ${permissionName}?`
+                                : `Naozaj chcete odobrať zamestnancovi ${confirmUser.full_name} právomoc ${permissionName}?`;
+                            if (isGranting) {
+                                msg += '\n\nTáto právomoc sa týka iba tejto konkrétnej zákazky.';
+                                if (confirmField === 'can_manage_finance') {
+                                    msg += '\n\n⚠️ Oprávnený zamestnanec môže zaznamenávať iba výdavky, nie príjmy..';
+                                }
+                            }
+                            return msg;
+                        })()
+                    }
+                    onConfirm={() => togglePermission(confirmUser.id, confirmField)}
+                    onClose={() => setShowConfirmModal(false)}
+                />
+            )}
         </div>
     );
 };
@@ -218,6 +247,32 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
   
   const [alertState, setAlertState] = useState<{open: boolean, title: string, message: string, type: string}>({ open: false, title: '', message: '', type: 'success' });
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string | null}>({ open: false, action: '', id: null });
+
+  // --- LOGIKA LIMITOV STAVIEB ---
+  const [org, setOrg] = useState<any>(organization);
+
+  useEffect(() => {
+    const fetchOrg = async () => {
+        const { data } = await supabase.from('organizations').select('*').eq('id', profile.organization_id).single();
+        if(data) setOrg(data);
+    };
+    if (!org) fetchOrg();
+  }, [profile.organization_id]);
+
+  const activePlan = useMemo(() => {
+    const planId = org?.subscription_plan || 'base';
+    return PLANS.find(p => p.id === planId) || PLANS[0];
+  }, [org]);
+
+  // Počítame len tie, ktoré sú status: 'active', 'planning', 'paused'
+  // (Leady a archív sa do limitu nerátajú)
+  const currentActiveSitesCount = useMemo(() => {
+      // V realite by sme tu chceli headcount z DB, ale pre UI check nám stačia načítané weby
+      // Ak by sme mali veľa stavieb, robili by sme separátny COUNT(*)
+      return sites.filter(s => ['active', 'planning', 'paused'].includes(s.status)).length;
+  }, [sites]);
+
+  const isSiteLimitReached = org && currentActiveSitesCount >= activePlan.siteLimit;
 
   const handleTabChange = (newTab: 'leads' | 'active' | 'archive') => {
       if (newTab === activeTab && sites.length > 0) return; 
@@ -380,6 +435,18 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
 
   const handleSaveSite = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check limit only for new additions
+    if (!editingSite && formData.status !== 'lead' && isSiteLimitReached) {
+        setAlertState({ 
+            open: true, 
+            title: 'Limit balíka dosiahnutý', 
+            message: `Váš balík ${activePlan.name} povoľuje max. ${activePlan.siteLimit} aktívnych stavieb. Pre pridanie ďalších dopytov prejdite na vyšší balík alebo archivujte dokončené stavby.`,
+            type: 'error'
+        });
+        return;
+    }
+
     try {
         let rawNotes = formData.notes || '';
         const { cleanNotes } = parseNotesData(rawNotes);
@@ -483,16 +550,38 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
         </div>
         {activeTab !== 'archive' && (
             <div className="flex gap-2 w-full md:w-auto">
-                <Button fullWidth onClick={() => {
-                    setEditingSite(null);
-                    setFormData({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 20, isIndividualVat: false });
-                    setBudgetBreakdown([]);
-                    setShowBreakdown(false);
-                    setShowModal(true);
-                }}><Plus size={18}/> Pridať {activeTab === 'active' ? 'zákazku' : 'dopyt'}</Button>
+                <Button 
+                    fullWidth 
+                    className={isSiteLimitReached && activeTab === 'active' ? 'grayscale opacity-50' : ''}
+                    onClick={() => {
+                        setEditingSite(null);
+                        setFormData({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 20, isIndividualVat: false });
+                        setBudgetBreakdown([]);
+                        setShowBreakdown(false);
+                        setShowModal(true);
+                    }}
+                >
+                    <Plus size={18}/> Pridať {activeTab === 'active' ? 'zákazku' : 'dopyt'}
+                </Button>
             </div>
         )}
       </div>
+
+      {isSiteLimitReached && (activeTab === 'active') && (
+          <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top-2">
+              <AlertCircle className="text-orange-600 shrink-0" size={24}/>
+              <div className="flex-1">
+                  <p className="text-sm font-black text-orange-900 uppercase">Limit aktívnych stavieb dosiahnutý ({activePlan.siteLimit}/{activePlan.siteLimit})</p>
+                  <p className="text-xs text-orange-700 font-medium">Pre pridanie ďalších stavieb musíte prejsť na vyšší balík alebo archivovať hotové projekty.</p>
+              </div>
+              <button 
+                onClick={() => window.location.href = '?action=subscription'}
+                className="px-4 py-2 bg-orange-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-200 whitespace-nowrap"
+              >
+                  Upgrade
+              </button>
+          </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
         <div className="bg-slate-100 p-1 rounded-xl flex gap-1 shadow-inner border border-slate-200 overflow-x-auto w-full lg:w-auto">
@@ -1501,6 +1590,10 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
 
     const generatePDF = async () => {
         if (!printRef.current) return;
+        
+        // Check if running on mobile device
+        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
         try {
             const opt = { 
                 margin: 0, 
@@ -1509,10 +1602,25 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                 html2canvas: { scale: 2, useCORS: true }, 
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const } 
             };
-            html2pdf().set(opt).from(printRef.current).save();
+            
+            if (isMobile) {
+                // For mobile: generate PDF and create download link
+                const pdf = await html2pdf().set(opt).from(printRef.current).outputPdf('blob') as Blob;
+                const url = URL.createObjectURL(pdf);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `CP_${selectedQuote?.quote_number}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                // For desktop: use direct save
+                html2pdf().set(opt).from(printRef.current).save();
+            }
         } catch (e) {
             console.error(e);
-            window.alert("Chyba pri generovaní PDF.");
+            window.alert("Chyba pri generovaní PDF. Skúste znova alebo použite desktop verziu.");
         }
     };
 
@@ -1832,6 +1940,10 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
     setExporting(true);
     setTimeout(async () => {
         if(!printRef.current) return;
+        
+        // Check if running on mobile device
+        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
         try {
             const modeName = exportSettings.type === 'client' ? 'Export_Klient' : 'Export_Majitel';
             const opt = { 
@@ -1841,11 +1953,30 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 html2canvas: { scale: 2, useCORS: true }, 
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const } 
             };
-            await html2pdf().set(opt).from(printRef.current).save();
-            setModals({...modals, export: false});
+            
+            if (isMobile) {
+                // For mobile: generate PDF and create download link
+                const pdf = await html2pdf().set(opt).from(printRef.current).outputPdf('blob') as Blob;
+                const url = URL.createObjectURL(pdf);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${modeName}_${site.name}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                setModals({...modals, export: false});
+                setExporting(false);
+            } else {
+                // For desktop: use direct save
+                await html2pdf().set(opt).from(printRef.current).save();
+                setModals({...modals, export: false});
+                setExporting(false);
+            }
         } catch(e) {
-            setAlertState({ open: true, title: 'Chyba', message: "Chyba pri generovaní PDF.", type: 'error' });
-        } finally {
+            console.error('PDF Export Error:', e);
+            setAlertState({ open: true, title: 'Chyba', message: "PDF export zlyhal. Skúste znova alebo použite desktop verziu.", type: 'error' });
             setExporting(false);
         }
     }, 500);
@@ -1938,7 +2069,6 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
               
               let err;
               if (formState.id) {
-                  {/* Fix: corrected id to formState.id */}
                   const { error } = await supabase.from('transactions').update(transPayload).eq('id', formState.id);
                   err = error;
               } else {

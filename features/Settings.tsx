@@ -1,15 +1,18 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Input, AlertModal, LegalModal, ConfirmModal, Select } from '../components/UI';
+import { Card, Button, Input, AlertModal, LegalModal, ConfirmModal, Select, Modal } from '../components/UI';
 import { 
   Lock, Save, Settings, Copy, CheckCircle2, Building2, KeyRound, 
   Bell, Image as ImageIcon, Shield, Users, LogOut, Clock, 
   RefreshCw, FileText, Tags, Trash2, Plus, Palette, Check, 
-  Camera, Loader2, FileSignature, AlertTriangle, MapPin, CreditCard
+  Camera, Loader2, FileSignature, AlertTriangle, MapPin, CreditCard,
+  Maximize2, ZoomIn, RotateCw
 } from 'lucide-react';
 import { UpdatesScreen } from './Updates';
 import { Capacitor } from '@capacitor/core';
+// @ts-ignore
+import Cropper from 'react-easy-crop';
 
 // Pastel palette for task categories
 const PASTEL_COLORS = [
@@ -23,30 +26,40 @@ const PASTEL_COLORS = [
     { label: 'Tyrkysová', hex: '#ccfbf1' },  // teal-100
 ];
 
-const compressLogo = (file: File): Promise<Blob> => {
+const getCroppedImg = (imageSrc: string, pixelCrop: any): Promise<Blob> => {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target?.result as string;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const SIZE = 256; 
-                canvas.width = SIZE;
-                canvas.height = SIZE;
-                const ctx = canvas.getContext('2d');
-                const minDim = Math.min(img.width, img.height);
-                const sx = (img.width - minDim) / 2;
-                const sy = (img.height - minDim) / 2;
-                ctx?.drawImage(img, sx, sy, minDim, minDim, 0, 0, SIZE, SIZE);
-                canvas.toBlob((blob) => {
-                    if (blob) resolve(blob);
-                    else reject(new Error('Chyba pri kompresii loga.'));
-                }, 'image/jpeg', 0.85); 
-            };
+        const image = new Image();
+        image.src = imageSrc;
+        image.onload = () => {
+            const canvas = document.createElement('canvas');
+            const SIZE = 512; // Rozlíšenie po oreze (dostatočné pre PDF aj UI)
+            canvas.width = SIZE;
+            canvas.height = SIZE;
+            const ctx = canvas.getContext('2d');
+
+            if (!ctx) {
+                reject(new Error('Canvas context not found'));
+                return;
+            }
+
+            ctx.drawImage(
+                image,
+                pixelCrop.x,
+                pixelCrop.y,
+                pixelCrop.width,
+                pixelCrop.height,
+                0,
+                0,
+                SIZE,
+                SIZE
+            );
+
+            canvas.toBlob((blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error('Chyba pri generovaní orezu.'));
+            }, 'image/jpeg', 0.9);
         };
-        reader.onerror = (err) => reject(err);
+        image.onerror = reject;
     });
 };
 
@@ -78,6 +91,13 @@ const compressStamp = (file: File): Promise<Blob> => {
 export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdateProfile, initialTab = 'general' }: any) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(false);
+  
+  // Cropper states
+  const [croppingImage, setCroppingImage] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  
   const [uploading, setUploading] = useState(false);
   const [uploadingStamp, setUploadingStamp] = useState(false);
   const [alertState, setAlertState] = useState({ open: false, title: '', message: '', type: 'success' });
@@ -88,13 +108,11 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stampInputRef = useRef<HTMLInputElement>(null);
 
-  // Detekcia či sme v natívnej aplikácii (Electron alebo Mobil)
   const isCapacitor = Capacitor.isNativePlatform();
   const isElectron = navigator.userAgent.toLowerCase().includes('electron');
   const isApp = isCapacitor || isElectron;
 
   useEffect(() => {
-      // Ak by bol nastavený tab updates ale sme na webe, prepneme na general
       if (initialTab === 'updates' && !isApp) {
           setActiveTab('general');
       } else {
@@ -146,25 +164,47 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
       }
   }, [organization]);
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        setUploading(true);
-        try {
-            const blob = await compressLogo(file);
-            const fileName = `${profile.organization_id}/logo-${Date.now()}.jpg`;
-            const filePath = `logos/${fileName}`;
-            const { error: uploadError } = await supabase.storage.from('diary-photos').upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
-            if (uploadError) throw uploadError;
-            const { data: { publicUrl } } = supabase.storage.from('diary-photos').getPublicUrl(filePath);
-            setOrgData(prev => ({ ...prev, logo_url: publicUrl }));
-            await supabase.from('organizations').update({ logo_url: publicUrl }).eq('id', profile.organization_id);
-            onUpdateOrg({ ...organization, logo_url: publicUrl });
-        } catch (err: any) {
-            setAlertState({ open: true, title: 'Chyba', message: 'Nepodarilo sa nahrať logo: ' + err.message, type: 'error' });
-        } finally {
-            setUploading(false);
-        }
+  const onCropComplete = useCallback((_croppedArea: any, pixelCrop: any) => {
+      setCroppedAreaPixels(pixelCrop);
+  }, []);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const reader = new FileReader();
+          reader.readAsDataURL(e.target.files[0]);
+          reader.onload = () => {
+              setCroppingImage(reader.result as string);
+          };
+      }
+  };
+
+  const handleApplyCrop = async () => {
+    if (!croppingImage || !croppedAreaPixels) return;
+    setUploading(true);
+    try {
+        const blob = await getCroppedImg(croppingImage, croppedAreaPixels);
+        const fileName = `${profile.organization_id}/logo-${Date.now()}.jpg`;
+        const filePath = `logos/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+            .from('diary-photos')
+            .upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('diary-photos')
+            .getPublicUrl(filePath);
+
+        setOrgData(prev => ({ ...prev, logo_url: publicUrl }));
+        await supabase.from('organizations').update({ logo_url: publicUrl }).eq('id', profile.organization_id);
+        onUpdateOrg({ ...organization, logo_url: publicUrl });
+        
+        setCroppingImage(null);
+    } catch (err: any) {
+        setAlertState({ open: true, title: 'Chyba', message: 'Nepodarilo sa nahrať logo: ' + err.message, type: 'error' });
+    } finally {
+        setUploading(false);
     }
   };
 
@@ -323,7 +363,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                                             {uploading ? <Loader2 className="animate-spin text-orange-600" size={32}/> : orgData.logo_url ? <img src={orgData.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <Building2 size={48} className="text-slate-300" />}
                                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera className="text-white" size={24}/></div>
                                         </div>
-                                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
                                         <div className="absolute -bottom-2 -right-2 bg-orange-600 text-white p-2 rounded-full shadow-lg border-2 border-white"><ImageIcon size={16}/></div>
                                     </div>
                                     <div className="text-center"><h3 className="font-black text-slate-900">Logo Firmy</h3><p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-0.5">Avatar aplikácie</p></div>
@@ -397,7 +437,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                             <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2"><Tags className="text-orange-600" size={20}/> Kategórie úloh</h3>
                             <p className="text-sm text-slate-500 mb-6">Vytvorte si vlastné typy úloh a priraďte im farby pre lepšiu prehľadnosť v kalendári.</p>
                             <div className="space-y-3 mb-6">{taskCategories.map(cat => (<div key={cat.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-sm"><div className="w-8 h-8 rounded-full shadow-inner border border-black/5" style={{ backgroundColor: cat.color }}></div><div className="font-bold text-slate-700 flex-1">{cat.label}</div><button onClick={() => removeCategory(cat.id)} className="text-slate-300 hover:text-red-500 p-2 transition-colors"><Trash2 size={16}/></button></div>))}{taskCategories.length === 0 && <div className="text-center text-slate-400 italic text-sm py-4">Zatiaľ žiadne kategórie.</div>}</div>
-                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200"><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Pridať novú kategóriu</label><div className="flex gap-3 flex-col md:flex-row"><input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="Názov (napr. Omietky)" className="flex-1 p-3 border border-slate-300 rounded-xl outline-none focus:border-orange-500 transition"/><div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 md:pb-0 items-center px-1">{PASTEL_COLORS.map(c => (<button key={c.hex} type="button" onClick={() => setNewCatColor(c.hex)} className={`w-10 h-10 rounded-full transition-all shrink-0 focus:outline-none flex items-center justify-center border-2 ${newCatColor === c.hex ? 'scale-110 shadow-lg border-white ring-2 ring-orange-200' : 'border-transparent hover:scale-105'}`} style={{ backgroundColor: c.hex }} title={c.label}>{newCatColor === c.hex && <Check size={16} className="text-slate-800" />}</button>))}<label className={`w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-all shrink-0 relative overflow-hidden border-2 ${isCustomColor ? 'scale-110 shadow-lg border-white ring-2 ring-orange-200' : 'border-slate-300 bg-white hover:border-slate-400'}`} style={isCustomColor ? {backgroundColor: newCatColor} : {}} title="Vlastná farba"><input type="color" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer focus:outline-none" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)} />{isCustomColor ? <Check size={16} className="text-slate-800" /> : <Plus size={20} className="text-slate-400"/>}</label></div><Button onClick={addCategory} disabled={!newCatName} className="h-12"><Plus size={18}/></Button></div></div>
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Pridať novú kategóriu</label><div className="flex gap-3 flex-col md:flex-row"><input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="Názov (napr. Omietky)" className="flex-1 p-3 border border-slate-300 rounded-xl outline-none focus:border-orange-500 transition"/><div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 md:pb-0 items-center px-1">{PASTEL_COLORS.map(c => (<button key={c.hex} type="button" onClick={() => setNewCatColor(c.hex)} className={`w-10 h-10 rounded-full transition-all shrink-0 focus:outline-none flex items-center justify-center border-2 ${newCatColor === c.hex ? 'scale-110 shadow-lg border-white ring-2 ring-orange-200' : 'border-transparent hover:scale-105'}`} style={{ backgroundColor: c.hex }} title={c.label}>{newCatColor === c.hex && <Check size={16} className="text-slate-800" />}</button>))}<label className={`w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-all shrink-0 relative overflow-hidden border-2 ${isCustomColor ? 'scale-110 shadow-lg border-white ring-2 ring-orange-200' : 'border-slate-300 bg-white hover:border-slate-400'}`} style={isCustomColor ? {backgroundColor: newCatColor} : {}} title="Vlastná farba"><input type="color" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer focus:outline-none" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)} />{isCustomColor ? <Check size={16} className="text-slate-800" /> : <Plus size={20} className="text-slate-400"/>}</label></div><Button onClick={addCategory} disabled={!newCatName} className="h-12"><Plus size={18}/></Button></div></div>
                             <div className="mt-8 pt-4 border-t border-slate-100"><Button fullWidth onClick={saveCategories} loading={loading} size="lg">Uložiť Kategórie</Button></div>
                         </Card>
                     </div>
@@ -434,6 +474,95 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                 )}
             </div>
         </div>
+
+        {/* MODAL PRE OREZÁVANIE LOGA */}
+        {croppingImage && (
+            <Modal title="Orezanie loga" onClose={() => setCroppingImage(null)} maxWidth="max-w-4xl">
+                <div className="space-y-6">
+                    <p className="text-sm text-slate-500 text-center font-medium">
+                        Potiahnite logo a pomocou jazdca nižšie nastavte ideálny výrez.
+                    </p>
+
+                    <div className="relative h-64 md:h-96 w-full bg-slate-900 rounded-2xl overflow-hidden border-4 border-slate-100 shadow-inner">
+                        <Cropper
+                            image={croppingImage}
+                            crop={crop}
+                            zoom={zoom}
+                            aspect={1}
+                            onCropChange={setCrop}
+                            onCropComplete={onCropComplete}
+                            onZoomChange={setZoom}
+                        />
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <ZoomIn size={18} className="text-slate-400" />
+                            <input
+                                type="range"
+                                value={zoom}
+                                min={1}
+                                max={3}
+                                step={0.1}
+                                aria-labelledby="Zoom"
+                                onChange={(e) => setZoom(Number(e.target.value))}
+                                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+                            />
+                            <Maximize2 size={18} className="text-slate-400" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-3xl border border-slate-200 border-dashed">
+                        <div className="text-center space-y-3">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Náhľad v menu (Bublina)</p>
+                            <div className="flex justify-center">
+                                <div className="w-20 h-20 rounded-full border-4 border-white shadow-xl overflow-hidden bg-white">
+                                    <div className="w-full h-full relative">
+                                        <img 
+                                            src={croppingImage} 
+                                            style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'cover',
+                                                transform: `scale(${zoom}) translate(${crop.x/5}%, ${crop.y/5}%)`
+                                            }}
+                                            className="pointer-events-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="text-center space-y-3">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Náhľad v PDF (Dokument)</p>
+                            <div className="flex justify-center">
+                                <div className="w-32 h-20 rounded-xl border-4 border-white shadow-xl overflow-hidden bg-white flex items-center justify-center">
+                                    <div className="w-full h-full relative">
+                                        <img 
+                                            src={croppingImage} 
+                                            style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'cover',
+                                                transform: `scale(${zoom}) translate(${crop.x/5}%, ${crop.y/5}%)`
+                                            }}
+                                            className="pointer-events-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+                        <Button variant="secondary" onClick={() => setCroppingImage(null)} fullWidth>Zrušiť</Button>
+                        <Button onClick={handleApplyCrop} loading={uploading} fullWidth className="bg-orange-600 shadow-orange-100">
+                            <CheckCircle2 size={18}/> Použiť a uložiť
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+        )}
 
         <AlertModal
             isOpen={alertState.open}

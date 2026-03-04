@@ -7,7 +7,7 @@ import {
   WifiOff, LayoutGrid, ListTodo, User, LogOut, 
   ChevronRight, MapPin, TrendingUp, Wallet, Phone, Lock, Info, Zap,
   Activity, ChevronLeft, Mail, Pencil, Save, Coins, AlertCircle, History, ArrowRight, Camera, KeyRound, Shield, Briefcase, Filter, Search,
-  ChevronDown, Banknote, ChevronUp, ArrowUp, Check, Globe, ShieldCheck, BookOpen, Package, ClipboardCheck, Hash
+  ChevronDown, Banknote, ChevronUp, ArrowUp, Check, Globe, ShieldCheck, BookOpen, Package, ClipboardCheck, Hash, RefreshCw, ArrowUpCircle, AlertTriangle
 } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 
@@ -20,13 +20,20 @@ import { DiaryScreen } from './Diary';
 import { ProjectFinanceWorker } from './ProjectFinanceWorker';
 import { SitePermission } from '../lib/permissions';
 
+// Import pre aktualizácie
+import pkg from '../package.json';
+
 const PRIORITY_FLAG = "#PRIORITY";
 const HISTORY_PAGE_SIZE = 20;
+
+const isCapacitor = Capacitor.isNativePlatform();
+const isElectron = !isCapacitor && navigator.userAgent.toLowerCase().includes('electron');
+const isApp = isCapacitor || isElectron;
 
 // --- KOMPLETNÁ LOKALIZÁCIA PRE VŠETKY JAZYKY ---
 const TRANSLATIONS: any = {
   sk: {
-    nav_home: 'Domov', nav_tasks: 'Moje Úlohy', nav_log: 'Zápis Práce', nav_advances: 'Moje Zálohy', nav_history: 'Moja História', nav_profile: 'Môj Profil',
+    nav_home: 'Domov', nav_tasks: 'Moje Úlohy', nav_log: 'Zápis Práce', nav_advances: 'Moje Zálohy', nav_history: 'Moja História', nav_profile: 'Môj Profil', nav_updates: 'Aktualizácie',
     logout: 'Odhlásiť sa', logout_confirm_title: 'Odhlásiť sa?', logout_confirm_msg: 'Naozaj sa chcete odhlásiť z aplikácie?',
     greeting: 'Ahoj', this_month: 'Tento mesiac', earnings: 'Zárobok', overdue_tasks: 'Nevybavené úlohy!',
     pending_advances: 'Nevyrovnané zálohy', total_to_return: 'Zostáva k vráteniu', today_agenda: 'Dnešná Agenda', weekly_activity: 'Týždenná aktivita',
@@ -59,7 +66,7 @@ const TRANSLATIONS: any = {
     current_day: 'Dnes', understand: 'Rozumiem', confirm: 'Potvrdiť'
   },
   en: {
-    nav_home: 'Home', nav_tasks: 'My Tasks', nav_log: 'Work Log', nav_advances: 'My Advances', nav_history: 'My History', nav_profile: 'My Profile',
+    nav_home: 'Home', nav_tasks: 'My Tasks', nav_log: 'Work Log', nav_advances: 'My Advances', nav_history: 'My History', nav_profile: 'My Profile', nav_updates: 'Updates',
     logout: 'Logout', logout_confirm_title: 'Logout?', logout_confirm_msg: 'Are you sure you want to logout?',
     greeting: 'Hi', this_month: 'This month', earnings: 'Earnings', overdue_tasks: 'Pending tasks!',
     pending_advances: 'Unsettled advances', total_to_return: 'Total to return', today_agenda: 'Today\'s Agenda', weekly_activity: 'Weekly activity',
@@ -92,7 +99,7 @@ const TRANSLATIONS: any = {
     current_day: 'Today', understand: 'I understand', confirm: 'Confirm'
   },
   de: {
-    nav_home: 'Startseite', nav_tasks: 'Meine Aufgaben', nav_log: 'Arbeitsprotokoll', nav_advances: 'Meine Vorschüsse', nav_history: 'Verlauf', nav_profile: 'Mein Profil',
+    nav_home: 'Startseite', nav_tasks: 'Meine Aufgaben', nav_log: 'Arbeitsprotokoll', nav_advances: 'Meine Vorschüsse', nav_history: 'Verlauf', nav_profile: 'Mein Profil', nav_updates: 'Aktualisierungen',
     logout: 'Abmelden', logout_confirm_title: 'Abmelden?', logout_confirm_msg: 'Möchten Sie sich wirklich abmelden?',
     greeting: 'Hallo', this_month: 'Diesen Monat', earnings: 'Verdienst', overdue_tasks: 'Ausstehende Aufgaben!',
     pending_advances: 'Offene Vorschüsse', total_to_return: 'Restbetrag', today_agenda: 'Heutige Agenda', weekly_activity: 'Wöchentliche Aktivität',
@@ -125,7 +132,7 @@ const TRANSLATIONS: any = {
     current_day: 'Heute', understand: 'Verstanden', confirm: 'Bestätigen'
   },
   hu: {
-    nav_home: 'Kezdőlap', nav_tasks: 'Feladataim', nav_log: 'Munka rögzítése', nav_advances: 'Előlegeim', nav_history: 'Előzmények', nav_profile: 'Profilom',
+    nav_home: 'Kezdőlap', nav_tasks: 'Feladataim', nav_log: 'Munka rögzítése', nav_advances: 'Előlegeim', nav_history: 'Előzmények', nav_profile: 'Profilom', nav_updates: 'Frissítések',
     logout: 'Kijelentkezés', logout_confirm_title: 'Kijelentkezés?', logout_confirm_msg: 'Biztosan ki akar jelentkezni?',
     greeting: 'Szia', this_month: 'Ebben a hónapban', earnings: 'Kereset', overdue_tasks: 'Függő feladatok!',
     pending_advances: 'Nyeretlen előlegek', total_to_return: 'Visszafizetendő', today_agenda: 'Mai feladatok', weekly_activity: 'Heti aktivitás',
@@ -158,7 +165,7 @@ const TRANSLATIONS: any = {
     current_day: 'Ma', understand: 'Értem', confirm: 'Megerősítés'
   },
   pl: {
-    nav_home: 'Start', nav_tasks: 'Moje zadania', nav_log: 'Zapis pracy', nav_advances: 'Moje zaliczki', nav_history: 'Historia', nav_profile: 'Mój Profil',
+    nav_home: 'Start', nav_tasks: 'Moje zadania', nav_log: 'Zapis pracy', nav_advances: 'Moje zaliczki', nav_history: 'Historia', nav_profile: 'Mój Profil', nav_updates: 'Aktualizacje',
     logout: 'Wyloguj', logout_confirm_title: 'Wylogować?', logout_confirm_msg: 'Czy na pewno chcesz się wylogować?',
     greeting: 'Cześć', this_month: 'W tym miesiącu', earnings: 'Zarobki', overdue_tasks: 'Zaległe zadania!',
     pending_advances: 'Nierozliczone zaliczki', total_to_return: 'Do zwrotu', today_agenda: 'Dzisiejszy plan', weekly_activity: 'Aktywność tygodniowa',
@@ -191,7 +198,7 @@ const TRANSLATIONS: any = {
     current_day: 'Dzisiaj', understand: 'Rozumiem', confirm: 'Potwierdź'
   },
   ua: {
-    nav_home: 'Головна', nav_tasks: 'Мої завдання', nav_log: 'Запис роботи', nav_advances: 'Мої аванси', nav_history: 'Історія', nav_profile: 'Мій Профіль',
+    nav_home: 'Головна', nav_tasks: 'Мої завдання', nav_log: 'Запис роботи', nav_advances: 'Мої аванси', nav_history: 'Історія', nav_profile: 'Мій Профіль', nav_updates: 'Оновлення',
     logout: 'Вийти', logout_confirm_title: 'Вийти?', logout_confirm_msg: 'Ви впевнені, що хочете вийти?',
     greeting: 'Привіт', this_month: 'Цього місяця', earnings: 'Заробіток', overdue_tasks: 'Прострочені завдання!',
     pending_advances: 'Нерозраховані аванси', total_to_return: 'До повернення', today_agenda: 'Сьогоднішній план', weekly_activity: 'Тижнева активність',
@@ -268,7 +275,7 @@ interface WorkerModeProps {
 export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialProfile, onLogout, onTabChange }) => {
   const [profile, setProfile] = useState(initialProfile);
   const [organization, setOrganization] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'log' | 'history' | 'profile' | 'advances'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'log' | 'history' | 'profile' | 'advances' | 'updates'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
@@ -321,6 +328,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historySiteFilter, setHistorySiteFilter] = useState('');
   const [historyYearFilter, setHistoryYearFilter] = useState(new Date().getFullYear().toString());
+  const [historyMonthFilter, setHistoryMonthFilter] = useState('');
   const [relevantSites, setRelevantSites] = useState<any[]>([]);
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -361,6 +369,12 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
   const [actionLoading, setActionLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [success, setSuccess] = useState(false);
+  
+  // State pre aktualizácie
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'no-update' | 'error'>('idle');
+  const [currentVersion, setCurrentVersion] = useState(pkg.version);
+  const [newVersion, setNewVersion] = useState('');
+  const [updateError, setUpdateError] = useState('');
   
   const [alertState, setAlertState] = useState<{open: boolean, message: string, title?: string, type?: 'success' | 'error'}>({ open: false, message: '' });
 
@@ -475,7 +489,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
           setHistoryPage(0);
           loadHistoryLogs(0, true);
       }
-  }, [activeTab, historySiteFilter, historyYearFilter]);
+  }, [activeTab, historySiteFilter, historyYearFilter, historyMonthFilter]);
 
   useEffect(() => {
     if (onTabChange) onTabChange(activeTab);
@@ -527,7 +541,13 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
         }
         
         if (historyYearFilter) {
-            query = query.gte('date', `${historyYearFilter}-01-01`).lte('date', `${historyYearFilter}-12-31`);
+            if (historyMonthFilter) {
+                // Filter by specific month
+                query = query.gte('date', `${historyYearFilter}-${historyMonthFilter}-01`).lte('date', `${historyYearFilter}-${historyMonthFilter}-31`);
+            } else {
+                // Filter by whole year
+                query = query.gte('date', `${historyYearFilter}-01-01`).lte('date', `${historyYearFilter}-12-31`);
+            }
         }
 
         const { data, error } = await query;
@@ -596,6 +616,34 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       }
       return years;
   }, [profile?.created_at]);
+
+  const availableMonths = useMemo(() => {
+      const months = [
+          { value: '01', label: 'Január' },
+          { value: '02', label: 'Február' },
+          { value: '03', label: 'Marec' },
+          { value: '04', label: 'Apríl' },
+          { value: '05', label: 'Máj' },
+          { value: '06', label: 'Jún' },
+          { value: '07', label: 'Júl' },
+          { value: '08', label: 'August' },
+          { value: '09', label: 'September' },
+          { value: '10', label: 'Október' },
+          { value: '11', label: 'November' },
+          { value: '12', label: 'December' }
+      ];
+      
+      if (!historyYearFilter) return months;
+      
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      
+      if (parseInt(historyYearFilter) === currentYear) {
+          return months.filter(m => parseInt(m.value) <= currentMonth);
+      }
+      
+      return months;
+  }, [historyYearFilter]);
 
   const taskGroups = useMemo(() => {
       const today = getLocalDateISO(new Date());
@@ -844,6 +892,36 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
     setActivePrivilege({ siteId, module });
   };
 
+  // Funkcia pre kontrolu aktualizácií
+  const checkForUpdates = async () => {
+    setUpdateStatus('checking');
+    setUpdateError('');
+
+    try {
+      const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mojastavba/releases/latest";
+      const response = await fetch(`${GITHUB_REPO_URL}?t=${Date.now()}`);
+      const data = await response.json();
+      
+      if (data && data.tag_name) {
+        const latestVersion = data.tag_name.replace(/[vV]/g, '').trim();
+        const currentVer = currentVersion.replace(/[vV]/g, '').trim();
+
+        if (latestVersion !== currentVer && latestVersion !== "" && currentVer !== "") {
+          setNewVersion(latestVersion);
+          setUpdateStatus('available');
+        } else {
+          setUpdateStatus('no-update');
+          setTimeout(() => setUpdateStatus('idle'), 3000);
+        }
+      } else {
+        throw new Error("Nepodarilo sa získať dáta z GitHubu.");
+      }
+    } catch (err: any) {
+      setUpdateStatus('error');
+      setUpdateError("Nepodarilo sa skontrolovať server. Skontrolujte pripojenie.");
+    }
+  };
+
  const renderDashboardContent = () => {
   if (activePrivilege) {
     const activeSite = sitePermissions.find(
@@ -1090,6 +1168,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
               <NavItem id="log" label={t('nav_log')} icon={Zap} colorClass="text-emerald-500" />
               <NavItem id="advances" label={t('nav_advances')} icon={Banknote} colorClass="text-orange-500" />
               <NavItem id="history" label={t('nav_history')} icon={History} colorClass="text-blue-600" />
+              {isApp && <NavItem id="updates" label={t('nav_updates')} icon={RefreshCw} colorClass="text-purple-500" />}
               <NavItem id="profile" label={t('nav_profile')} icon={User} colorClass="text-purple-500" />
           </nav>
 
@@ -1284,6 +1363,95 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                           </div>
                       </div>
 
+                      {/* Filters Section */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                              <div>
+                                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                      <Building2 size={12}/> {t('site_label')}
+                                  </label>
+                                  <select 
+                                      value={historySiteFilter} 
+                                      onChange={e => setHistorySiteFilter(e.target.value)} 
+                                      className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 appearance-none outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 transition shadow-inner"
+                                  >
+                                      <option value="">{t('all_sites')}</option>
+                                      {relevantSites.map(site => (
+                                          <option key={site.id} value={site.id}>{site.name}</option>
+                                      ))}
+                                  </select>
+                              </div>
+                              
+                              <div>
+                                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                      <Calendar size={12}/> Rok
+                                  </label>
+                                  <select 
+                                      value={historyYearFilter} 
+                                      onChange={e => {
+                                          setHistoryYearFilter(e.target.value);
+                                          setHistoryMonthFilter(''); // Reset month when year changes
+                                      }} 
+                                      className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 appearance-none outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 transition shadow-inner"
+                                  >
+                                      {availableYears.map(year => (
+                                          <option key={year} value={year}>{year}</option>
+                                      ))}
+                                  </select>
+                              </div>
+                              
+                              <div>
+                                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                      <Calendar size={12}/> Mesiac
+                                  </label>
+                                  <select 
+                                      value={historyMonthFilter} 
+                                      onChange={e => setHistoryMonthFilter(e.target.value)} 
+                                      disabled={!historyYearFilter}
+                                      className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 appearance-none outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 transition shadow-inner disabled:opacity-50 disabled:bg-slate-100"
+                                  >
+                                      <option value="">Všetky mesiace</option>
+                                      {availableMonths.map(month => (
+                                          <option key={month.value} value={month.value}>{month.label}</option>
+                                      ))}
+                                  </select>
+                              </div>
+                              
+                              <div className="flex items-end">
+                                  <button 
+                                      onClick={() => {
+                                          setHistorySiteFilter('');
+                                          setHistoryYearFilter(new Date().getFullYear().toString());
+                                          setHistoryMonthFilter('');
+                                      }}
+                                      className="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold uppercase transition flex items-center justify-center gap-2 border border-slate-300"
+                                  >
+                                      <Filter size={14}/> {t('reset_filter')}
+                                  </button>
+                              </div>
+                          </div>
+                          
+                          {(historySiteFilter || historyYearFilter !== new Date().getFullYear().toString() || historyMonthFilter) && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                  {historySiteFilter && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold">
+                                          <Building2 size={10}/> {relevantSites.find(s => s.id === historySiteFilter)?.name || 'Stavba'}
+                                      </span>
+                                  )}
+                                  {historyYearFilter !== new Date().getFullYear().toString() && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-bold">
+                                          <Calendar size={10}/> {historyYearFilter}
+                                      </span>
+                                  )}
+                                  {historyMonthFilter && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold">
+                                          <Calendar size={10}/> {availableMonths.find(m => m.value === historyMonthFilter)?.label || historyMonthFilter}
+                                      </span>
+                                  )}
+                              </div>
+                          )}
+                      </div>
+
                       <div className="space-y-4 pb-12">
                           {groupedHistory.map(([month, data]) => {
                               const isExpanded = expandedMonths[month];
@@ -1358,6 +1526,28 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                           {historyLogs.length === 0 && !loadingHistory && (
                               <div className="py-20 text-center">
                                   <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">{t('no_logs')}</p>
+                              </div>
+                          )}
+
+                          {hasMoreHistory && historyLogs.length > 0 && (
+                              <div className="text-center py-6">
+                                  <button 
+                                      onClick={() => loadHistoryLogs(historyPage + 1, false)}
+                                      disabled={loadingHistory}
+                                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 mx-auto shadow-lg shadow-blue-100"
+                                  >
+                                      {loadingHistory ? (
+                                          <>
+                                              <Loader2 size={16} className="animate-spin"/>
+                                              {t('loading')}
+                                          </>
+                                      ) : (
+                                          <>
+                                              <ArrowRight size={16}/>
+                                              Načítať viac záznamov
+                                          </>
+                                      )}
+                                  </button>
                               </div>
                           )}
                       </div>
@@ -1569,6 +1759,84 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                       </div>
                   </div>
               )}
+
+              {activeTab === 'updates' && isApp && (
+                  <div className="animate-in slide-in-from-right-2 max-w-2xl mx-auto space-y-6">
+                      <div className="text-center py-8">
+                         <h2 className="text-3xl font-extrabold flex items-center justify-center gap-2">
+                            <RefreshCw className="text-orange-600" size={32} /> {t('nav_updates')}
+                         </h2>
+                         <p className="text-sm text-slate-500">Správa verzií aplikácie MojaStavba</p>
+                      </div>
+
+                      <Card className="text-center py-10 shadow-xl border-slate-200">
+                        <div className="mb-10">
+                          <div className="w-24 h-24 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-slate-100 shadow-inner">
+                            <Package size={48} className="text-slate-300" />
+                          </div>
+
+                          <div className="text-[10px] uppercase text-slate-400 font-black tracking-[0.2em]">
+                            Aktuálne nainštalovaná verzia
+                          </div>
+
+                          <div className="text-4xl font-black mt-2 text-slate-900 tracking-tight">
+                            v{currentVersion}
+                          </div>
+                        </div>
+
+                        <div className="max-w-sm mx-auto space-y-4">
+                          {(updateStatus === 'idle' || updateStatus === 'no-update') && (
+                            <>
+                              {updateStatus === 'no-update' && (
+                                <div className="bg-green-50 text-green-700 p-4 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 border border-green-100 animate-in zoom-in">
+                                  <CheckCircle2 size={20} /> Máte najnovšiu verziu
+                                </div>
+                              )}
+                              <Button onClick={checkForUpdates} fullWidth size="lg" className="h-14 uppercase tracking-widest font-black text-xs shadow-orange-100">
+                                Skontrolovať aktualizácie
+                              </Button>
+                            </>
+                          )}
+
+                          {updateStatus === 'checking' && (
+                            <div className="flex flex-col items-center py-4 space-y-4">
+                              <Loader2 className="animate-spin text-orange-500" size={32} />
+                              <div className="text-slate-500 font-black text-xs uppercase tracking-widest animate-pulse">
+                                Vyhľadávam novú verziu na serveri...
+                              </div>
+                            </div>
+                          )}
+
+                          {updateStatus === 'available' && (
+                            <div className="bg-blue-50 border border-blue-100 p-6 rounded-3xl animate-in fade-in slide-in-from-top-4">
+                              <ArrowUpCircle className="mx-auto text-blue-600 mb-3" size={40} />
+                              <div className="font-black text-blue-900 text-lg">Dostupná verzia v{newVersion}</div>
+                              <p className="text-xs text-blue-600 font-bold mb-6 mt-1 uppercase tracking-tight">Bola vydaná nová aktualizácia systému.</p>
+                              
+                              <div className="text-xs text-blue-800 bg-white/50 p-4 rounded-xl border border-blue-100 mb-6 font-medium leading-relaxed">
+                                Pre stiahnutie tejto aktualizácie stačí reštartovať aplikáciu. Systém si nový balík stiahne automaticky pri štarte.
+                              </div>
+
+                              <Button onClick={() => window.location.reload()} fullWidth className="bg-blue-600 hover:bg-blue-700 shadow-blue-100 border-none">
+                                <RefreshCw size={18}/> Reštartovať a aktualizovať
+                              </Button>
+                            </div>
+                          )}
+
+                          {updateStatus === 'error' && (
+                            <div className="bg-red-50 border border-red-100 p-6 rounded-3xl">
+                              <AlertTriangle className="mx-auto text-red-500 mb-2" size={32} />
+                              <div className="text-red-700 font-black text-xs uppercase tracking-widest mb-3">Chyba pri aktualizácii</div>
+                              <p className="text-[10px] text-red-600 font-medium mb-6 leading-relaxed bg-white/50 p-3 rounded-xl border border-red-100">{updateError}</p>
+                              <Button onClick={checkForUpdates} size="sm" variant="secondary" fullWidth className="text-[10px] uppercase font-black tracking-widest h-10">
+                                Skúsiť znova
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                  </div>
+              )}
           </div>
       </main>
 
@@ -1583,14 +1851,17 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.1)] pb-safe-bottom">
           <div className="flex w-full justify-around h-16 items-center">
-              {[
+              {(() => {
+                const mobileTabs = [
                   { id: 'dashboard', icon: LayoutGrid, colorClass: 'text-orange-600' },
                   { id: 'tasks', icon: ListTodo, count: todoTasks.length, colorClass: 'text-blue-500' },
                   { id: 'log', icon: Zap, colorClass: 'text-emerald-500' },
                   { id: 'advances', icon: Banknote, colorClass: 'text-orange-500' },
                   { id: 'history', icon: History, colorClass: 'text-blue-600' },
+                  ...(isApp ? [{ id: 'updates', icon: RefreshCw, colorClass: 'text-purple-500' }] : []),
                   { id: 'profile', icon: User, colorClass: 'text-purple-500' },
-              ].map(tab => (
+                ];
+                return mobileTabs.map(tab => (
                   <button 
                     key={tab.id}
                     onClick={() => { setActiveTab(tab.id as any); setSuccess(false); setActivePrivilege(null); }}
@@ -1605,7 +1876,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                     )}
                     {activeTab === tab.id && <div className={`absolute bottom-1 w-1 h-1 ${tab.colorClass.replace('text-', 'bg-')} rounded-full`}></div>}
                   </button>
-              ))}
+                ));
+              })()}
           </div>
       </nav>
 

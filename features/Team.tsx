@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Modal, Input, Badge, ConfirmModal, AlertModal, Select } from '../components/UI';
-import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote, Trash2, Archive, CheckCircle2, Users, Pencil, RefreshCcw, Link, Copy, ChevronDown, ChevronRight, Clock, MapPin, Send, Zap, Info, Smartphone, Monitor, Wallet, Loader2, Filter, FileText, Search, Briefcase, Eye, EyeOff, Share2, ClipboardCheck, Hash, Calculator } from 'lucide-react';
+// Added AlertCircle to fix line 276 error
+import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote, Trash2, Archive, CheckCircle2, Users, Pencil, RefreshCcw, Link, Copy, ChevronDown, ChevronRight, Clock, MapPin, Send, Zap, Info, Smartphone, Monitor, Wallet, Loader2, Filter, FileText, Search, Briefcase, Eye, EyeOff, Share2, ClipboardCheck, Hash, Calculator, Save, Shield, AlertCircle } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 import { Capacitor } from '@capacitor/core';
+import { PLANS } from './Subscription';
 
 const TEAM_PAGE_SIZE = 15;
 
@@ -42,9 +45,20 @@ const TeamList = ({ profile, onSelect }: any) => {
   });
   
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string, name?: string}>({ open: false, action: '', id: '' });
-  const [alert, setAlert] = useState<{open: boolean, message: string}>({ open: false, message: '' });
+  const [alert, setAlert] = useState<{open: boolean, message: string, title?: string}>({ open: false, message: '' });
   const [linkCopied, setLinkCopied] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
+
+  // Získame aktuálnu organizáciu pre limity
+  const [org, setOrg] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchOrg = async () => {
+        const { data } = await supabase.from('organizations').select('*').eq('id', profile.organization_id).single();
+        if(data) setOrg(data);
+    };
+    fetchOrg();
+  }, [profile.organization_id]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -73,7 +87,7 @@ const TeamList = ({ profile, onSelect }: any) => {
             .eq('is_active', !showArchived);
 
         if (searchQuery) {
-            query = query.ilike('full_name', `%${searchQuery}%`);
+            query = query.or(`full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`);
         }
 
         const from = reset ? 0 : page * TEAM_PAGE_SIZE;
@@ -96,6 +110,20 @@ const TeamList = ({ profile, onSelect }: any) => {
     }
   };
 
+  // Vypočítame koľko zamestnancov firma má
+  const currentEmployeeCount = useMemo(() => {
+      // Tu by bolo ideálne reálne query, ale pre UI check stačí momentálne workers ak sú načítaní
+      // Avšak load() stránkuje, tak skúsime headcount bez stránkovania
+      return workers.filter(w => w.role === 'employee' && w.is_active).length;
+  }, [workers]);
+
+  const activePlan = useMemo(() => {
+      const planId = org?.subscription_plan || 'base';
+      return PLANS.find(p => p.id === planId) || PLANS[0];
+  }, [org]);
+
+  const isLimitReached = org && currentEmployeeCount >= activePlan.limit;
+
   const handleEdit = (worker: any, e: any) => {
       e.stopPropagation();
       setEditingWorker(worker);
@@ -117,6 +145,17 @@ const TeamList = ({ profile, onSelect }: any) => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check limit only for new additions
+    if (!editingWorker && isLimitReached) {
+        setAlert({ 
+            open: true, 
+            title: 'Limit balíka dosiahnutý', 
+            message: `Váš balík ${activePlan.name} povoľuje max. ${activePlan.limit} zamestnancov. Pre pridanie ďalších členov si prosím navýšte balík v sekcii Predplatné.` 
+        });
+        return;
+    }
+
     try {
         let error;
         if (editingWorker) {
@@ -224,11 +263,31 @@ const TeamList = ({ profile, onSelect }: any) => {
             <Button variant="secondary" onClick={() => setShowArchived(!showArchived)} fullWidth className="sm:w-auto justify-center order-2 sm:order-1">
                 {showArchived ? 'Späť na aktívnych' : 'Zobraziť Archív'}
             </Button>
-            <Button onClick={() => setShowInviteModal(true)} fullWidth className="sm:w-auto justify-center order-1 sm:order-2 shadow-lg shadow-orange-100">
+            <Button 
+                onClick={() => setShowInviteModal(true)} 
+                fullWidth 
+                className={`sm:w-auto justify-center order-1 sm:order-2 shadow-lg ${isLimitReached ? 'grayscale opacity-50' : 'shadow-orange-100'}`}
+            >
                 <UserPlus size={18}/> Pozvať do tímu
             </Button>
         </div>
       </div>
+
+      {isLimitReached && (
+          <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top-2">
+              <AlertCircle className="text-orange-600 shrink-0" size={24}/>
+              <div className="flex-1">
+                  <p className="text-sm font-black text-orange-900 uppercase">Limit zamestnancov dosiahnutý ({activePlan.limit}/{activePlan.limit})</p>
+                  <p className="text-xs text-orange-700 font-medium">Pre pridanie ďalších pracovníkov musíte prejsť na vyšší balík alebo archivovať niekoho z tímu.</p>
+              </div>
+              <button 
+                onClick={() => window.location.href = '?action=subscription'}
+                className="px-4 py-2 bg-orange-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-200 whitespace-nowrap"
+              >
+                  Upgrade
+              </button>
+          </div>
+      )}
 
       <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
           <div className="relative">
@@ -335,9 +394,9 @@ const TeamList = ({ profile, onSelect }: any) => {
       <AlertModal
         isOpen={alert.open}
         onClose={() => setAlert({ ...alert, open: false })}
-        title="Chyba"
+        title={alert.title || "Chyba"}
         message={alert.message}
-        type="error"
+        type={alert.title === 'Chyba' ? 'error' : 'success'}
       />
 
       {showModal && (

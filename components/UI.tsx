@@ -80,19 +80,21 @@ export const Badge = ({ status }: { status: string }) => {
   );
 };
 
-export const Modal = ({ title, onClose, children, maxWidth = 'max-w-lg' }: any) => {
+export const Modal = ({ title, onClose, children, maxWidth = 'max-w-lg', hideHeader = false }: any) => {
   if (typeof document === 'undefined') return null;
   const modalRoot = document.getElementById('modal-root');
   if (!modalRoot) return null;
 
   return createPortal(
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 transition-all animate-in fade-in duration-200">
-      <div className={`bg-white w-full ${maxWidth} rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200`}>
-        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="font-bold text-lg text-slate-900">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition hover:bg-slate-100 p-2 rounded-full"><X size={20}/></button>
-        </div>
-        <div className="p-6 overflow-y-auto custom-scrollbar">
+      <div className={`bg-white w-full ${maxWidth} rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200`}>
+        {!hideHeader && (
+          <div className="flex justify-between items-center p-3 border-b border-slate-100 bg-slate-50/50">
+            <h3 className="font-bold text-lg text-slate-900 px-2">{title}</h3>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition hover:bg-slate-100 p-2 rounded-full"><X size={20}/></button>
+          </div>
+        )}
+        <div className={`overflow-y-auto custom-scrollbar ${hideHeader ? 'p-0' : 'p-6'}`}>
           {children}
         </div>
       </div>

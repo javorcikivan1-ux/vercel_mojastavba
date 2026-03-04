@@ -580,8 +580,12 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
       }));
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
       if (!printRef.current) return;
+      
+      // Check if running on mobile device
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
       try {
           const dateStr = selectedDay?.toLocaleDateString(getLocaleCode());
           const siteName = sites.find(s => s.id === selectedSiteId)?.name || 'Stavba';
@@ -592,10 +596,27 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
               html2canvas: { scale: 2, useCORS: true, allowTaint: true }, 
               jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const } 
           };
-          html2pdf().set(opt).from(printRef.current).save();
+          
+          if (isMobile) {
+              // For mobile: generate PDF and create download link
+              const pdf = await html2pdf().set(opt).from(printRef.current).outputPdf('blob') as Blob;
+              const url = URL.createObjectURL(pdf);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `SD_${siteName}_${dateStr}.pdf`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              
+              setAlertState({ open: true, message: 'PDF bolo vygenerované. Skontrolujte priečinok "Downloads" v telefóne.', type: 'success' });
+          } else {
+              // For desktop: use direct save
+              html2pdf().set(opt).from(printRef.current).save();
+          }
       } catch (e: any) {
-          console.error(e);
-          setAlertState({ open: true, message: t('no_records'), type: 'error' });
+          console.error('PDF Export Error:', e);
+          setAlertState({ open: true, message: 'PDF export zlyhal. Skúste znova alebo použite desktop verziu.', type: 'error' });
       }
   };
 
@@ -631,6 +652,9 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
 
           setTimeout(() => {
               if (!fullPrintRef.current) return;
+              
+              // Check if running on mobile device
+              const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
               const siteName = sites.find(s => s.id === selectedSiteId)?.name || 'Stavba';
               const opt = { 
                   margin: [10, 10, 10, 10] as [number, number, number, number], 
@@ -640,10 +664,34 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
                   jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
                   pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
               };
-              html2pdf().set(opt).from(fullPrintRef.current).save().then(() => {
-                  setExporting(false);
-                  setFullExportData(null);
-              });
+              
+              if (isMobile) {
+                  // For mobile: generate PDF and create download link
+                  html2pdf().set(opt).from(fullPrintRef.current).outputPdf('blob').then((pdfBlob: Blob) => {
+                      const url = URL.createObjectURL(pdfBlob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `Kompletny_Dennik_${siteName}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                      
+                      setExporting(false);
+                      setFullExportData(null);
+                      setAlertState({ open: true, message: 'PDF bolo vygenerované. Skontrolujte priečinok "Downloads" v telefóne.', type: 'success' });
+                  }).catch((error: any) => {
+                      console.error('PDF Export Error:', error);
+                      setAlertState({ open: true, message: 'PDF export zlyhal. Skúste znova alebo použite desktop verziu.', type: 'error' });
+                      setExporting(false);
+                  });
+              } else {
+                  // For desktop: use direct save
+                  html2pdf().set(opt).from(fullPrintRef.current).save().then(() => {
+                      setExporting(false);
+                      setFullExportData(null);
+                  });
+              }
           }, 1500);
       } catch (e: any) {
           console.error(e);

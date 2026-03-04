@@ -1,9 +1,30 @@
+Aktualizacie:
+
+1. zmen package.
+2. terminal: npm run electron:build (dist electron)
+3. terminal  npm run build (dist)
+4. zazpisuj dist do MojaStavba.zip a z dist electron nahraj subory (na konci musi byt bodka) ako release do vercel github po vX.X.X
+
+tot vsio
+
+
+
+
+
+
+
+
+
+
+
 postup:
 
 1. zmen verziu v  package.json na vyssiu
 2. npm run electron:build  (urobis .exe)
 3. premenuj subor .exe na pomlcky! = appka sa  musi volat: MojaStavba-Setup-4.0.4. S BODKOU NA KONCI. (menis cislo podla package.json) a nasledne v gite v4.0.4 alebo vX.X.X
 NEZABUDNI TAM NAHRAT AJ TIE DALSIE SUBORY Z PRIECNKA!!!!
+
+takisto npmrun build kvôli APK - chod do dist, urb z toho  MojaStavba.zip a pushni to spolu s tym exe.
 
 5. Urob APK: npm run build
 6. npx cap sync android

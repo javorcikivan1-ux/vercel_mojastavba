@@ -1,8 +1,7 @@
-
 {
   "name": "mojastavba",
   "private": true,
-  "version": "5.2.1",
+  "version": "5.2.3",
   "description": "Aplikácia pre stavebný manažment",
   "author": {
     "name": "MojaStavba",
@@ -37,7 +36,8 @@
     "html2pdf.js": "^0.10.3",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-easy-crop": "^5.5.6"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

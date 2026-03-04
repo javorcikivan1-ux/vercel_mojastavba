@@ -199,20 +199,46 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
       setEditableLogs(newLogs);
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!printRef.current) return;
     setExporting(true);
-    const empName = employees.find(e => e.id === selectedEmpId)?.full_name || profile.full_name;
-    const monthName = currentDate.toLocaleString('sk-SK', { month: 'long', year: 'numeric' });
-    // Fix: Added 'as const' to string literals in Html2PdfOptions to fix TypeScript type incompatibility error.
-    const opt = {
-      margin: 8,
-      filename: `Dochadzka_${empName.replace(' ', '_')}_${monthName.replace(' ', '_')}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2.5, useCORS: true, allowTaint: true },
-      jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
-    };
-    html2pdf().set(opt).from(printRef.current).save().then(() => setExporting(false));
+    
+    // Check if running on mobile device
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    try {
+        const empName = employees.find(e => e.id === selectedEmpId)?.full_name || profile.full_name;
+        const monthName = currentDate.toLocaleString('sk-SK', { month: 'long', year: 'numeric' });
+        const opt = {
+            margin: 8,
+            filename: `Dochadzka_${empName.replace(' ', '_')}_${monthName.replace(' ', '_')}.pdf`,
+            image: { type: 'jpeg' as const, quality: 0.98 },
+            html2canvas: { scale: 2.5, useCORS: true, allowTaint: true },
+            jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+        };
+        
+        if (isMobile) {
+            // For mobile: generate PDF and create download link
+            const pdf = await html2pdf().set(opt).from(printRef.current).outputPdf('blob') as Blob;
+            const url = URL.createObjectURL(pdf);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Dochadzka_${empName.replace(' ', '_')}_${monthName.replace(' ', '_')}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            setExporting(false);
+        } else {
+            // For desktop: use direct save
+            html2pdf().set(opt).from(printRef.current).save().then(() => setExporting(false));
+        }
+    } catch (e: any) {
+        console.error('PDF Export Error:', e);
+        setExporting(false);
+        window.alert('PDF export zlyhal. Skúste znova alebo použite desktop verziu.');
+    }
   };
 
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
@@ -325,7 +351,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
              <div className="flex flex-wrap sm:flex-nowrap justify-end gap-2 sm:gap-4 w-full sm:w-auto">
                 <div className="bg-white border-2 border-slate-100 px-3 sm:px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm group hover:border-orange-100 transition-colors flex-1 sm:flex-none">
                     <div className="text-right flex-1 sm:flex-none">
-                        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-300 block leading-none mb-1">Hodinový fond</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300 block leading-none mb-1">Hodinový fond</span>
                         <span className="text-lg sm:text-xl font-black text-slate-800 whitespace-nowrap">{stats.hourlyHours.toFixed(1)} <span className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase">hod</span></span>
                     </div>
                     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-50 flex items-center justify-center text-orange-500 shrink-0">
@@ -335,7 +361,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
 
                 <div className="bg-orange-50 border-2 border-orange-100 px-3 sm:px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm group hover:border-orange-200 transition-colors flex-1 sm:flex-none">
                     <div className="text-right flex-1 sm:flex-none">
-                        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-orange-300 block leading-none mb-1">Úkolové práce</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-300 block leading-none mb-1">Úkolové práce</span>
                         <span className="text-lg sm:text-xl font-black text-orange-700 whitespace-nowrap">{stats.fixedCount} <span className="text-[10px] sm:text-xs font-medium opacity-60 uppercase">ks</span></span>
                     </div>
                     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white flex items-center justify-center text-orange-600 shrink-0">
@@ -346,14 +372,14 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
           </div>
           
           <div className="overflow-x-auto flex-1 custom-scrollbar">
-            <table className="w-full text-sm text-left border-collapse table-fixed min-w-[750px]">
+            <table className="w-full text-sm text-left border-collapse min-w-[700px]">
               <thead className="bg-slate-50 text-slate-400 font-black border-y border-slate-100 uppercase text-[9px] tracking-[0.15em] sticky top-0 z-10">
                 <tr>
-                  <th className="p-4 w-[115px]">Dátum</th>
-                  {exportOptions.showSites && <th className="p-4 w-[120px]">Stavba</th>}
-                  <th className="p-4 text-center w-[235px]">Čas Od - Do</th>
-                  {exportOptions.showDescription && <th className="p-4 flex-grow min-w-[80px]">Činnosť / Popis</th>}
-                  <th className="p-4 text-right w-[100px]">Hodiny</th>
+                  <th className="p-4 w-[90px]">Dátum</th>
+                  {exportOptions.showSites && <th className="p-4 w-[180px]">Zákazka</th>}
+                  <th className="p-4 text-center min-w-[180px] max-w-[220px]">Čas Od - Do</th>
+                  {exportOptions.showDescription && <th className="p-4 min-w-[80px] flex-grow max-w-[200px]">Činnosť / Popis</th>}
+                  <th className="p-4 text-right w-[80px]">Hodiny</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 bg-white">
@@ -361,51 +387,51 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                   <tr><td colSpan={5} className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" size={32} /></td></tr>
                 ) : editableLogs.map((log, idx) => (
                   <tr key={`${log.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="p-4 align-top">
+                    <td className="p-3 align-top">
                         <div className="font-bold text-slate-800 text-xs flex items-center gap-1 whitespace-nowrap overflow-hidden">
                             {log.isFixed && <Briefcase size={12} className="text-orange-500 shrink-0"/>}
                             {formatDate(log.date)}
                         </div>
-                        <div className="text-[8px] text-slate-400 font-black uppercase">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'short'})}</div>
+                        <div className="text-[10px] text-slate-400 font-black uppercase">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'short'})}</div>
                     </td>
                     {exportOptions.showSites && (
-                        <td className="p-3 align-top">
+                        <td className="p-2 align-top">
                             <textarea 
                               rows={1}
                               value={log.siteName || ''} 
                               onChange={(e) => handleRowChange(idx, 'siteName', e.target.value)}
-                              className="w-full p-1.5 bg-transparent border border-transparent rounded hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-bold text-slate-700 text-[11px] transition resize-none custom-scrollbar"
+                              className="w-full p-2 bg-transparent border border-transparent rounded hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-bold text-slate-700 text-xs transition resize-none custom-scrollbar"
                               placeholder="Miesto..."
                             />
                         </td>
                     )}
-                    <td className="p-3 align-top text-center">
+                    <td className="p-2 align-top text-center">
                         <input 
                           type="text" 
                           value={log.displayTime} 
                           onChange={(e) => handleRowChange(idx, 'displayTime', e.target.value)}
-                          className="w-full text-center p-1.5 bg-blue-50/20 border border-transparent rounded hover:border-blue-200 focus:border-blue-500 focus:bg-white outline-none font-mono font-bold text-blue-800 text-[10px] transition"
+                          className="w-full text-center p-2 bg-blue-50/20 border border-transparent rounded hover:border-blue-200 focus:border-blue-500 focus:bg-white outline-none font-mono font-bold text-blue-800 text-sm transition"
                           placeholder="07:00 - 15:30"
                         />
                     </td>
                     {exportOptions.showDescription && (
-                        <td className="p-3 align-top">
+                        <td className="p-2 align-top">
                             <textarea 
                               rows={1}
                               value={log.description || ''} 
                               onChange={(e) => handleRowChange(idx, 'description', e.target.value)}
-                              className="w-full p-1.5 bg-transparent border border-transparent rounded hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none italic text-xs text-slate-500 transition resize-none leading-relaxed custom-scrollbar"
+                              className="w-full p-2 bg-transparent border border-transparent rounded hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none italic text-xs text-slate-500 transition resize-none leading-relaxed custom-scrollbar"
                               placeholder="Popis činnosti..."
                             />
                         </td>
                     )}
-                    <td className="p-3 align-top text-right">
+                    <td className="p-2 align-top text-right">
                         <input 
                           type="number" 
                           step="0.1"
                           value={log.hours} 
                           onChange={(e) => handleRowChange(idx, 'hours', e.target.value)}
-                          className={`w-full text-right p-1.5 bg-slate-50 border border-transparent rounded hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-black text-sm transition ${log.isFixed ? 'text-orange-600' : 'text-slate-900'}`}
+                          className={`w-full text-right p-2 bg-slate-50 border border-transparent rounded hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-black text-base transition ${log.isFixed ? 'text-orange-600' : 'text-slate-900'}`}
                         />
                     </td>
                   </tr>

@@ -244,7 +244,7 @@ export const AdvancesScreen = ({ profile }: any) => {
                 <Card className="bg-white border-orange-100 shadow-sm overflow-hidden relative">
                     <div className="absolute top-0 right-0 p-4 opacity-10"><TrendingUp size={64} className="text-orange-600"/></div>
                     <div className="relative z-10">
-                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Celkom k vráteniu</div>
+                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Celkom k vráteniu</div>
                         <div className="text-3xl font-black text-orange-600">{formatMoney(stats.totalUnsettled)}</div>
                         <div className="text-xs font-bold text-slate-400 mt-1">{stats.countUnsettled} aktívnych záloh</div>
                     </div>
@@ -252,7 +252,7 @@ export const AdvancesScreen = ({ profile }: any) => {
                 
                 <Card className="md:col-span-2 flex flex-col md:flex-row gap-4 bg-white border-slate-200">
                     <div className="flex-1">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><User size={12}/> Zamestnanec</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><User size={12}/> Zamestnanec</label>
                         <select 
                             value={userFilter} 
                             onChange={(e) => setUserFilter(e.target.value)}
@@ -263,7 +263,7 @@ export const AdvancesScreen = ({ profile }: any) => {
                         </select>
                     </div>
                     <div className="flex-1">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Filter size={12}/> Stav</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><Filter size={12}/> Stav</label>
                         <div className="bg-slate-100 p-1 rounded-xl flex gap-1">
                             <button onClick={() => setStatusFilter('pending')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${statusFilter === 'pending' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400'}`}>Čakajúce</button>
                             <button onClick={() => setStatusFilter('settled')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${statusFilter === 'settled' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400'}`}>Splatené</button>
@@ -302,12 +302,12 @@ export const AdvancesScreen = ({ profile }: any) => {
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <span className="font-black text-slate-900 text-lg sm:text-2xl tracking-tight">{formatMoney(total)}</span>
                                                         {adv.status === 'settled' ? (
-                                                            <span className="text-[9px] sm:text-[10px] bg-green-100 text-green-700 px-2 py-0.5 sm:py-1 rounded-lg font-black uppercase tracking-wider flex items-center gap-1 border border-green-200"><CheckCircle2 size={10}/> Splatené</span>
+                                                            <span className="text-xs sm:text-sm bg-green-100 text-green-700 px-2 py-0.5 sm:py-1 rounded-lg font-bold uppercase tracking-wider flex items-center gap-1 border border-green-200"><CheckCircle2 size={10}/> Splatené</span>
                                                         ) : settled > 0 ? (
-                                                            <span className="text-[9px] sm:text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 sm:py-1 rounded-lg font-black uppercase tracking-wider flex items-center gap-1 border border-yellow-200"><Clock size={10}/> Čiastočne splatené</span>
+                                                            <span className="text-xs sm:text-sm bg-yellow-100 text-yellow-700 px-2 py-0.5 sm:py-1 rounded-lg font-bold uppercase tracking-wider flex items-center gap-1 border border-yellow-200"><Clock size={10}/> Čiastočne splatené</span>
                                                         ) : null}
                                                     </div>
-                                                    <div className="text-[10px] sm:text-xs font-bold text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                                                    <div className="text-xs sm:text-sm font-bold text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
                                                         <span className="flex items-center gap-1.5"><User size={14} className="text-slate-300"/> {adv.profiles?.full_name}</span>
                                                         <span className="flex items-center gap-1.5"><Calendar size={14} className="text-slate-300"/> {formatDate(adv.date)}</span>
                                                     </div>
@@ -334,9 +334,9 @@ export const AdvancesScreen = ({ profile }: any) => {
                                         {adv.status === 'pending' && (
                                             <div className="w-full bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-inner">
                                                 <div className="flex justify-between items-end mb-3">
-                                                    <span className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Priebeh splácania ({Math.round(percent)}%)</span>
+                                                    <span className="text-xs sm:text-sm font-bold uppercase text-slate-500 tracking-wider">Priebeh splácania ({Math.round(percent)}%)</span>
                                                     <div className="text-right">
-                                                        <span className="text-[9px] block text-slate-400 font-bold uppercase mb-0.5">Zostatok k vráteniu</span>
+                                                        <span className="text-xs block text-slate-400 font-bold uppercase mb-0.5">Zostatok k vráteniu</span>
                                                         <span className="text-sm sm:text-lg text-orange-600 font-black">{formatMoney(remaining)}</span>
                                                     </div>
                                                 </div>
@@ -427,7 +427,7 @@ export const AdvancesScreen = ({ profile }: any) => {
 
                         <div className="p-3 sm:p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3">
                             <Info size={18} className="text-blue-500 mt-0.5 shrink-0"/>
-                            <p className="text-[10px] sm:text-[11px] text-blue-700 font-medium leading-relaxed">
+                            <p className="text-xs sm:text-sm text-blue-700 font-medium leading-relaxed">
                                 Záloha bude evidovaná ako otvorená. Môžete ju splácať postupne zadávaním čiastočných splátok.
                             </p>
                         </div>
@@ -444,7 +444,7 @@ export const AdvancesScreen = ({ profile }: any) => {
                 <Modal title="Zúčtovať splátku zálohy" onClose={() => setShowSettleModal(false)}>
                     <form onSubmit={handleSettleSubmit} className="space-y-6">
                         <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-inner text-center">
-                            <div className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Aktuálny stav u zamestnanca</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Aktuálny stav u zamestnanca</div>
                             <div className="font-black text-slate-600 mb-1">{selectedForSettle?.profiles?.full_name}</div>
                             <div className="text-2xl sm:text-3xl font-black text-orange-600 tracking-tighter">{formatMoney(Number(selectedForSettle?.amount) - Number(selectedForSettle?.settled_amount || 0))} k vráteniu</div>
                         </div>
@@ -501,18 +501,18 @@ export const AdvancesScreen = ({ profile }: any) => {
                     <div className="space-y-6">
                         <div className="flex justify-between items-end border-b border-slate-100 pb-4">
                             <div className="flex-1 min-w-0 pr-4">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pôvodná záloha</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Pôvodná záloha</p>
                                 <h3 className="text-xl sm:text-2xl font-black text-slate-900 truncate">{formatMoney(Number(selectedForHistory?.amount))}</h3>
-                                <p className="text-[10px] sm:text-[11px] text-slate-500 font-bold truncate">{formatDate(selectedForHistory?.date)} • {selectedForHistory?.profiles?.full_name}</p>
+                                <p className="text-xs sm:text-sm text-slate-500 font-bold truncate">{formatDate(selectedForHistory?.date)} • {selectedForHistory?.profiles?.full_name}</p>
                             </div>
                             <div className="text-right ml-auto">
-                                <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">Zostatok</p>
+                                <p className="text-xs font-bold text-orange-500 uppercase tracking-wider mb-1">Zostatok</p>
                                 <div className="text-xl sm:text-2xl font-black text-orange-600">{formatMoney(Number(selectedForHistory?.amount) - Number(selectedForHistory?.settled_amount || 0))}</div>
                             </div>
                         </div>
 
                         <div className="space-y-3">
-                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                                 <History size={14} className="text-blue-500"/> Zoznam zúčtovaných splátok
                             </h4>
                             
