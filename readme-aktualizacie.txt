@@ -1,8 +1,8 @@
 Aktualizacie:
 
 1. zmen package.
-2. terminal: npm run electron:build (dist electron)
-3. terminal  npm run build (dist)
+2. terminal: npm run electron:build to je (dist electron)
+3. terminal  npm run build to je (dist)
 4. zazpisuj dist do MojaStavba.zip a z dist electron nahraj subory (na konci musi byt bodka) ako release do vercel github po vX.X.X
 
 tot vsio

@@ -395,8 +395,8 @@ export const AboutApp = () => {
                     <ul className="space-y-2 sm:space-y-3">
                         <li><button onClick={() => window.location.href = '/'} className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">O aplikácii</button></li>
                         <li><button onClick={() => setShowPricing(true)} className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">Cenník a predplatné</button></li>
-                        <li><button onClick={() => setShowLegal('vop')} className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</button></li>
-                        <li><button onClick={() => setShowLegal('gdpr')} className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</button></li>
+                        <li><a href="/vseobecne-obchodne-podmienky.html" target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</a></li>
+                        <li><a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</a></li>
                     </ul>
                 </div>
 

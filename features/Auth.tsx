@@ -187,7 +187,7 @@ const DownloadModal = ({ onClose }: { onClose: () => void }) => {
                         <Monitor size={12}/> Inštalácia na Windows
                     </div>
                     <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                        Pretože sme nová aplikácia, Windows môže zobraziť varovanie "SmartScreen". Kliknite na <strong>"Viac informácií"</strong> a následne <strong>"Spustiť aj tak"</strong>. Súbor je 100% bezpečný a skontrolovaný.
+                        Pretože sme nová aplikácia, Windows môže zobraziť varovanie "SmartScreen". Najprv kliknite na <strong>"Ponechať"</strong>, potom na ikonu <strong>"zobraziť viac"</strong> vedľa tlačidla "Odstrániť" a následne na <strong>"Ponechať aj tak"</strong>. Súbor je 100% bezpečný.
                     </p>
                 </div>
 
@@ -642,7 +642,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
       </header>
 
       <main className="flex-1 flex flex-col bg-white">
-        <section className="flex-1 flex flex-col items-center justify-center px-6 pt-12 pb-12 md:pt-24 md:pb-20 bg-gradient-to-b from-orange-50/50 to-white text-center min-h-[calc(100vh-80px)]">
+        <section className="flex-1 flex flex-col items-center justify-center px-6 pt-12 pb-12 md:pt-24 md:pb-20 bg-gradient-to-br from-orange-50/30 via-orange-25/20 to-amber-25/10 text-center min-h-[calc(100vh-80px)]">
           <div className="max-w-4xl mx-auto">
             {/* TLAČIDLO SŤAHOVANIA - ZOBRAZENÉ LEN NA WEBE */}
             {isWebOnly && (
@@ -724,10 +724,10 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                                 {carouselCards.map((card, cardIndex) => (
                                     <div key={`${cardIndex}-${card.title}`} className={`${isMobile ? 'w-full' : 'w-1/3'} flex-shrink-0 px-2`}>
                                         <article 
-                                            className="group relative bg-gradient-to-br from-orange-50 to-white p-8 rounded-2xl border border-orange-100 hover:border-orange-300 hover:shadow-xl hover:shadow-orange-100/50 transition-all duration-300 overflow-hidden"
+                                            className="group relative bg-gradient-to-br from-orange-50/40 via-orange-25/20 to-white p-8 rounded-2xl border border-orange-100/60 hover:border-orange-300/50 hover:shadow-lg hover:shadow-orange-100/30 transition-all duration-300 overflow-hidden"
                                         >
                                             {/* Hover efekt - oranžová vrstva */}
-                                            <div className="absolute inset-0 bg-gradient-to-br from-orange-600/10 to-orange-400/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                            <div className="absolute inset-0 bg-gradient-to-br from-orange-400/8 via-orange-300/5 to-amber-300/3 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                                         
                                             {/* Obsah karty */}
                                             <div className="relative z-10">
@@ -818,7 +818,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                         <li>
                           <a 
                             href="/vseobecne-obchodne-podmienky.html" 
-                            onClick={(e) => { e.preventDefault(); handleLegalClick('vop'); }}
+                            target="_blank" 
+                            rel="noopener noreferrer"
                             className="text-sm text-slate-300 hover:text-orange-400 transition font-medium"
                           >
                             Obchodné podmienky (VOP)
@@ -827,7 +828,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                         <li>
                           <a 
                             href="/zasady-ochrany-osobnych-udajov-gdpr.html" 
-                            onClick={(e) => { e.preventDefault(); handleLegalClick('gdpr'); }}
+                            target="_blank" 
+                            rel="noopener noreferrer"
                             className="text-sm text-slate-300 hover:text-orange-400 transition font-medium"
                           >
                             Ochrana údajov (GDPR)
@@ -1226,7 +1228,12 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                                 onChange={(e: any) => setAgreedToTerms(e.target.checked)}
                             />
                             <label htmlFor="terms" className="text-xs text-slate-500 leading-tight">
-                                Súhlasím so <button type="button" onClick={() => setShowLegalModal('vop')} className="text-orange-600 hover:underline font-bold">Všeobecnými podmienkami (VOP)</button> a beriem na vedomie spracovanie osobných údajov podľa <button type="button" onClick={() => setShowLegalModal('gdpr')} className="text-orange-600 hover:underline font-bold">GDPR</button>.
+                                <div className="mb-2">
+                                    Potvrdzujem, že som sa oboznámil/a s <a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline font-bold">Zásadami spracúvania osobných údajov</a>
+                                </div>
+                                <div>
+                                    Potvrdzujem, že som sa oboznámil/a s <a href="/vseobecne-obchodne-podmienky.html" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline font-bold">podmienkami používania</a> a súhlasím s nimi
+                                </div>
                             </label>
                         </div>
                     )}

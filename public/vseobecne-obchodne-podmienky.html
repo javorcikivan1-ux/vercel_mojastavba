@@ -1,59 +1,863 @@
-
 <!DOCTYPE html>
 <html lang="sk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Všeobecné obchodné podmienky - MojaStavba</title>
+    <title>Všeobecné obchodné podmienky | MojaStavba</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #334155; background: #f8fafc; }
-        .container { background: white; padding: 40px; border-radius: 20px; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid #e2e8f0; }
-        h1 { color: #ea580c; border-bottom: 2px solid #fed7aa; padding-bottom: 10px; font-size: 1.8rem; }
-        h2 { color: #1e293b; margin-top: 30px; font-size: 1.3rem; border-left: 4px solid #ea580c; padding-left: 15px; }
-        p, li { margin-bottom: 15px; }
-        .footer { margin-top: 50px; text-align: center; font-size: 0.8rem; color: #94a3b8; }
+        :root {
+            --brand-orange: #F7941D;
+            --brand-navy: #002b4e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            background: white;
+            border-radius: 2.5rem;
+            box-shadow: 0 20px 50px rgba(0, 43, 78, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            color: var(--brand-navy);
+            padding: 4rem 3rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(247, 148, 29, 0.02) 0%, rgba(247, 148, 29, 0.08) 50%, rgba(247, 148, 29, 0.02) 100%);
+            animation: none;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            font-weight: 900;
+            color: var(--brand-orange);
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 1.125rem;
+            opacity: 0.9;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+
+        .content {
+            padding: 4rem 3rem;
+        }
+
+        .section {
+            margin-bottom: 4rem;
+        }
+
+        .section h2 {
+            color: var(--brand-navy);
+            font-size: 1.875rem;
+            margin-bottom: 2rem;
+            font-weight: 800;
+            border-bottom: 3px solid var(--brand-orange);
+            padding-bottom: 0.75rem;
+            position: relative;
+        }
+
+        .section h3 {
+            color: var(--brand-navy);
+            font-size: 1.5rem;
+            margin: 2.5rem 0 1.5rem 0;
+            font-weight: 700;
+            border-left: 4px solid var(--brand-orange);
+            padding-left: 1rem;
+        }
+
+        .section h4 {
+            color: #334155;
+            font-size: 1.25rem;
+            margin: 2rem 0 1rem 0;
+            font-weight: 600;
+        }
+
+        .company-info {
+            background: #f8fafc;
+            border-left: 4px solid var(--brand-orange);
+            padding: 2rem;
+            margin: 2rem 0;
+            border-radius: 1.5rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .company-info table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .company-info td {
+            padding: 0.3rem 0;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: top;
+        }
+
+        .company-info td:first-child {
+            font-weight: 700;
+            color: var(--brand-navy);
+            width: 30%;
+        }
+
+        ul.definitions {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        ul:not(.definitions) {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        ul:not(.definitions) li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        ul:not(.definitions) li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0.5rem;
+            width: 8px;
+            height: 8px;
+            background: var(--brand-orange);
+            border-radius: 50%;
+        }
+
+        ul.definitions li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        ul.definitions li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0.5rem;
+            width: 8px;
+            height: 8px;
+            background: var(--brand-orange);
+            border-radius: 50%;
+        }
+
+        .highlight {
+            background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+            border-left: 4px solid var(--brand-orange);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 1.5rem;
+            border: 1px solid rgba(247, 148, 29, 0.1);
+        }
+
+        .highlight h2 {
+            font-size: 1.375rem;
+            margin: 0 0 0.75rem 0;
+            font-weight: 800;
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .emphasis {
+            font-weight: 700;
+            color: var(--brand-navy);
+        }
+
+        .footer {
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            color: var(--brand-navy);
+            padding: 3rem;
+            text-align: center;
+            border-top: 2px solid var(--brand-orange);
+        }
+
+        .mobile-break {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 0.5rem;
+                align-items: flex-start;
+                justify-content: flex-start;
+            }
+
+            .container {
+                margin: 0.5rem;
+                border-radius: 1.5rem;
+                box-shadow: 0 10px 30px rgba(0, 43, 78, 0.08);
+            }
+
+            .header {
+                padding: 2.5rem 1.5rem;
+            }
+
+            .header h1 {
+                font-size: 1.75rem;
+                line-height: 1.2;
+            }
+
+            .header p {
+                font-size: 1rem;
+                line-height: 1.5;
+            }
+
+            .content {
+                padding: 2rem 1.5rem;
+            }
+
+            .section {
+                margin-bottom: 3rem;
+            }
+
+            .section h2 {
+                font-size: 1.5rem;
+                line-height: 1.3;
+                margin-bottom: 1.5rem;
+                padding-bottom: 0.5rem;
+            }
+
+            .section h3 {
+                font-size: 1.25rem;
+                line-height: 1.4;
+                margin: 2rem 0 1rem 0;
+                padding-left: 0.75rem;
+            }
+
+            .section h4 {
+                font-size: 1.125rem;
+                line-height: 1.4;
+                margin: 1.5rem 0 0.75rem 0;
+            }
+
+            .section p {
+                font-size: 0.95rem;
+                line-height: 1.7;
+                margin-bottom: 1rem;
+            }
+
+            .company-info {
+                padding: 1.5rem;
+                margin: 1.5rem 0;
+                border-radius: 1rem;
+            }
+
+            .company-info td {
+                padding: 0.5rem 0;
+                font-size: 0.9rem;
+            }
+
+            .company-info td:first-child {
+                width: 45%;
+                font-size: 0.85rem;
+            }
+
+            .company-info td:last-child {
+                font-size: 0.9rem;
+                word-break: break-word;
+            }
+
+            .contact-box {
+                padding: 1.5rem;
+                margin: 2rem 0;
+                border-radius: 1rem;
+            }
+
+            .contact-box table td {
+                padding: 0.5rem 0;
+                font-size: 0.9rem;
+            }
+
+            .contact-box table td:first-child {
+                font-size: 0.85rem;
+            }
+
+            .rights-list {
+                padding: 1.5rem;
+                margin: 1.5rem 0;
+                border-radius: 1rem;
+            }
+
+            .rights-list h3 {
+                font-size: 1.125rem;
+            }
+
+            .rights-list h4 {
+                font-size: 1rem;
+            }
+
+            .highlight {
+                padding: 1.25rem;
+                margin: 1.25rem 0;
+                border-radius: 1rem;
+            }
+
+            .highlight h2 {
+                font-size: 1.25rem;
+                line-height: 1.3;
+            }
+
+            ul, ol {
+                margin: 1rem 0;
+                padding-left: 1.5rem;
+            }
+
+            ul:not(.definitions) {
+                list-style: none;
+                padding-left: 0;
+            }
+
+            ul:not(.definitions) li {
+                position: relative;
+                padding-left: 1.5rem;
+                margin-bottom: 0.5rem;
+                line-height: 1.6;
+            }
+
+            ul:not(.definitions) li::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 0.5rem;
+                width: 8px;
+                height: 8px;
+                background: var(--brand-orange);
+                border-radius: 50%;
+            }
+
+            li {
+                margin-bottom: 0.5rem;
+                font-size: 0.9rem;
+                line-height: 1.6;
+            }
+
+            .footer {
+                padding: 2rem 1.5rem;
+            }
+
+            .modal-content {
+                margin: 5% auto;
+                padding: 1.5rem;
+                border-radius: 1rem;
+                max-width: 95%;
+            }
+
+            .modal h3 {
+                font-size: 1.125rem;
+            }
+
+            .modal p {
+                font-size: 0.9rem;
+            }
+
+            .modal strong {
+                width: 120px;
+                font-size: 0.85rem;
+            }
+
+            .modal-table td {
+                padding: 0.4rem 0;
+                font-size: 0.85rem;
+            }
+
+            .modal-table td:first-child {
+                width: 45%;
+            }
+
+            .mobile-break {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 0.25rem;
+            }
+
+            .container {
+                margin: 0.25rem;
+                border-radius: 1rem;
+            }
+
+            .header {
+                padding: 2rem 1rem;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+                line-height: 1.2;
+            }
+
+            .header p {
+                font-size: 0.95rem;
+            }
+
+            .content {
+                padding: 1.5rem 1rem;
+            }
+
+            .section {
+                margin-bottom: 2.5rem;
+            }
+
+            .section h2 {
+                font-size: 1.375rem;
+                line-height: 1.3;
+                margin-bottom: 1.25rem;
+            }
+
+            .section h3 {
+                font-size: 1.125rem;
+                line-height: 1.4;
+                margin: 1.5rem 0 0.75rem 0;
+                padding-left: 0.5rem;
+            }
+
+            .section h4 {
+                font-size: 1rem;
+                margin: 1.25rem 0 0.5rem 0;
+            }
+
+            .section p {
+                font-size: 0.9rem;
+                line-height: 1.6;
+                margin-bottom: 0.875rem;
+            }
+
+            .company-info {
+                padding: 1rem;
+                margin: 1rem 0;
+                border-radius: 0.75rem;
+            }
+
+            .company-info td {
+                padding: 0.4rem 0;
+                font-size: 0.85rem;
+            }
+
+            .company-info td:first-child {
+                width: 50%;
+                font-size: 0.8rem;
+            }
+
+            .company-info td:last-child {
+                font-size: 0.85rem;
+            }
+
+            .contact-box {
+                padding: 1rem;
+                margin: 1.5rem 0;
+                border-radius: 0.75rem;
+            }
+
+            .contact-box table td {
+                padding: 0.4rem 0;
+                font-size: 0.85rem;
+            }
+
+            .contact-box table td:first-child {
+                font-size: 0.8rem;
+            }
+
+            .rights-list {
+                padding: 1rem;
+                margin: 1rem 0;
+                border-radius: 0.75rem;
+            }
+
+            .rights-list h3 {
+                font-size: 1rem;
+            }
+
+            .rights-list h4 {
+                font-size: 0.95rem;
+            }
+
+            .highlight {
+                padding: 1rem;
+                margin: 1rem 0;
+                border-radius: 0.75rem;
+            }
+
+            .highlight h2 {
+                font-size: 1.125rem;
+            }
+
+            ul, ol {
+                margin: 0.875rem 0;
+                padding-left: 1.25rem;
+            }
+
+            ul:not(.definitions) {
+                list-style: none;
+                padding-left: 0;
+            }
+
+            ul:not(.definitions) li {
+                position: relative;
+                padding-left: 1.5rem;
+                margin-bottom: 0.4rem;
+                line-height: 1.5;
+            }
+
+            ul:not(.definitions) li::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 0.5rem;
+                width: 8px;
+                height: 8px;
+                background: var(--brand-orange);
+                border-radius: 50%;
+            }
+
+            li {
+                margin-bottom: 0.4rem;
+                font-size: 0.85rem;
+                line-height: 1.5;
+            }
+
+            .footer {
+                padding: 1.5rem 1rem;
+            }
+
+            .modal-content {
+                margin: 2% auto;
+                padding: 1rem;
+                border-radius: 0.75rem;
+                max-width: 98%;
+            }
+
+            .modal h3 {
+                font-size: 1rem;
+            }
+
+            .modal p {
+                font-size: 0.85rem;
+            }
+
+            .modal strong {
+                width: 100px;
+                font-size: 0.8rem;
+                display: block;
+                margin-bottom: 0.25rem;
+            }
+
+            .modal-table td {
+                padding: 0.3rem 0;
+                font-size: 0.8rem;
+            }
+
+            .modal-table td:first-child {
+                width: 50%;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            .container {
+                margin: 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            .header {
+                background: var(--brand-navy) !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Všeobecné obchodné podmienky</h1>
-        <p>Posledná aktualizácia: 1. mája 2025</p>
+        <header class="header">
+            <h1>VŠEOBECNÉ OBCHODNÉ PODMIENKY</h1>
+            <p>www.moja-stavba.sk</p>
+        </header>
 
-        <h2>1. Identifikácia poskytovateľa</h2>
-        <p>Prevádzkovateľom a poskytovateľom služby MojaStavba je:<br>
-        <strong>LORD'S BENISON s.r.o.</strong><br>
-        Sídlo: M. Nandrássyho 654/10, 050 01 Revúca<br>
-        IČO: 52404901<br>
-        DIČ: 2121022992<br>
-        IČ DPH: SK2121022992<br>
-        Zapísaná v Obchodnom registri Okresného súdu Banská Bystrica, Oddiel Sro, Vložka č. 36729/S.</p>
+        <div class="content">
+            <div class="section">
+                <h2>ÚVODNÉ USTANOVENIA</h2>
 
-        <h2>2. Definícia služby</h2>
-        <p>MojaStavba je softvérová aplikácia poskytovaná ako služba (SaaS) určená na digitalizáciu stavebnej administratívy, najmä stavebného denníka, evidencie dochádzky a sledovania projektových nákladov.</p>
+                <p>Tieto <strong>Všeobecné obchodné podmienky aplikácie MojaStavba</strong> (ďalej len „Podmienky") upravujú vzťah medzi Prevádzkovateľom a Používateľom pri používaní aplikácie pre stavebný manažment dostupnej na webovej stránke <strong>www.moja-stavba.sk</strong> (ďalej len „Aplikácia").</p>
+                
+                <br class="mobile-break">
+                
+                <p>Aplikácia poskytuje komplexný systém pre stavebný manažment, vrátane správy projektov, sledovania pokroku, manažmentu zamestnancov, dokumentácie a finančného plánovania.</p>
+                
+                <p>Aplikácia je dostupná ako natívna mobilná verzia pre Android a Windows zariadenia. Pre používateľov Mac a iPhone je k dispozícii plnohodnotné webové rozhranie prístupné cez prehliadač na www.moja-stavba.sk.</p>
 
-        <h2>3. Registrácia a ochrana prístupu</h2>
-        <p>Používanie služby vyžaduje vytvorenie firemného účtu. Užívateľ (Majiteľ firmy) je povinný chrániť svoje prístupové heslo a zodpovedá za činnosť všetkých zamestnancov, ktorých do systému prizve cez unikátne ID firmy.</p>
+                <p>Prevádzkovateľom Aplikácie je spoločnosť LORD'S BENISON s.r.o. so sídlom M. Nandrássyho 654/10, 050 01 Revúca, IČO: 52404901, DIČ: 2121022992, IČ DPH: SK2121022992, zapísaná v Obchodnom registri Okresného súdu Banská Bystrica, oddiel: Sro, vložka č. 36538/S (ďalej len „Prevádzkovateľ").</p>
+                
+                <br class="mobile-break">
+                
+                <p>Použitie Aplikácie je možné len za podmienok stanovených týmito Podmienkami. Používaním Aplikácie vyjadruje Používateľ súhlas s týmito Podmienkami.</p>
+            </div>
 
-        <h2>4. Platobné podmienky</h2>
-        <ul>
-            <li><strong>Trial:</strong> Nový užívateľ má právo na 30-dňovú bezplatnú verziu.</li>
-            <li><strong>Cena:</strong> Aktuálna cena predplatného je 15 € mesačne (vrátane DPH) za firemný účet.</li>
-            <li><strong>Fakturácia:</strong> Platba prebieha vopred na nasledujúce 30-dňové obdobie cez platobnú bránu Stripe.</li>
-            <li><strong>Zrušenie:</strong> Predplatné je možné kedykoľvek zrušiť. Služba ostane aktívna do konca predplateného obdobia.</li>
-        </ul>
+            <div class="section">
+                <h2>DEFINÍCIE</h2>
 
-        <h2>5. Práva a povinnosti</h2>
-        <p>Poskytovateľ garantuje dostupnosť systému 99 % času s výnimkou plánovanej údržby. Užívateľ sa zaväzuje systém nepoužívať na nelegálne účely alebo na prenos škodlivého kódu.</p>
+                <p>Pre účely týchto Podmienok majú nasledujúce pojmy tento význam:</p>
+<br class="mobile-break">
+                <ul class="definitions">
+                    <li><strong>Aplikácia</strong> - aplikácia MojaStavba pre stavebný manažment dostupná ako natívna verzia pre Android a Windows, a ako webové rozhranie pre všetky platformy (vrátane Mac a iPhone) na www.moja-stavba.sk</li>
+                    <li><strong>Používateľ</strong> - fyzická alebo právnická osoba, ktorá používa Aplikáciu</li>
+                    <li><strong>Predplatné</strong> - oprávnenie na prístup k funkciam Aplikácie na dobu určitú</li>
+                    <li><strong>Projekt</strong> - stavebný projekt spravovaný prostredníctvom Aplikácie</li>
+                    <li><strong>Užívateľský účet</strong> - osobný profil Používateľa v Aplikácii</li>
+                    <li><strong>Obsah</strong> - všetky dáta, dokumentácia, projekty a iné prvky v Aplikácii</li>
+                    <li><strong>GDPR</strong> - Nariadenie Európskeho parlamentu a Rady (EÚ) 2016/679 a Zákon č. 18/2018 Z. z. o ochrane osobných údajov</li>
+                </ul>
+            </div>
 
-        <h2>6. Zodpovednosť</h2>
-        <p>Služba je poskytovaná "tak, ako stojí a leží" (as is). Poskytovateľ nezodpovedá za správnosť údajov zapísaných užívateľom (napr. v stavebnom denníku) ani za prípadné sankcie zo strany štátnych orgánov spôsobené nesprávnym vedením evidencie.</p>
+            <div class="section">
+                <h2>REGISTRÁCIA A UŽÍVATEĽSKÝ ÚČET</h2>
 
-        <h2>7. Riešenie sporov</h2>
-        <p>Prípadné spory budú riešené prednostne dohodou. Právne vzťahy sa riadia Obchodným zákonníkom SR. Spotrebiteľ má právo na alternatívne riešenie sporov cez Slovenskú obchodnú inšpekciu (SOI).</p>
+                <h3>Vytvorenie účtu organizácie</h3>
+                <p>Pre využívanie služieb Aplikácie je potrebné vytvorenie účtu organizácie (ďalej len „Organizácia"). Registráciu vykonáva oprávnená osoba konajúca v mene Organizácie, ktorá vytvorením účtu získava administrátorské oprávnenia na správu používateľov a projektov v rámci Aplikácie.</p>
+                
+                <br class="mobile-break">
+                
+                <p>Registrácia účtu Organizácie je bezplatná. Plné využívanie funkcií Aplikácie, najmä správa projektov a pokročilé funkcie, môže byť podmienené zakúpením príslušného predplatného podľa aktuálneho cenníka.</p>
 
-        <div class="footer">
-            &copy; 2025 LORD'S BENISON s.r.o. | Vyvinuté pre MojaStavba.app
+                <h3>Vytváranie účtov zamestnancov</h3>
+                <p>Organizácia môže prostredníctvom Aplikácie pozývať svojich zamestnancov alebo spolupracovníkov (ďalej len „Používatelia") na vytvorenie individuálnych používateľských účtov. Tieto účty vznikajú na základe elektronickej pozvánky zaslanej Organizáciou.</p>
+                
+                <br class="mobile-break">
+                
+                <p>Používatelia následne používajú svoje účty na prácu s pridelenými projektmi, dokumentáciou alebo plnenie ďalších úloh, ktoré im Organizácia prostredníctvom Aplikácie priradí.</p>
+
+                <h3>Pravdivosť a aktuálnosť údajov</h3>
+                <p>Pri registrácii účtu Organizácie alebo používateľského účtu je potrebné uviesť úplné, pravdivé a aktuálne údaje v rozsahu vyžadovanom registračným formulárom. Organizácia aj Používateľ sú povinní tieto údaje priebežne aktualizovať v prípade ich zmeny.</p>
+                
+                <br class="mobile-break">
+                
+                <p>Prevádzkovateľ si vyhradzuje právo obmedziť alebo zrušiť prístup k Aplikácii v prípade poskytnutia nepravdivých alebo neúplných údajov.</p>
+
+                <h3>Ochrana prístupových údajov</h3>
+                <p>Používateľ je zodpovedný za ochranu svojich prihlasovacích údajov (najmä používateľského mena a hesla) a za všetky činnosti vykonané prostredníctvom jeho účtu. Používateľ nie je oprávnený sprístupniť svoje prístupové údaje tretím osobám.</p>
+                
+                <br class="mobile-break">
+                
+                <p>V prípade podozrenia na zneužitie účtu je Používateľ povinný bezodkladne zmeniť svoje heslo a informovať Prevádzkovateľa.</p>
+
+                <h3>Správa predplatného a priraďovanie projektov</h3>
+                <p>Organizácia je oprávnená zakúpiť predplatné k jednotlivým funkciám Aplikácie podľa aktuálneho cenníka. Zakúpené predplatné môže Organizácia spravovať a priraďovať jednotlivým Používateľom prostredníctvom administrátorského rozhrania Aplikácie.</p>
+
+                <h3>Zrušenie účtu</h3>
+                <p>Organizácia alebo Používateľ môže požiadať o zrušenie svojho účtu prostredníctvom nastavení Aplikácie alebo kontaktovaním Prevádzkovateľa.</p>
+                
+                <br class="mobile-break">
+                
+                <p>Prevádzkovateľ si vyhradzuje právo zrušiť alebo pozastaviť účet v prípade závažného porušenia týchto Podmienok, nelegálneho používania Aplikácie alebo iného konania, ktoré môže ohroziť bezpečnosť alebo riadne fungovanie Aplikácie.</p>
+            </div>
+
+            <div class="section">
+                <h2>PREDPLATNÉ A PLATBY</h2>
+
+                <h3>Typy predplatného</h3>
+                <p>Aplikácia ponúka tri základné typy predplatného prispôsobené potrebám organizácií:</p>
+
+                <br class="mobile-break">
+
+                <ul class="definitions">
+                    <li><strong>SILVER predplatné</strong> - Pre malé firmy a živnostníkov: 17€/bez DPH, 3 Aktívne stavby, 5 Zamestnancov, Dochádzka, Stavebný denník, Zálohy zamestnancov, Správa zákaziek a tímu</li>
+                    <li><strong>GOLD predplatné</strong> - Zlatý štandard pre rastúce firmy: 36€/bez DPH, 10 Aktívnych stavieb, 20 Zamestnancov, Dochádzka, Stavebný denník, Zálohy zamestnancov, Správa zákaziek a tímu, Analytika zákaziek, Globálna analytika</li>
+                    <li><strong>PLATINUM predplatné</strong> - komplexný prístup so všetkými funkciami vrátane Analytika zákaziek, Globálna analytika, AI asistent, pokročilých integrácií a priority podpory</li>
+                </ul>
+
+                <h3>Ceny a platby</h3>
+                <p>Ceny predplatného sú uvedené v Aplikácii a môžu sa meniť. Po objednaní predplatného bude Používateľovi zaslaná faktúra na úhradu. Prístup k funkciam bude aktivovaný po pripísaní platby na účet Prevádzkovateľa.</p>
+
+                <h3>Doba platnosti a platby</h3>
+                <p>Predplatné sa účtuje mesačne a je platné do jeho zrušenia Používateľom. Faktúry za mesačné predplatné sú zaslané na emailovú adresu uvedenú v účte Používateľa podľa zvoleného balíka.</p>
+
+                </div>
+
+            <div class="section">
+                <h2>PRÁVA A POVINNOSTI POUŽÍVATEĽA</h2>
+
+                <h3>Práva Používateľa</h3>
+                <ul class="definitions">
+                    <li>Prístup ku všetkým funkciám Aplikácie v rámci zakúpeného predplatného</li>
+                    <li>Možnosť spravovať projekty, zamestnancov a dokumentáciu podľa rozsahu zakúpeného balíka</li>
+                    <li>Bezplatná technická podpora pri riešení technických problémov s Aplikáciou v pracovných dňoch</li>
+                    <li>Právo na aktualizácie Aplikácie v rámci platnosti predplatného bez dodatočných poplatkov</li>
+                </ul>
+
+                <h3>Povinnosti Používateľa</h3>
+                <ul class="definitions">
+                    <li>Používať Aplikáciu výlučne v súlade s týmito Podmienkami používania a platnými právnymi predpismi</li>
+                    <li>Nešíriť, kopírovať ani sprístupňovať obsah Aplikácie tretím osobám bez výslovného písomného súhlasu Prevádzkovateľa</li>
+                    <li>Nepoužívať Aplikáciu na účely, ktoré sú v rozpore s dobrými mravmi, zákonmi alebo týmito Podmienkami</li>
+                    <li>Poskytnúť pravdivé, úplné a aktuálne údaje pri registrácii a bezodkladne ich aktualizovať v prípade zmeny</li>
+                    <li>Dodržiavať autorské práva k obsahu Aplikácie a nevykonávať žiadne úpravy ani modifikácie bez povolenia</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>PRÁVA A POVINNOSTI PREVÁDZKOVATEĽA</h2>
+
+                <h3>Práva Prevádzkovateľa</h3>
+                <ul class="definitions">
+                    <li>Meniť, dopĺňať a aktualizovať obsah Aplikácie a tieto Podmienky používania v súlade s platnými právnymi predpismi</li>
+                    <li>Obmedziť alebo zrušiť prístup k Aplikácii v prípade porušenia týchto Podmienok alebo zákonov</li>
+                    <li>Vyžadovať dodatočné informácie alebo údaje od Používateľa v prípade potreby identifikácie alebo bezpečnostných dôvodov</li>
+                </ul>
+
+                <h3>Povinnosti Prevádzkovateľa</h3>
+                <ul class="definitions">
+                    <li>Poskytovať funkčnú Aplikáciu a bezodkladne odstrániť prípadné technické problémy spojené s jej funkčnosťou</li>
+                    <li>Riadne chrániť osobné údaje Používateľov v súlade s nariadením GDPR a ďalšími platnými predpismi</li>
+                    <li>Poskytovať odbornú technickú podporu Používateľom v rámci rozsahu zakúpeného predplatného</li>
+                    <li>Pravidelne aktualizovať funkcie Aplikácie podľa zmien v legislatíve a potrieb používateľov</li>
+                    <li>Zabezpečiť bezpečnosť Aplikácie a ochranu údajov pred neoprávneným prístupom alebo zneužitím</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>OCHRANA AUTORSKÝCH PRÁV</h2>
+
+                <p>Všetok obsah Aplikácie, najmä funkcie, rozhranie, databázy, dokumentácia a ďalšie prvky, je chránený autorským právom podľa zákona č. 185/2015 Z. z. o autorskom práve a právach súvisiacich s autorským právom (Autorský zákon). Prevádzkovateľ je výlučným nositeľom majetkových práv k tomuto obsahu alebo je oprávnený tento obsah používať a spravovať na základe príslušného právneho titulu.</p>
+                
+                <br class="mobile-break">
+                
+                <p>Používateľ je oprávnený používať obsah Aplikácie výlučne na vlastné účely v rámci stavebného manažmentu a len v rozsahu zakúpeného predplatného. Bez predchádzajúceho súhlasu Prevádzkovateľa je zakázané najmä obsah Aplikácie kopírovať, rozmnožovať, šíriť, sprístupňovať tretím osobám, verejne ho prezentovať alebo inak používať nad rámec predplatného.</p>
+                
+                <br class="mobile-break">
+                
+                <p>Exportované dáta a dokumenty vygenerované prostredníctvom Aplikácie sú určené pre Používateľa pre jeho interné potreby. Autorské práva k obsahu, grafickému spracovaniu a štruktúre Aplikácie zostávajú Prevádzkovateľovi a ich neoprávnené kopírovanie, úpravy alebo iné zásahy sú zakázané.</p>
+            </div>
+
+            <div class="section">
+                <h2>ZRUŠENIE ÚČTU</h2>
+
+                <h3>Zrušenie účtu Používateľom</h3>
+                <p>Používateľ má právo zrušiť svoj používateľský účet kedykoľvek a bez udania dôvodu. Zrušenie je možné vykonať jedným z nasledujúcich spôsobov:</p>
+
+                <br>
+
+                <ul class="definitions">
+                    <li>Prostredníctvom nastavení účtu priamo v Aplikácii (okamžitá aktivácia)</li>
+                    <li>Písomnou žiadosťou zaslanou na emailovú adresu <strong>sluzby@lordsbenison.eu</strong> (spracovanie do 3 pracovných dní)</li>
+                </ul>
+
+                <h3>Zrušenie účtu Prevádzkovateľom</h3>
+                <p>Prevádzkovateľ si vyhradzuje právo zrušiť používateľský účet v nasledujúcich prípadoch:</p>
+
+                <br>
+
+                <ul class="definitions">
+                    <li><strong>Porušenie Podmienok používania</strong> – najmä pri neoprávnenom sprístupňovaní obsahu tretím stranám</li>
+                    <li><strong>Neplatenie poplatkov</strong> – po uplynutí splatnosti faktúry a neúspešnom upozornení</li>
+                    <li><strong>Dlhodobá neaktivita</strong> – nepoužívanie účtu počas obdobia dlhšieho ako 24 mesiacov</li>
+                    <li><strong>Závažné porušenie bezpečnostných opatrení</strong> – ohrozenie integrity Aplikácie alebo iných používateľov</li>
+                </ul>
+
+                <p>V prípade zrušenia účtu z dôvodu porušenia Podmienok nemá Používateľ nárok na vrátenie zaplatených poplatkov za aktuálne bežiace predplatné.</p>
+            </div>
+
+            <div class="section">
+                <h2>ZMENY PODMIENOK</h2>
+
+                <ul>
+                    <li>Prevádzkovateľ si vyhradzuje právo meniť tieto Podmienky. O zmenách budú Používatelia informovaní emailom alebo prostredníctvom Aplikácie.</li>
+                    <li>Pokračovanie v používaní Aplikácie po zmenách znamená súhlas s novými Podmienkami.</li>
+                    <li>Významné zmeny budú oznámené najmenej 30 dní vopred.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>ZÁVEREČNÉ USTANOVENIA</h2>
+
+                <div class="highlight">
+                    <p><strong>Tieto Podmienky používania nadobúdajú účinnosť dňa 01.04.2026.</strong></p>
+                </div>
+
+                <p>Tieto Podmienky sa riadia právnym poriadkom Slovenskej republiky.</p>
+
+                <p>V prípade nejasností kontaktujte Prevádzkovateľa na sluzby@lordsbenison.eu.</p>
+            </div>
+
+            <div class="section">
+                <h3>Kontaktné údaje Prevádzkovateľa:</h3>
+                <div class="company-info">
+                    <table>
+                        <tr>
+                            <td>Obchodné meno:</td>
+                            <td>LORD'S BENISON s.r.o.</td>
+                        </tr>
+                        <tr>
+                            <td>Korešpondencia:</td>
+                            <td>M. Nandrássyho 654/10, 050 01 Revúca</td>
+                        </tr>
+                        <tr>
+                            <td>Email:</td>
+                            <td>sluzby@lordsbenison.eu | office@lordsbenison.eu</td>
+                        </tr>
+                        <tr>
+                            <td>Telefón:</td>
+                            <td>+421 915 577 927 | +421 948 225 713</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
         </div>
+
+        <footer class="footer">
+            <p><strong>Verzia:</strong> 01 | <strong>Schválil:</strong> Mgr. Ivan Javorčík</p>
+            <p>&copy; 2026 LORD'S BENISON s.r.o. Všetky práva vyhradené.</p>
+        </footer>
     </div>
 </body>
 </html>
