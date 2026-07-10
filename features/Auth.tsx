@@ -916,6 +916,8 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const [rememberMe, setRememberMe] = useState(true); 
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
   const [alertInfo, setAlertInfo] = useState<{open: boolean, title: string, message: string, type?: 'success' | 'error'}>({ open: false, title: '', message: '' });
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
+  const [resendingVerification, setResendingVerification] = useState(false);
 
   // AUTOMATICKÉ NAČÍTANIE Z URL (MAGIC LINK)
   useEffect(() => {
@@ -944,6 +946,48 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
           });
       } catch (inviteError) {
           console.warn('Invite completion sync failed:', inviteError);
+      }
+  };
+
+  const showVerificationNotice = (emailValue: string) => {
+      const normalizedEmail = emailValue.trim().toLowerCase();
+      setPendingVerificationEmail(normalizedEmail);
+      setAlertInfo({
+          open: true,
+          title: "Registrácia prijatá",
+          message: `Na adresu ${normalizedEmail} bol odoslaný overovací email. Ak ho nevidíte, skontrolujte spam alebo použite tlačidlo na opätovné odoslanie v prihlasovacom okne.`,
+          type: 'success'
+      });
+      setView('login');
+  };
+
+  const resendVerificationEmail = async () => {
+      const targetEmail = (pendingVerificationEmail || email).trim().toLowerCase();
+      if (!targetEmail) {
+          setError('Zadajte email, na ktorý máme poslať overovací odkaz.');
+          return;
+      }
+
+      setResendingVerification(true);
+      setError(null);
+      try {
+          const { error: resendError } = await supabase.auth.resend({
+              type: 'signup',
+              email: targetEmail,
+              options: { emailRedirectTo: getRedirectURL() }
+          });
+          if (resendError) throw resendError;
+          setPendingVerificationEmail(targetEmail);
+          setAlertInfo({
+              open: true,
+              title: 'Overovací email odoslaný',
+              message: `Poslali sme nový overovací email na ${targetEmail}. Ak ho nevidíte v doručenej pošte, skontrolujte spam alebo hromadnú poštu.`,
+              type: 'success'
+          });
+      } catch (resendError: any) {
+          setError(translateAuthError(resendError.message || 'Overovací email sa nepodarilo odoslať.'));
+      } finally {
+          setResendingVerification(false);
       }
   };
 
@@ -1015,7 +1059,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
         });
         if(authError) throw authError;
         if (auth.session) onLogin();
-        else { setAlertInfo({ open: true, title: "Registrácia úspešná", message: "Na vašu e-mailovú adresu bol odoslaný overovací odkaz. Po jeho potvrdení sa budete môcť prihlásiť do systému." }); setView('login'); }
+        else { showVerificationNotice(email); }
       }
       else if (view === 'register-emp') {
           const cleanId = companyId.trim();
@@ -1038,9 +1082,14 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
           if(authError) throw authError;
           await markInviteCompleted(cleanId, email.trim().toLowerCase());
           if (auth.session) onLogin();
-          else { setAlertInfo({ open: true, title: "Vitajte!", message: `Registrácia do firmy "${org.name}" prebehla úspešne! Skontrolujte si email pre overenie účtu.` }); setView('login'); }
+          else { showVerificationNotice(email); }
       }
-    } catch(e: any) { setError(translateAuthError(e.message)); } finally { setLoading(false); }
+    } catch(e: any) {
+      if (String(e.message || '').includes('Email not confirmed')) {
+          setPendingVerificationEmail(email.trim().toLowerCase());
+      }
+      setError(translateAuthError(e.message));
+    } finally { setLoading(false); }
   };
 
   const switchToLogin = () => { setView('login'); setError(null); };
@@ -1076,6 +1125,28 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                     <div className="mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100 flex items-start gap-3 animate-pulse">
                         <AlertCircle className="shrink-0 mt-0.5" size={16}/>
                         <div>{error}</div>
+                    </div>
+                )}
+
+                {view === 'login' && pendingVerificationEmail && (
+                    <div className="mb-6 rounded-2xl border border-orange-200 bg-orange-50 p-4 text-left">
+                        <div className="flex items-start gap-3">
+                            <Mail className="mt-0.5 shrink-0 text-orange-600" size={18}/>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-bold text-orange-950">Čaká sa na potvrdenie emailu</p>
+                                <p className="mt-1 text-xs font-medium leading-relaxed text-orange-800">
+                                    Ak email neprišiel na <strong>{pendingVerificationEmail}</strong>, môžete si poslať nový overovací odkaz.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={resendVerificationEmail}
+                                    disabled={resendingVerification}
+                                    className="mt-3 inline-flex items-center justify-center rounded-xl bg-orange-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {resendingVerification ? 'Odosielam...' : 'Poslať overovací email znova'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 

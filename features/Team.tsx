@@ -9,6 +9,11 @@ import { Capacitor } from '@capacitor/core';
 import { PLANS } from './Subscription';
 
 const TEAM_PAGE_SIZE = 15;
+const formatRoleBadge = (worker: any) => {
+  if (!worker.is_active) return 'Archivovaný';
+  if (worker.role === 'admin') return 'Admin';
+  return worker.job_title || 'zamestnanec';
+};
 
 export const TeamScreen = ({ profile }: any) => {
   const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
@@ -408,13 +413,13 @@ const TeamList = ({ profile, onSelect }: any) => {
                       <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-amber-600 border border-amber-200 shrink-0">
                         <Mail size={24}/>
                       </div>
-                      <div className="min-w-0 flex-1 pr-8">
+                      <div className="min-w-0 flex-1 pr-10">
                         <h3 className="font-bold text-lg text-slate-900 truncate">
                             {invite.employee_name || invite.email}
                         </h3>
                         <div className="flex flex-wrap gap-1 mt-1">
-                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
-                                Pozvaný / nezaregistrovaný
+                            <span className="inline-flex items-center max-w-full rounded-md border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-semibold leading-none text-amber-800 whitespace-nowrap">
+                                Pozvaný
                             </span>
                         </div>
                       </div>
@@ -449,11 +454,11 @@ const TeamList = ({ profile, onSelect }: any) => {
                       <div className="min-w-0">
                         <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition truncate pr-8">{w.full_name}</h3>
                         <div className="flex flex-wrap gap-1 mt-1">
-                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${w.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-200 text-slate-500 border border-slate-300'}`}>
-                                {w.is_active ? (w.role === 'admin' ? 'Administrátor' : (w.job_title || 'zamestnanec')) : 'Archivovaný'}
+                            <span className={`inline-flex items-center max-w-full rounded-md px-2 py-0.5 text-xs font-semibold leading-none whitespace-nowrap ${w.is_active ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-slate-200 text-slate-600 border border-slate-300'}`}>
+                                <span className="truncate">{formatRoleBadge(w)}</span>
                             </span>
                             {w.is_active && w.role !== 'admin' && (
-                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${w.show_wage_in_profile ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                                <span className={`inline-flex items-center max-w-full rounded-md px-2 py-0.5 text-xs font-semibold leading-none whitespace-nowrap border ${w.show_wage_in_profile ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                                     {w.show_wage_in_profile ? <Eye size={10} className="inline mr-1"/> : <EyeOff size={10} className="inline mr-1"/>}
                                     {w.show_wage_in_profile ? 'Mzda viditeľná' : 'Mzda skrytá'}
                                 </span>
