@@ -935,6 +935,18 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
       }
   }, [initialView, initialCompanyId]);
 
+  const markInviteCompleted = async (companyIdValue: string, emailValue: string) => {
+      try {
+          await fetch('/api/complete-invite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ companyId: companyIdValue, email: emailValue })
+          });
+      } catch (inviteError) {
+          console.warn('Invite completion sync failed:', inviteError);
+      }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -1024,6 +1036,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
             } 
           });
           if(authError) throw authError;
+          await markInviteCompleted(cleanId, email.trim().toLowerCase());
           if (auth.session) onLogin();
           else { setAlertInfo({ open: true, title: "Vitajte!", message: `Registrácia do firmy "${org.name}" prebehla úspešne! Skontrolujte si email pre overenie účtu.` }); setView('login'); }
       }

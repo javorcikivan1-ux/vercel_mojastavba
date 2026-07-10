@@ -21,6 +21,7 @@ export const TeamScreen = ({ profile }: any) => {
 
 const TeamList = ({ profile, onSelect }: any) => {
   const [workers, setWorkers] = useState<any[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   
@@ -79,6 +80,7 @@ const TeamList = ({ profile, onSelect }: any) => {
     if (reset) {
         setLoading(true);
         setWorkers([]);
+        setPendingInvites([]);
     } else {
         setLoadingMore(true);
     }
@@ -104,6 +106,33 @@ const TeamList = ({ profile, onSelect }: any) => {
         if (workerData) {
             setWorkers(prev => reset ? workerData : [...prev, ...workerData]);
             setHasMore(workerData.length === TEAM_PAGE_SIZE);
+        }
+
+        if (reset) {
+            if (showArchived) {
+                setPendingInvites([]);
+            } else {
+                let inviteQuery = supabase
+                    .from('employee_invites')
+                    .select('*')
+                    .eq('organization_id', profile.organization_id)
+                    .eq('status', 'invited');
+
+                if (searchQuery) {
+                    inviteQuery = inviteQuery.or(`employee_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`);
+                }
+
+                const { data: inviteData, error: inviteError } = await inviteQuery
+                    .order('last_sent_at', { ascending: false })
+                    .limit(50);
+
+                if (inviteError) {
+                    console.warn('Pending invites unavailable:', inviteError.message);
+                    setPendingInvites([]);
+                } else {
+                    setPendingInvites(inviteData || []);
+                }
+            }
         }
     } catch (e: any) {
         console.error(e);
@@ -235,6 +264,21 @@ const TeamList = ({ profile, onSelect }: any) => {
       setConfirm({ open: true, action: 'delete', id });
   }
 
+  const handleCancelInvite = async (invite: any, e: any) => {
+      e.stopPropagation();
+      try {
+          const { error } = await supabase
+              .from('employee_invites')
+              .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+              .eq('id', invite.id);
+
+          if (error) throw error;
+          setPendingInvites(prev => prev.filter(item => item.id !== invite.id));
+      } catch (error: any) {
+          setAlert({ open: true, title: 'Chyba', message: error.message || 'Pozvánku sa nepodarilo zrušiť.' });
+      }
+  };
+
   const copyInviteLink = () => {
       const inviteUrl = `https://www.moja-stavba.sk/?action=register-emp&companyId=${profile.organization_id}`;
       navigator.clipboard.writeText(inviteUrl);
@@ -279,7 +323,16 @@ const TeamList = ({ profile, onSelect }: any) => {
 
           setInviteEmail('');
           setInviteName('');
-          setAlert({ open: true, title: 'Pozvánka odoslaná', message: `Emailová pozvánka bola odoslaná na ${email}.` });
+          setPage(0);
+          load(true);
+          const sentCount = result.invite?.sent_count;
+          setAlert({
+              open: true,
+              title: 'Pozvánka odoslaná',
+              message: sentCount > 1
+                  ? `Emailová pozvánka bola znova odoslaná na ${email}. Celkovo odoslané ${sentCount}x.`
+                  : `Emailová pozvánka bola odoslaná na ${email}.`
+          });
       } catch (error: any) {
           setAlert({ open: true, title: 'Chyba', message: error.message || 'Pozvánku sa nepodarilo odoslať.' });
       } finally {
@@ -349,6 +402,44 @@ const TeamList = ({ profile, onSelect }: any) => {
             <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-orange-600" size={40}/></div>
         ) : (
             <>
+                {pendingInvites.map(invite => (
+                  <Card key={`invite-${invite.id}`} className="relative border border-amber-200 bg-amber-50/40 flex flex-col h-full">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-amber-600 border border-amber-200 shrink-0">
+                        <Mail size={24}/>
+                      </div>
+                      <div className="min-w-0 flex-1 pr-8">
+                        <h3 className="font-bold text-lg text-slate-900 truncate">
+                            {invite.employee_name || invite.email}
+                        </h3>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                                Pozvaný / nezaregistrovaný
+                            </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-auto space-y-3 pt-4 border-t border-amber-100">
+                      <div className="flex items-center gap-3 text-sm text-slate-700 truncate">
+                        <Mail size={16} className="text-amber-500 shrink-0"/> <span className="truncate">{invite.email}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-slate-600">
+                        <Clock size={16} className="text-amber-500 shrink-0"/>
+                        <span>
+                            Odoslané {invite.sent_count || 1}x
+                            {invite.last_sent_at ? ` · ${formatDate(invite.last_sent_at)}` : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="absolute top-4 right-4">
+                        <button onClick={(e) => handleCancelInvite(invite, e)} className="bg-white p-2 rounded-full text-red-500 shadow-sm border border-amber-200 hover:border-red-200 active:scale-90 transition" title="Zrušiť pozvánku">
+                            <Trash2 size={14}/>
+                        </button>
+                    </div>
+                  </Card>
+                ))}
                 {workers.map(w => (
                   <Card key={w.id} onClick={() => onSelect(w.id)} className={`relative group hover:shadow-md transition cursor-pointer border border-slate-200 flex flex-col h-full ${!w.is_active ? 'opacity-70 bg-slate-50' : ''}`}>
                     <div className="flex items-start gap-4">
@@ -405,7 +496,7 @@ const TeamList = ({ profile, onSelect }: any) => {
                     </div>
                   </Card>
                 ))}
-                {workers.length === 0 && (
+                {workers.length === 0 && pendingInvites.length === 0 && (
                     <div className="col-span-full py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
                         Nenašli sa žiadni zamestnanci.
                     </div>
@@ -442,7 +533,7 @@ const TeamList = ({ profile, onSelect }: any) => {
       />
 
       {showModal && (
-        <Modal title="Upraviť Zamestnanca" onClose={() => setShowModal(false)}>
+        <Modal title="Upraviť zamestnanca" onClose={() => setShowModal(false)}>
           <form onSubmit={handleSave} className="space-y-4">
             <Input label="Meno a Priezvisko" value={formData.fullName} onChange={(e: any) => setFormData({...formData, fullName: e.target.value})} required placeholder="Ján Novák" />
             
@@ -895,7 +986,7 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
             </div>
 
             {showEditModal && (
-                <Modal title="Upraviť Zamestnanca" onClose={() => setShowEditModal(false)}>
+                <Modal title="Upraviť zamestnanca" onClose={() => setShowEditModal(false)}>
                     <form onSubmit={handleSaveEdit} className="space-y-4">
                         <Input label="Meno a Priezvisko" value={formData.fullName} onChange={(e: any) => setFormData({...formData, fullName: e.target.value})} required placeholder="Ján Novák" />
                         

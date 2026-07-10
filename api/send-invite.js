@@ -64,6 +64,31 @@ export default async function handler(req, res) {
   const companyName = organization?.name || 'Vaša firma';
   const inviteUrl = `${appUrl}/?action=register-emp&companyId=${encodeURIComponent(profile.organization_id)}&email=${encodeURIComponent(normalizedEmail)}`;
   const safeCompanyName = escapeHtml(companyName);
+  const employeeName = String(req.body?.employeeName || '').trim();
+
+  const { data: existingMember } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('organization_id', profile.organization_id)
+    .eq('email', normalizedEmail)
+    .maybeSingle();
+
+  if (existingMember) {
+    return res.status(409).json({ error: 'Tento email je už zaregistrovaný vo vašom tíme.' });
+  }
+
+  const { data: existingInvite, error: existingInviteError } = await supabase
+    .from('employee_invites')
+    .select('id, sent_count')
+    .eq('organization_id', profile.organization_id)
+    .eq('email', normalizedEmail)
+    .maybeSingle();
+
+  if (existingInviteError && existingInviteError.code !== 'PGRST116') {
+    return res.status(500).json({
+      error: 'Tabuľka pozvánok ešte nie je pripravená. Spustite SQL súbor supabase_employee_invites.sql v Supabase.'
+    });
+  }
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -117,7 +142,40 @@ export default async function handler(req, res) {
       `
     });
 
-    return res.status(200).json({ success: true, data: result });
+    let sentCount = 1;
+    if (existingInvite) {
+      sentCount = (existingInvite.sent_count || 0) + 1;
+      const { error: updateInviteError } = await supabase
+        .from('employee_invites')
+        .update({
+          employee_name: employeeName || null,
+          status: 'invited',
+          invited_by: profile.id,
+          sent_count: sentCount,
+          last_sent_at: new Date().toISOString(),
+          registered_at: null,
+          cancelled_at: null
+        })
+        .eq('id', existingInvite.id);
+
+      if (updateInviteError) throw updateInviteError;
+    } else {
+      const { error: insertInviteError } = await supabase
+        .from('employee_invites')
+        .insert({
+          organization_id: profile.organization_id,
+          email: normalizedEmail,
+          employee_name: employeeName || null,
+          status: 'invited',
+          invited_by: profile.id,
+          sent_count: 1,
+          last_sent_at: new Date().toISOString()
+        });
+
+      if (insertInviteError) throw insertInviteError;
+    }
+
+    return res.status(200).json({ success: true, data: result, invite: { email: normalizedEmail, sent_count: sentCount } });
   } catch (error) {
     console.error('Send invite error:', error);
     return res.status(500).json({ error: error.message || 'Email sa nepodarilo odoslať.' });
