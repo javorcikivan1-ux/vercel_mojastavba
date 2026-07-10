@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://fuuxskyamoeuusnlsgvl.supabase.co';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const appUrl = 'https://www.moja-stavba.sk';
+const logoUrl = 'https://lordsbenison.sk/wp-content/uploads/2026/07/icon-only.png';
 
 const supabase = supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
 
@@ -29,7 +31,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Chýba prihlásenie.' });
   }
 
-  const { email, employeeName } = req.body || {};
+  const { email } = req.body || {};
   const normalizedEmail = String(email || '').trim().toLowerCase();
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
@@ -60,10 +62,8 @@ export default async function handler(req, res) {
     .single();
 
   const companyName = organization?.name || 'Vaša firma';
-  const inviteUrl = `https://www.moja-stavba.sk/?action=register-emp&companyId=${encodeURIComponent(profile.organization_id)}&email=${encodeURIComponent(normalizedEmail)}`;
+  const inviteUrl = `${appUrl}/?action=register-emp&companyId=${encodeURIComponent(profile.organization_id)}&email=${encodeURIComponent(normalizedEmail)}`;
   const safeCompanyName = escapeHtml(companyName);
-  const safeEmployeeName = escapeHtml(employeeName || 'dobrý deň');
-  const safeAdminName = escapeHtml(profile.full_name || profile.email || 'administrátor');
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
           <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#0f172a;">
             <div style="max-width:620px;margin:0 auto;padding:32px 18px;">
               <div style="text-align:center;margin-bottom:24px;">
-                <div style="display:inline-block;background:#fff7ed;border:1px solid #fed7aa;color:#ea580c;padding:10px 16px;border-radius:999px;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">MojaStavba</div>
+                <img src="${logoUrl}" width="56" height="56" alt="MojaStavba" style="display:inline-block;width:56px;height:56px;border-radius:16px;">
               </div>
               <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;box-shadow:0 18px 45px rgba(15,23,42,.07);overflow:hidden;">
                 <div style="padding:34px 34px 22px;border-bottom:1px solid #f1f5f9;">
@@ -92,10 +92,10 @@ export default async function handler(req, res) {
                   <p style="margin:0;color:#64748b;font-size:15px;line-height:1.6;">${safeCompanyName} vás pozýva do aplikácie MojaStavba.</p>
                 </div>
                 <div style="padding:30px 34px;">
-                  <p style="margin:0 0 18px;font-size:16px;line-height:1.7;">Dobrý deň ${safeEmployeeName},</p>
+                  <p style="margin:0 0 18px;color:#0f172a;font-size:16px;line-height:1.7;">Dobrý deň,</p>
                   <p style="margin:0 0 24px;color:#334155;font-size:15px;line-height:1.7;">
-                    ${safeAdminName} vám posiela pozvánku do systému na evidenciu dochádzky, zákaziek a pracovných výkazov.
-                    Kliknite na tlačidlo nižšie a dokončite registráciu zamestnanca.
+                    Spoločnosť ${safeCompanyName} vám posiela pozvánku do systému ${appUrl} na evidenciu dochádzky,
+                    zákaziek a pracovných výkazov. Kliknite na tlačidlo nižšie a dokončite registráciu zamestnanca.
                   </p>
                   <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;padding:18px 20px;margin:0 0 26px;">
                     <div style="font-size:12px;font-weight:800;color:#9a3412;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Firma</div>
