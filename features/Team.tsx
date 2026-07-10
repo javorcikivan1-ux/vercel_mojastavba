@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Modal, Input, Badge, ConfirmModal, AlertModal, Select } from '../components/UI';
@@ -48,6 +48,9 @@ const TeamList = ({ profile, onSelect }: any) => {
   const [alert, setAlert] = useState<{open: boolean, message: string, title?: string}>({ open: false, message: '' });
   const [linkCopied, setLinkCopied] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [inviteSending, setInviteSending] = useState(false);
 
   // Získame aktuálnu organizáciu pre limity
   const [org, setOrg] = useState<any>(null);
@@ -245,6 +248,45 @@ const TeamList = ({ profile, onSelect }: any) => {
       setTimeout(() => setIdCopied(false), 2000);
   };
 
+  const handleSendInviteEmail = async (e: React.FormEvent) => {
+      e.preventDefault();
+      const email = inviteEmail.trim();
+      if (!email) {
+          setAlert({ open: true, title: 'Chyba', message: 'Zadajte email zamestnanca.' });
+          return;
+      }
+
+      setInviteSending(true);
+      try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token;
+          if (!accessToken) throw new Error('Nie ste prihlásený.');
+
+          const response = await fetch('/api/send-invite', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${accessToken}`
+              },
+              body: JSON.stringify({
+                  email,
+                  employeeName: inviteName.trim()
+              })
+          });
+
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(result.error || 'Pozvánku sa nepodarilo odoslať.');
+
+          setInviteEmail('');
+          setInviteName('');
+          setAlert({ open: true, title: 'Pozvánka odoslaná', message: `Emailová pozvánka bola odoslaná na ${email}.` });
+      } catch (error: any) {
+          setAlert({ open: true, title: 'Chyba', message: error.message || 'Pozvánku sa nepodarilo odoslať.' });
+      } finally {
+          setInviteSending(false);
+      }
+  };
+
   const handleLoadMore = () => {
       setPage(p => p + 1);
   };
@@ -253,11 +295,11 @@ const TeamList = ({ profile, onSelect }: any) => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-           <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              <Users className="text-orange-600" size={32} />
+           <h2 className="app-section-title">
+              <Users className="text-orange-600" />
               Tím a Zamestnanci
            </h2>
-           <p className="text-sm text-slate-500 mt-1 font-medium">Správa pracovníkov a prehľad výkonov</p>
+           <p className="app-section-subtitle">Správa pracovníkov a prehľad výkonov</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
             <Button variant="secondary" onClick={() => setShowArchived(!showArchived)} fullWidth className="sm:w-auto justify-center order-2 sm:order-1">
@@ -462,94 +504,111 @@ const TeamList = ({ profile, onSelect }: any) => {
       )}
 
       {showInviteModal && (
-          <Modal title="Pozvať členov do tímu" onClose={() => setShowInviteModal(false)} maxWidth="max-w-lg">
-              <div className="space-y-6 md:space-y-8 py-2 px-1">
-                  <div className="text-center space-y-3 px-2">
-                      <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-[2rem] md:rounded-[2.5rem] flex items-center justify-center mx-auto mb-2 shadow-xl shadow-orange-200">
-                          <UserPlus size={32} className="md:w-10 md:h-10 drop-shadow-md"/>
+          <Modal title="Pozvať členov do tímu" onClose={() => setShowInviteModal(false)} maxWidth="max-w-3xl">
+              <div className="space-y-5">
+                  <div className="flex items-center gap-4 rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                      <div className="w-14 h-14 bg-orange-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-orange-100 shrink-0">
+                          <UserPlus size={28}/>
                       </div>
-                      <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Pridávanie zamestnancov</h3>
-                      <p className="text-xs md:text-sm text-slate-500 leading-relaxed font-medium">
-                          Stačí skopírovať registračný odkaz a poslať ho vašim zamestnancom. Registrácia je rýchla a jednoduchá.
-                      </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 px-1 md:px-2">
-                      {/* MAGIC LINK SECTION */}
-                      <div className="bg-white border-2 border-orange-50 rounded-3xl p-4 md:p-6 shadow-sm hover:border-orange-200 transition-all group relative overflow-hidden">
-                          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
-                              <Link size={80} className="text-orange-600"/>
-                          </div>
-                          
-                          <div className="relative">
-                            <div className="flex items-center justify-between mb-4">
-                                <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-2">
-                                    <Zap size={14} className="fill-orange-600"/> Registračný link pre tím
-                                </span>
-                                {linkCopied && (
-                                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase animate-in fade-in slide-in-from-right-2">
-                                        Skopírované!
-                                    </span>
-                                )}
-                            </div>
-                            
-                            <div className="flex items-center gap-2 md:gap-3">
-                                <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-3 md:p-4 text-[10px] md:text-[11px] font-bold text-slate-600 truncate italic">
-                                    https://www.moja-stavba.sk/?action=register-emp&companyId={profile.organization_id}
-                                </div>
-                                <button 
-                                    onClick={copyInviteLink}
-                                    className={`h-12 w-12 md:h-14 md:w-14 rounded-2xl flex items-center justify-center transition-all shrink-0 shadow-lg ${linkCopied ? 'bg-green-600 text-white scale-95 shadow-green-100' : 'bg-slate-900 text-white hover:bg-orange-600 shadow-slate-200 active:scale-95'}`}
-                                >
-                                    {linkCopied ? <ClipboardCheck size={20} className="md:w-6 md:h-6"/> : <Copy size={20} className="md:w-6 md:h-6"/>}
-                                </button>
-                            </div>
-                          </div>
-                      </div>
-
-                      {/* COMPANY ID SECTION */}
-                      <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-6 shadow-sm hover:border-slate-300 transition-all group">
-                          <div className="flex items-center justify-between mb-4">
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                  <Hash size={14}/> ID vašej firmy
-                              </span>
-                              {idCopied && (
-                                  <span className="text-green-600 text-[10px] font-black uppercase">ID Skopírované</span>
-                              )}
-                          </div>
-                          <div className="flex flex-col sm:flex-row items-center gap-3">
-                              <div className="flex-1 font-black text-xl md:text-2xl text-slate-800 tracking-wider text-center sm:text-left truncate w-full">
-                                  {profile.organization_id.substring(0, 8)}...
-                              </div>
-                              <button 
-                                  onClick={copyCompanyId}
-                                  className={`w-full sm:w-auto px-6 h-12 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${idCopied ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                              >
-                                  {idCopied ? 'ID Skopírované' : 'Kopírovať ID'}
-                              </button>
-                          </div>
-                      </div>
-                  </div>
-
-                  <div className="mx-1 md:mx-2 p-4 md:p-5 bg-blue-50 border border-blue-100 rounded-3xl flex flex-col sm:flex-row gap-3 md:gap-4 items-center sm:items-start text-center sm:text-left">
-                      <div className="bg-blue-600 text-white p-2 rounded-xl shrink-0 shadow-lg shadow-blue-200">
-                          <Info size={20}/>
-                      </div>
-                      <div className="space-y-1">
-                          <h4 className="text-xs md:text-sm font-black text-blue-900 uppercase tracking-tight">Informácia</h4>
-                          <p className="text-[10px] md:text-xs text-blue-700/80 leading-relaxed font-medium">
-                              Tento registračný odkaz je <strong>univerzálny pre všetkých</strong> zamestnancov vašej firmy. Môžete ho zdieľať <strong>hromadne</strong>. Pri registrácii cez tento link sa im automaticky vyplní vaše ID firmy.
+                      <div className="min-w-0 flex-1">
+                          <h3 className="text-xl md:text-2xl font-black text-slate-950 tracking-tight">Pridávanie zamestnancov</h3>
+                          <p className="text-sm text-slate-600 leading-relaxed font-medium mt-1">
+                              Odošlite zamestnancovi registračný email alebo použite záložný link pre ručné zdieľanie.
                           </p>
                       </div>
                   </div>
 
-                  <div className="text-center pt-2">
-                    <button 
-                        onClick={() => setShowInviteModal(false)} 
-                        className="px-8 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.2em]"
-                    >
-                        Zavrieť okno
-                    </button>
+                  <div className="space-y-4">
+                      <form onSubmit={handleSendInviteEmail} className="bg-white border border-orange-200 rounded-2xl p-5 shadow-sm space-y-5">
+                          <div>
+                              <span className="text-xs font-black text-orange-600 uppercase tracking-wider flex items-center gap-2 mb-2">
+                                  <Mail size={16}/> Emailová pozvánka
+                              </span>
+                              <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                                  Pozvánka odíde z adresy <strong>noreply@moja-stavba.sk</strong> a registračný odkaz bude už obsahovať ID vašej firmy.
+                              </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <Input
+                                  label="Email zamestnanca"
+                                  type="email"
+                                  value={inviteEmail}
+                                  onChange={(e: any) => setInviteEmail(e.target.value)}
+                                  required
+                                  placeholder="meno@mail.sk"
+                              />
+                              <Input
+                                  label="Meno zamestnanca (voliteľné)"
+                                  value={inviteName}
+                                  onChange={(e: any) => setInviteName(e.target.value)}
+                                  placeholder="Ján Novák"
+                              />
+                          </div>
+
+                          <Button type="submit" fullWidth loading={inviteSending} disabled={inviteSending} className="h-12">
+                              <Send size={18}/>
+                              {inviteSending ? 'Odosielam...' : 'Odoslať pozvánku'}
+                          </Button>
+                      </form>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden min-w-0">
+                              <Link size={76} className="absolute -right-4 -top-4 text-slate-100 pointer-events-none"/>
+                              <div className="relative">
+                                  <div className="flex items-center justify-between gap-3 mb-3">
+                                      <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                          <Zap size={15} className="text-orange-600 fill-orange-600"/> Záložný link
+                                      </span>
+                                      {linkCopied && <span className="text-green-700 text-[10px] font-black uppercase">Skopírované</span>}
+                                  </div>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                      <div className="min-w-0 flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-600 truncate">
+                                          https://www.moja-stavba.sk/?action=register-emp&companyId={profile.organization_id}
+                                      </div>
+                                      <button 
+                                          onClick={copyInviteLink}
+                                          className={`h-11 w-11 rounded-xl flex items-center justify-center transition-all shrink-0 ${linkCopied ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-orange-600'}`}
+                                          title="Kopírovať registračný link"
+                                      >
+                                          {linkCopied ? <ClipboardCheck size={19}/> : <Copy size={19}/>}
+                                      </button>
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm min-w-0">
+                              <div className="flex items-center justify-between gap-3 mb-3">
+                                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                      <Hash size={15}/> ID firmy
+                                  </span>
+                                  {idCopied && <span className="text-green-700 text-[10px] font-black uppercase">Skopírované</span>}
+                              </div>
+                              <div className="flex items-center gap-2 min-w-0">
+                                  <code className="min-w-0 flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm font-black text-slate-800 truncate">
+                                      {profile.organization_id}
+                                  </code>
+                                  <button
+                                      onClick={copyCompanyId}
+                                      className={`h-11 px-4 rounded-xl text-xs font-black uppercase transition-all ${idCopied ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                                  >
+                                      {idCopied ? 'Hotovo' : 'Kopírovať'}
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex gap-3 text-left">
+                      <div className="bg-blue-600 text-white p-2 rounded-xl shrink-0 h-fit">
+                          <Info size={18}/>
+                      </div>
+                      <div>
+                          <h4 className="text-sm font-black text-blue-900 uppercase tracking-tight">Ako to funguje</h4>
+                          <p className="text-xs text-blue-800/80 leading-relaxed font-medium mt-1">
+                              Emailová pozvánka je odporúčaný spôsob. Univerzálny registračný link ostáva ako záloha, ak chcete pozvánku poslať zamestnancovi ručne.
+                          </p>
+                      </div>
                   </div>
               </div>
           </Modal>

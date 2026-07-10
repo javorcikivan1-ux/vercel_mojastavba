@@ -34,6 +34,68 @@ import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
 const SUPER_ADMIN_EMAIL = 'javorcik.ivan1@gmail.com';
 const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mojastavba/releases/latest";
+const APP_SCREENS = new Set([
+  'superadmin',
+  'dashboard',
+  'projects',
+  'attendance',
+  'diary',
+  'calendar',
+  'team',
+  'finance',
+  'analytics',
+  'advances',
+  'settings',
+  'subscription'
+]);
+
+const SCREEN_TO_SLUG: Record<string, string> = {
+  superadmin: 'admin',
+  dashboard: 'nastenka',
+  projects: 'zakazky',
+  attendance: 'dochadzky',
+  diary: 'dennik-prace',
+  calendar: 'kalendar',
+  team: 'tim',
+  finance: 'firemna-analytika',
+  analytics: 'analyza-zakaziek',
+  advances: 'zalohy',
+  settings: 'nastavenia',
+  subscription: 'predplatne'
+};
+
+const SLUG_TO_SCREEN = new Map(
+  Object.entries(SCREEN_TO_SLUG).flatMap(([screen, slug]) => [
+    [slug, screen],
+    [screen, screen]
+  ])
+);
+SLUG_TO_SCREEN.set('stavebny-dennik', 'diary');
+
+const getAppRouteHash = (screen: string, siteId: string | null, diarySiteId: string | null = null) => {
+  if (screen === 'projects' && siteId) {
+    return `#/${SCREEN_TO_SLUG.projects}/zakazka/${encodeURIComponent(siteId)}`;
+  }
+
+  if (screen === 'diary' && diarySiteId) {
+    return `#/${SCREEN_TO_SLUG.diary}/zakazka/${encodeURIComponent(diarySiteId)}`;
+  }
+
+  return `#/${SCREEN_TO_SLUG[screen] || SCREEN_TO_SLUG.dashboard}`;
+};
+
+const parseAppRouteHash = (hash: string) => {
+  const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  const screen = SLUG_TO_SCREEN.get(parts[0]) || 'dashboard';
+  const siteId = screen === 'projects' && (parts[1] === 'zakazka' || parts[1] === 'stavba' || parts[1] === 'site') && parts[2]
+    ? decodeURIComponent(parts[2])
+    : null;
+  const diarySiteId = screen === 'diary' && (parts[1] === 'zakazka' || parts[1] === 'stavba' || parts[1] === 'site') && parts[2]
+    ? decodeURIComponent(parts[2])
+    : null;
+
+  return { screen, siteId, diarySiteId };
+};
 
 const OfflineOverlay = () => (
     <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-500">
@@ -95,14 +157,16 @@ const UnpaidLockScreen = ({ onLogout }: { onLogout: () => void }) => (
 );
 
 export const App = () => {
+  const initialRoute = parseAppRouteHash(window.location.hash);
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [organization, setOrganization] = useState<any>(null);
   const [view, setView] = useState('loading');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
-  const [activeScreen, setActiveScreen] = useState(() => localStorage.getItem('ms_active_screen') || 'dashboard'); 
-  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(() => localStorage.getItem('ms_selected_site_id'));
+  const [activeScreen, setActiveScreen] = useState(() => window.location.hash ? initialRoute.screen : localStorage.getItem('ms_active_screen') || 'dashboard'); 
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(() => window.location.hash ? initialRoute.siteId : localStorage.getItem('ms_selected_site_id'));
+  const [selectedDiarySiteId, setSelectedDiarySiteId] = useState<string | null>(() => window.location.hash ? initialRoute.diarySiteId : null);
   
   const [loading, setLoading] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); 
@@ -111,6 +175,8 @@ export const App = () => {
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
   const [initialLoginView, setInitialLoginView] = useState('login');
   const [workerTab, setWorkerTab] = useState('dashboard');
+  const isApplyingBrowserHistory = useRef(false);
+  const lastAppRouteHash = useRef('');
   
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying' | 'installing'>('idle');
@@ -267,15 +333,60 @@ export const App = () => {
     if (['finance', 'analytics', 'advances'].includes(activeScreen)) {
         setIsFinanceOpen(true);
     }
-  }, [activeScreen]);
+    if (activeScreen !== 'projects' && selectedSiteId) {
+        setSelectedSiteId(null);
+    }
+    if (activeScreen !== 'diary' && selectedDiarySiteId) {
+        setSelectedDiarySiteId(null);
+    }
+  }, [activeScreen, selectedSiteId, selectedDiarySiteId]);
 
   useEffect(() => {
-    if (selectedSiteId) {
+    if (activeScreen === 'projects' && selectedSiteId) {
       localStorage.setItem('ms_selected_site_id', selectedSiteId);
     } else {
       localStorage.removeItem('ms_selected_site_id');
     }
-  }, [selectedSiteId]);
+  }, [activeScreen, selectedSiteId]);
+
+  useEffect(() => {
+    if (view !== 'app' || !profile) return;
+
+    const routeHash = getAppRouteHash(activeScreen, selectedSiteId, selectedDiarySiteId);
+
+    if (!lastAppRouteHash.current) {
+      lastAppRouteHash.current = routeHash;
+      window.history.replaceState({ mojastavba: true }, '', routeHash);
+      return;
+    }
+
+    if (isApplyingBrowserHistory.current) {
+      lastAppRouteHash.current = routeHash;
+      isApplyingBrowserHistory.current = false;
+      return;
+    }
+
+    if (routeHash !== lastAppRouteHash.current) {
+      lastAppRouteHash.current = routeHash;
+      window.history.pushState({ mojastavba: true }, '', routeHash);
+    }
+  }, [activeScreen, selectedSiteId, selectedDiarySiteId, view, profile]);
+
+  useEffect(() => {
+    if (view !== 'app' || !profile) return;
+
+    const handlePopState = () => {
+      const { screen, siteId, diarySiteId } = parseAppRouteHash(window.location.hash);
+      isApplyingBrowserHistory.current = true;
+      lastAppRouteHash.current = getAppRouteHash(screen, siteId, diarySiteId);
+      setActiveScreen(screen);
+      setSelectedSiteId(siteId);
+      setSelectedDiarySiteId(diarySiteId);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [view, profile]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -381,6 +492,7 @@ export const App = () => {
       }
       setActiveScreen(screen);
       setSelectedSiteId(null);
+      setSelectedDiarySiteId(null);
   };
 
   const handleProfileUpdate = (updatedProfile: UserProfile) => {
@@ -580,6 +692,7 @@ export const App = () => {
             } else {
                 setActiveScreen(id);
                 setSelectedSiteId(null);
+                setSelectedDiarySiteId(null);
             }
         };
 
@@ -698,23 +811,28 @@ export const App = () => {
                     <AdminNavItem id="dashboard" label="Nástenka" icon={LayoutGrid} />
                     <AdminNavItem id="projects" label="Zákazky" icon={Building2} />
                     <AdminNavItem id="attendance" label="Dochádzky" icon={FileCheck} />
-                    <AdminNavItem id="diary" label="Stavebný Denník" icon={BookOpen} />
+                    <AdminNavItem id="diary" label="Denník práce" icon={BookOpen} />
                     <AdminNavItem id="calendar" label="Kalendár" icon={Calendar} />
                     <AdminNavItem id="team" label="Tím" icon={Users} />
                     
-                    <div className="pt-2">
+                    <div>
                         <button
                             onClick={() => setIsFinanceOpen(!isFinanceOpen)}
-                            className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all font-bold text-sm
-                                ${(['finance', 'analytics', 'advances'].includes(activeScreen) && !isFinanceOpen) ? 'bg-orange-50 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}
+                            className={`w-full flex items-center gap-3 rounded-xl transition-all font-bold text-sm
+                                ${['finance', 'analytics', 'advances'].includes(activeScreen)
+                                    ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100'
+                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                                }
+                                ${isSidebarCollapsed ? 'justify-center px-0 py-3' : 'px-4 py-2.5'}
                             `}
+                            title={isSidebarCollapsed ? 'Financie' : ''}
                         >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
                                 <Wallet size={22} className={['finance', 'analytics', 'advances'].includes(activeScreen) ? 'text-orange-600' : 'text-slate-400'} />
                                 {!isSidebarCollapsed && <span>Financie</span>}
                             </div>
                             {!isSidebarCollapsed && (
-                                <ChevronDown size={16} className={`transition-transform duration-300 ${isFinanceOpen ? 'rotate-180' : ''}`} />
+                                <ChevronDown size={16} className={`ml-auto transition-transform duration-300 ${isFinanceOpen ? 'rotate-180' : ''}`} />
                             )}
                         </button>
                         
@@ -809,9 +927,9 @@ export const App = () => {
                           {[
                               ...(isSuperAdmin ? [{ id: 'superadmin', label: 'ADMIN', icon: ShieldAlert }] : []),
                               { id: 'dashboard', label: 'Domov', icon: LayoutGrid },
-                              { id: 'projects', label: 'Stavby', icon: Building2 },
+                              { id: 'projects', label: 'Zákazky', icon: Building2 },
                               { id: 'attendance', label: 'Dochádzky', icon: FileCheck },
-                              { id: 'diary', label: 'Denník', icon: BookOpen },
+                              { id: 'diary', label: 'Denník práce', icon: BookOpen },
                               { id: 'finance', label: 'Financie', icon: PieChart, disabled: !hasAnalytics },
                               { id: 'analytics', label: 'Analytika', icon: BarChart3, disabled: !hasAnalytics },
                               { id: 'advances', label: 'Zálohy', icon: Banknote },
@@ -849,7 +967,14 @@ export const App = () => {
                       {activeScreen === 'superadmin' && <SuperAdminScreen />}
                       {activeScreen === 'dashboard' && <DashboardScreen profile={profile} organization={organization} onNavigate={handleNavigate} />}
                       {activeScreen === 'projects' && <ProjectsScreen profile={profile} organization={organization} onSelect={setSelectedSiteId} selectedSiteId={selectedSiteId} />}
-                      {activeScreen === 'diary' && <DiaryScreen profile={profile} organization={organization} />}
+                      {activeScreen === 'diary' && (
+                        <DiaryScreen
+                          profile={profile}
+                          organization={organization}
+                          selectedSiteId={selectedDiarySiteId}
+                          onSelectedSiteChange={setSelectedDiarySiteId}
+                        />
+                      )}
                       {activeScreen === 'attendance' && <AttendanceScreen profile={profile} organization={organization} />}
                       {activeScreen === 'advances' && <AdvancesScreen profile={profile} />}
                       {activeScreen === 'finance' && (hasAnalytics ? <FinanceScreen profile={profile} /> : <UpgradeGate plan="GOLD" />)}

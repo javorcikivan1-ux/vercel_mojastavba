@@ -296,11 +296,11 @@ export const AnalyticsScreen = ({ profile }: any) => {
     <div className="space-y-6 pb-20 max-w-7xl mx-auto px-1 md:px-0">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
          <div>
-            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-                <BarChart3 className="text-orange-600" size={28} />
+            <h2 className="app-section-title">
+                <BarChart3 className="text-orange-600" />
                 Analytika zákaziek
             </h2>
-            <p className="text-sm text-slate-500 mt-1 font-medium">Finančná výkonnosť projektov (bez všeobecnej réžie)</p>
+            <p className="app-section-subtitle">Finančná výkonnosť projektov (bez všeobecnej réžie)</p>
          </div>
 
          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">

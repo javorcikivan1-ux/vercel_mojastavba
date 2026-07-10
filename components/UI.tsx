@@ -189,7 +189,7 @@ export const LegalModal = ({ type, onClose }: { type: 'vop' | 'gdpr', onClose: (
                         Zapísaná v Obchodnom registri Okresného súdu Banská Bystrica, Oddiel Sro, Vložka č. 36729/S.</p>
 
                         <h2>2. Definícia služby</h2>
-                        <p>MojaStavba je softvérová aplikácia poskytovaná ako služba (SaaS) určená na digitalizáciu stavebnej administratívy, najmä stavebného denníka, evidencie dochádzky a sledovania projektových nákladov.</p>
+                        <p>MojaStavba je softvérová aplikácia poskytovaná ako služba (SaaS) určená na digitalizáciu stavebnej administratívy, najmä denníka práce, evidencie dochádzky a sledovania projektových nákladov.</p>
 
                         <h2>3. Registrácia a ochrana prístupu</h2>
                         <p>Používanie služby vyžaduje vytvorenie firemného účtu. Užívateľ (Majiteľ firmy) je povinný chrániť svoje prístupové heslo a zodpovedá za činnosť všetkých zamestnancov, ktorých do systému prizve cez unikátne ID firmy.</p>
@@ -206,7 +206,7 @@ export const LegalModal = ({ type, onClose }: { type: 'vop' | 'gdpr', onClose: (
                         <p>Poskytovateľ garantuje dostupnosť systému 99 % času s výnimkou plánovanej údržby. Užívateľ sa zaväzuje systém nepoužívať na nelegálne účely alebo na prenos škodlivého kódu.</p>
 
                         <h2>6. Zodpovednosť</h2>
-                        <p>Služba je poskytovaná "tak, ako stojí a leží" (as is). Poskytovateľ nezodpovedá za správnosť údajov zapísaných užívateľom (napr. v stavebnom denníku) ani za prípadné sankcie zo strany štátnych orgánov spôsobené nesprávnym vedením evidencie.</p>
+                        <p>Služba je poskytovaná "tak, ako stojí a leží" (as is). Poskytovateľ nezodpovedá za správnosť údajov zapísaných užívateľom (napr. v denníku práce) ani za prípadné sankcie zo strany štátnych orgánov spôsobené nesprávnym vedením evidencie.</p>
 
                         <h2>7. Riešenie sporov</h2>
                         <p>Prípadné spory budú riešené prednostne dohodou. Právne vzťahy sa riadia Obchodným zákonníkom SR. Spotrebiteľ má právo na alternatívne riešenie sporov cez Slovenskú obchodnú inšpekciu (SOI).</p>

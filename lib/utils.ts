@@ -9,7 +9,7 @@ export const formatMoney = (amount: number) => {
 
 export const formatDate = (dateStr: string) => {
   if(!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('sk-SK');
+  return new Date(dateStr).toLocaleDateString('sk-SK', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
 export const formatDateTime = (dateStr: string) => {

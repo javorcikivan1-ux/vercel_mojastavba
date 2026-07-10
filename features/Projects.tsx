@@ -5,8 +5,7 @@ import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, Cu
 // Added BookOpen to lucide-react imports to fix line 162 error
 import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus, Fuel, Users, Settings2, Save, Shield, BookOpen, Star } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
+import { exportElementToPdf } from '../lib/pdfExport';
 import { ProjectPHM } from './ProjectPHM';
 import { PLANS } from './Subscription';
 
@@ -542,11 +541,11 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-           <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              <Building2 className="text-orange-600" size={32} />
+           <h2 className="app-section-title">
+              <Building2 className="text-orange-600" />
               Správa zákaziek
            </h2>
-           <p className="text-sm text-slate-500 mt-1 font-medium">Správa zákaziek od dopytu po realizáciu</p>
+           <p className="app-section-subtitle">Správa zákaziek od dopytu po realizáciu</p>
         </div>
         {activeTab !== 'archive' && (
             <div className="flex gap-2 w-full md:w-auto">
@@ -1590,34 +1589,12 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
 
     const generatePDF = async () => {
         if (!printRef.current) return;
-        
-        // Check if running on mobile device
-        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
+
         try {
-            const opt = { 
-                margin: 0, 
-                filename: `CP_${selectedQuote?.quote_number}.pdf`, 
-                image: { type: 'jpeg' as const, quality: 0.98 }, 
-                html2canvas: { scale: 2, useCORS: true }, 
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const } 
-            };
-            
-            if (isMobile) {
-                // For mobile: generate PDF and create download link
-                const pdf = await html2pdf().set(opt).from(printRef.current).outputPdf('blob') as Blob;
-                const url = URL.createObjectURL(pdf);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `CP_${selectedQuote?.quote_number}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            } else {
-                // For desktop: use direct save
-                html2pdf().set(opt).from(printRef.current).save();
-            }
+            await exportElementToPdf(printRef.current, {
+                filename: `CP_${selectedQuote?.quote_number}.pdf`,
+                pageMarginMm: 0
+            });
         } catch (e) {
             console.error(e);
             window.alert("Chyba pri generovaní PDF. Skúste znova alebo použite desktop verziu.");
@@ -1938,48 +1915,22 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
   const handleExportPDF = async () => {
     setExporting(true);
-    setTimeout(async () => {
+    try {
+        await new Promise(resolve => setTimeout(resolve, 250));
         if(!printRef.current) return;
-        
-        // Check if running on mobile device
-        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        try {
-            const modeName = exportSettings.type === 'client' ? 'Export_Klient' : 'Export_Majitel';
-            const opt = { 
-                margin: 10, 
-                filename: `${modeName}_${site.name}.pdf`, 
-                image: { type: 'jpeg' as const, quality: 0.98 }, 
-                html2canvas: { scale: 2, useCORS: true }, 
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const } 
-            };
-            
-            if (isMobile) {
-                // For mobile: generate PDF and create download link
-                const pdf = await html2pdf().set(opt).from(printRef.current).outputPdf('blob') as Blob;
-                const url = URL.createObjectURL(pdf);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${modeName}_${site.name}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                setModals({...modals, export: false});
-                setExporting(false);
-            } else {
-                // For desktop: use direct save
-                await html2pdf().set(opt).from(printRef.current).save();
-                setModals({...modals, export: false});
-                setExporting(false);
-            }
-        } catch(e) {
-            console.error('PDF Export Error:', e);
-            setAlertState({ open: true, title: 'Chyba', message: "PDF export zlyhal. Skúste znova alebo použite desktop verziu.", type: 'error' });
-            setExporting(false);
-        }
-    }, 500);
+
+        const modeName = exportSettings.type === 'client' ? 'Export_Klient' : 'Export_Majitel';
+        await exportElementToPdf(printRef.current, {
+            filename: `${modeName}_${site.name}.pdf`,
+            pageMarginMm: 10
+        });
+        setModals({...modals, export: false});
+    } catch(e) {
+        console.error('PDF Export Error:', e);
+        setAlertState({ open: true, title: 'Chyba', message: "PDF export zlyhal. Skúste znova alebo použite desktop verziu.", type: 'error' });
+    } finally {
+        setExporting(false);
+    }
   };
 
   const requestDelete = (table: string, id: string) => {
@@ -2154,7 +2105,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
       <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 flex flex-col lg:flex-row justify-between items-start gap-6">
         <div className="flex-1">
-          <h1 className="text-3xl font-extrabold text-slate-900 mb-2 leading-tight">{site.name}</h1>
+          <h1 className="text-2xl md:text-[1.625rem] font-extrabold text-slate-900 mb-2 leading-tight tracking-normal">{site.name}</h1>
           <div className="flex items-center gap-3 text-sm flex-wrap">
             <span className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 font-medium"><MapPin size={14} className="text-orange-500"/> {site.address}</span>
             {site.client_name && <span className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 font-medium"><User size={14} className="text-blue-500"/> {site.client_name}</span>}

@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Input, Select, AlertModal, CustomLogo } from '../components/UI';
-import { FileCheck, Calendar, User, FileDown, Printer, Loader2, Clock, MapPin, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Coffee, Pencil, Eye, EyeOff, Briefcase, Info, RotateCcw } from 'lucide-react';
+import { Card, Button } from '../components/UI';
+import { FileCheck, Calendar, User, Printer, Loader2, Clock, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Pencil, Eye, EyeOff, Briefcase } from 'lucide-react';
 import { formatDate } from '../lib/utils';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
+import { exportElementToPdf } from '../lib/pdfExport';
 
 export const AttendanceScreen = ({ profile, organization }: any) => {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -202,42 +201,19 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
   const handleExportPDF = async () => {
     if (!printRef.current) return;
     setExporting(true);
-    
-    // Check if running on mobile device
-    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
+
     try {
         const empName = employees.find(e => e.id === selectedEmpId)?.full_name || profile.full_name;
         const monthName = currentDate.toLocaleString('sk-SK', { month: 'long', year: 'numeric' });
-        const opt = {
-            margin: 8,
+        await exportElementToPdf(printRef.current, {
             filename: `Dochadzka_${empName.replace(' ', '_')}_${monthName.replace(' ', '_')}.pdf`,
-            image: { type: 'jpeg' as const, quality: 0.98 },
-            html2canvas: { scale: 2.5, useCORS: true, allowTaint: true },
-            jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
-        };
-        
-        if (isMobile) {
-            // For mobile: generate PDF and create download link
-            const pdf = await html2pdf().set(opt).from(printRef.current).outputPdf('blob') as Blob;
-            const url = URL.createObjectURL(pdf);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Dochadzka_${empName.replace(' ', '_')}_${monthName.replace(' ', '_')}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            setExporting(false);
-        } else {
-            // For desktop: use direct save
-            html2pdf().set(opt).from(printRef.current).save().then(() => setExporting(false));
-        }
+            pageMarginMm: 8
+        });
     } catch (e: any) {
         console.error('PDF Export Error:', e);
-        setExporting(false);
         window.alert('PDF export zlyhal. Skúste znova alebo použite desktop verziu.');
+    } finally {
+        setExporting(false);
     }
   };
 
@@ -252,11 +228,11 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
     <div className="space-y-6 pb-20 md:pb-0">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-          <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <FileCheck className="text-orange-600" size={32} />
+          <h2 className="app-section-title">
+            <FileCheck className="text-orange-600" />
             Dochádzky
           </h2>
-          <p className="text-sm text-slate-500 mt-1 font-medium">Správa a export mesačných výkazov</p>
+          <p className="app-section-subtitle">Správa a export mesačných výkazov</p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
           <Button onClick={handleExportPDF} disabled={!selectedEmpId || editableLogs.length === 0 || exporting} fullWidth className="md:w-auto shadow-lg shadow-orange-100">
@@ -266,22 +242,33 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
-        <div className="xl:col-span-1 space-y-6">
-            <Card className="space-y-4 shadow-sm border-slate-200">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2 text-xs uppercase tracking-widest"><Calendar size={16} className="text-orange-500"/> Obdobie</h3>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 items-start">
+            <Card className="grid grid-cols-1 md:grid-cols-[minmax(260px,1fr)_240px] gap-4 items-end shadow-sm border-slate-200">
                 {profile.role === 'admin' && (
-                    <Select label="Zamestnanec" value={selectedEmpId} onChange={(e: any) => setSelectedEmpId(e.target.value)}>
-                        <option value="">-- Vyberte zamestnanca --</option>
-                        {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-                    </Select>
-                )}
-                <div className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-200 shadow-inner">
-                    <button onClick={prevMonth} className="p-2 hover:bg-white rounded-lg transition shadow-sm bg-white/50"><ChevronLeft size={18}/></button>
-                    <div className="text-center">
-                        <div className="font-bold text-slate-800 capitalize text-sm">{currentDate.toLocaleString('sk-SK', { month: 'long', year: 'numeric' })}</div>
+                    <div>
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                            <User size={16} className="text-orange-500"/>
+                            Zamestnanec
+                        </label>
+                        <select value={selectedEmpId} onChange={(e: any) => setSelectedEmpId(e.target.value)} className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition cursor-pointer text-sm font-semibold text-slate-800">
+                            <option value="">Vyberte zamestnanca</option>
+                            {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+                        </select>
                     </div>
-                    <button onClick={nextMonth} className="p-2 hover:bg-white rounded-lg transition shadow-sm bg-white/50"><ChevronRight size={18}/></button>
+                )}
+                <div>
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                        <Calendar size={16} className="text-orange-500"/>
+                        Obdobie
+                    </label>
+                    <div className="h-11 flex items-center justify-between p-1.5 bg-slate-50 rounded-xl border border-slate-200 shadow-inner min-w-0">
+                        <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center hover:bg-white rounded-lg transition shadow-sm bg-white/60"><ChevronLeft size={17}/></button>
+                        <div className="px-2 text-center font-bold text-slate-900 capitalize text-sm whitespace-nowrap">
+                            {currentDate.toLocaleString('sk-SK', { month: 'long', year: 'numeric' })}
+                        </div>
+                        <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center hover:bg-white rounded-lg transition shadow-sm bg-white/60"><ChevronRight size={17}/></button>
+                    </div>
                 </div>
             </Card>
 
@@ -289,16 +276,16 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                 <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b border-slate-200 pb-2 text-xs uppercase tracking-widest">
                     <Settings2 size={16} className="text-slate-400"/> Nastavenia Exportu
                 </h3>
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(280px,1fr)] xl:grid-cols-[260px_minmax(300px,1fr)_260px] gap-3 items-start">
                     <div className="grid grid-cols-2 gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                         <button onClick={() => setExportOptions({...exportOptions, viewMode: 'detailed'})} className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${exportOptions.viewMode === 'detailed' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}><LayoutList size={14}/> Podrobný</button>
                         <button onClick={() => setExportOptions({...exportOptions, viewMode: 'summarized'})} className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${exportOptions.viewMode === 'summarized' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}><Calculator size={14}/> Súhrnný</button>
                     </div>
 
-                    <div className="space-y-2 pt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
                         <label className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-orange-200 transition group">
                             <input type="checkbox" checked={exportOptions.showSites} onChange={e => setExportOptions({...exportOptions, showSites: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-slate-300" />
-                            <span className="text-xs font-bold text-slate-600 flex items-center gap-2">{exportOptions.showSites ? <Eye size={14} className="text-green-500"/> : <EyeOff size={14} className="text-slate-300"/>} Stavba</span>
+                            <span className="text-xs font-bold text-slate-600 flex items-center gap-2">{exportOptions.showSites ? <Eye size={14} className="text-green-500"/> : <EyeOff size={14} className="text-slate-300"/>} Zákazka</span>
                         </label>
                         <label className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-orange-200 transition group">
                             <input type="checkbox" checked={exportOptions.showDescription} onChange={e => setExportOptions({...exportOptions, showDescription: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-slate-300" />
@@ -306,14 +293,14 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                         </label>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-200">
-                        <label className="flex items-center gap-2 mb-3 cursor-pointer group">
+                    <div className="relative min-w-0">
+                        <label className="h-11 flex items-center gap-2 px-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-orange-200 transition group">
                             <input type="checkbox" id="useTemplate" checked={exportOptions.useTemplate} onChange={e => setExportOptions({...exportOptions, useTemplate: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-slate-300" />
                             <label htmlFor="useTemplate" className="text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Upraviť rozvrhnutie času</label>
                         </label>
                         
                         {exportOptions.useTemplate && (
-                            <div className="space-y-3 p-3 bg-white rounded-xl border border-orange-100 animate-in slide-in-from-top-2 shadow-sm">
+                            <div className="absolute right-0 top-full z-40 mt-2 w-[320px] max-w-[calc(100vw-3rem)] grid grid-cols-1 gap-3 p-3 bg-white rounded-xl border border-orange-100 animate-in slide-in-from-top-2 shadow-xl">
                                 <div>
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Začiatok</label>
                                     <input type="time" value={exportOptions.templateStart} onChange={e => setExportOptions({...exportOptions, templateStart: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm font-bold bg-slate-50" />
@@ -338,100 +325,100 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
             </Card>
         </div>
 
-        <Card className="xl:col-span-3 p-0 overflow-hidden shadow-sm border-slate-200 flex flex-col min-h-[600px] bg-white">
-          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white sticky top-0 z-20">
+        <Card className="p-0 overflow-hidden shadow-sm border-slate-200 flex flex-col min-h-[600px] bg-white">
+          <div className="px-5 py-4 border-b border-slate-200 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-slate-50/70 sticky top-0 z-20">
              <div className="flex items-center gap-3">
                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-blue-500 shadow-inner"><Pencil size={20}/></div>
                  <div>
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">Editor Náhľadu PDF</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedEmployeeName}</p>
+                    <p className="text-xs text-slate-600 font-semibold">{selectedEmployeeName}</p>
                  </div>
              </div>
              
-             <div className="flex flex-wrap sm:flex-nowrap justify-end gap-2 sm:gap-4 w-full sm:w-auto">
-                <div className="bg-white border-2 border-slate-100 px-3 sm:px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm group hover:border-orange-100 transition-colors flex-1 sm:flex-none">
-                    <div className="text-right flex-1 sm:flex-none">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300 block leading-none mb-1">Hodinový fond</span>
-                        <span className="text-lg sm:text-xl font-black text-slate-800 whitespace-nowrap">{stats.hourlyHours.toFixed(1)} <span className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase">hod</span></span>
+             <div className="flex flex-wrap sm:flex-nowrap justify-end gap-2 w-full sm:w-auto">
+                <div className="min-w-[190px] h-14 bg-white border border-slate-200 px-3 rounded-xl flex flex-row-reverse items-center justify-end gap-3 shadow-sm transition-colors flex-1 sm:flex-none">
+                    <div className="text-left flex-1 sm:flex-none">
+                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500 block leading-none mb-1">Hodinový fond</span>
+                        <span className="text-xl font-black text-slate-900 leading-none whitespace-nowrap">{stats.hourlyHours.toFixed(1)} <span className="text-xs font-semibold text-slate-500 uppercase">hod</span></span>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-50 flex items-center justify-center text-orange-500 shrink-0">
-                        <Clock size={18}/>
+                    <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center text-orange-500 shrink-0">
+                        <Clock size={17}/>
                     </div>
                 </div>
 
-                <div className="bg-orange-50 border-2 border-orange-100 px-3 sm:px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm group hover:border-orange-200 transition-colors flex-1 sm:flex-none">
-                    <div className="text-right flex-1 sm:flex-none">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-300 block leading-none mb-1">Úkolové práce</span>
-                        <span className="text-lg sm:text-xl font-black text-orange-700 whitespace-nowrap">{stats.fixedCount} <span className="text-[10px] sm:text-xs font-medium opacity-60 uppercase">ks</span></span>
+                <div className="min-w-[190px] h-14 bg-orange-50 border border-orange-200 px-3 rounded-xl flex flex-row-reverse items-center justify-end gap-3 shadow-sm transition-colors flex-1 sm:flex-none">
+                    <div className="text-left flex-1 sm:flex-none">
+                        <span className="text-[10px] font-black uppercase tracking-wide text-orange-700 block leading-none mb-1">Úkolové práce</span>
+                        <span className="text-xl font-black text-orange-700 leading-none whitespace-nowrap">{stats.fixedCount} <span className="text-xs font-semibold text-orange-600/70 uppercase">ks</span></span>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white flex items-center justify-center text-orange-600 shrink-0">
-                        <Briefcase size={18}/>
+                    <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-orange-600 shrink-0">
+                        <Briefcase size={17}/>
                     </div>
                 </div>
              </div>
           </div>
           
           <div className="overflow-x-auto flex-1 custom-scrollbar">
-            <table className="w-full text-sm text-left border-collapse min-w-[700px]">
-              <thead className="bg-slate-50 text-slate-400 font-black border-y border-slate-100 uppercase text-[9px] tracking-[0.15em] sticky top-0 z-10">
+            <table className="w-full text-sm text-left border-separate border-spacing-0 min-w-[760px]">
+              <thead className="bg-slate-100/80 text-slate-600 font-black border-y border-slate-200 uppercase text-[10px] tracking-wider sticky top-0 z-10">
                 <tr>
-                  <th className="p-4 w-[90px]">Dátum</th>
-                  {exportOptions.showSites && <th className="p-4 w-[180px]">Zákazka</th>}
-                  <th className="p-4 text-center min-w-[180px] max-w-[220px]">Čas Od - Do</th>
-                  {exportOptions.showDescription && <th className="p-4 min-w-[80px] flex-grow max-w-[200px]">Činnosť / Popis</th>}
-                  <th className="p-4 text-right w-[80px]">Hodiny</th>
+                  <th className="px-4 py-3 w-[110px]">Dátum</th>
+                  {exportOptions.showSites && <th className="px-4 py-3 w-[210px]">Zákazka</th>}
+                  <th className="px-4 py-3 text-center min-w-[230px]">Čas Od - Do</th>
+                  {exportOptions.showDescription && <th className="px-4 py-3 min-w-[220px]">Činnosť / Popis</th>}
+                  <th className="px-4 py-3 text-right w-[100px]">Hodiny</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 bg-white">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {loading ? (
                   <tr><td colSpan={5} className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" size={32} /></td></tr>
                 ) : editableLogs.map((log, idx) => (
-                  <tr key={`${log.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="p-3 align-top">
+                  <tr key={`${log.id}-${idx}`} className="hover:bg-orange-50/60 transition-colors group">
+                    <td className="px-4 py-3 align-middle">
                         <div className="font-bold text-slate-800 text-xs flex items-center gap-1 whitespace-nowrap overflow-hidden">
                             {log.isFixed && <Briefcase size={12} className="text-orange-500 shrink-0"/>}
                             {formatDate(log.date)}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-black uppercase">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'short'})}</div>
+                        <div className="text-[10px] text-slate-400 font-semibold">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'short'})}</div>
                     </td>
                     {exportOptions.showSites && (
-                        <td className="p-2 align-top">
+                        <td className="px-3 py-2 align-middle">
                             <textarea 
                               rows={1}
                               value={log.siteName || ''} 
                               onChange={(e) => handleRowChange(idx, 'siteName', e.target.value)}
-                              className="w-full p-2 bg-transparent border border-transparent rounded hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-bold text-slate-700 text-xs transition resize-none custom-scrollbar"
-                              placeholder="Miesto..."
+                              className="w-full min-h-10 px-3 py-2 bg-slate-50/70 border border-transparent rounded-lg hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-semibold text-slate-800 text-sm transition resize-none custom-scrollbar"
+                              placeholder="Z�kazka..."
                             />
                         </td>
                     )}
-                    <td className="p-2 align-top text-center">
+                    <td className="px-3 py-2 align-middle text-center">
                         <input 
                           type="text" 
                           value={log.displayTime} 
                           onChange={(e) => handleRowChange(idx, 'displayTime', e.target.value)}
-                          className="w-full text-center p-2 bg-blue-50/20 border border-transparent rounded hover:border-blue-200 focus:border-blue-500 focus:bg-white outline-none font-mono font-bold text-blue-800 text-sm transition"
+                          className="w-full h-10 text-center px-3 bg-slate-50/70 border border-transparent rounded-lg hover:border-orange-200 focus:border-orange-500 focus:bg-white outline-none font-semibold text-slate-700 text-sm transition"
                           placeholder="07:00 - 15:30"
                         />
                     </td>
                     {exportOptions.showDescription && (
-                        <td className="p-2 align-top">
+                        <td className="px-3 py-2 align-middle">
                             <textarea 
                               rows={1}
                               value={log.description || ''} 
                               onChange={(e) => handleRowChange(idx, 'description', e.target.value)}
-                              className="w-full p-2 bg-transparent border border-transparent rounded hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none italic text-xs text-slate-500 transition resize-none leading-relaxed custom-scrollbar"
+                              className="w-full min-h-10 px-3 py-2 bg-slate-50/70 border border-transparent rounded-lg hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none italic text-sm text-slate-700 transition resize-none leading-relaxed custom-scrollbar"
                               placeholder="Popis činnosti..."
                             />
                         </td>
                     )}
-                    <td className="p-2 align-top text-right">
+                    <td className="px-3 py-2 align-middle text-right">
                         <input 
                           type="number" 
                           step="0.1"
                           value={log.hours} 
                           onChange={(e) => handleRowChange(idx, 'hours', e.target.value)}
-                          className={`w-full text-right p-2 bg-slate-50 border border-transparent rounded hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-black text-base transition ${log.isFixed ? 'text-orange-600' : 'text-slate-900'}`}
+                          className={`w-full h-10 text-right px-3 bg-slate-50 border border-transparent rounded-lg hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-black text-base transition ${log.isFixed ? 'text-orange-600' : 'text-slate-900'}`}
                         />
                     </td>
                   </tr>
@@ -440,7 +427,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                   <tr><td colSpan={5} className="p-20 text-center">
                     <div className="max-w-xs mx-auto opacity-30 flex flex-col items-center">
                         <Clock size={40} className="mb-3 text-slate-300"/>
-                        <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest italic">V databáze nie sú žiadne záznamy pre tento mesiac.</p>
+                        <p className="text-slate-400 font-semibold text-[10px] tracking-widest italic">V databáze nie sú žiadne záznamy pre tento mesiac.</p>
                     </div>
                   </td></tr>
                 )}
@@ -479,7 +466,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
             <thead>
               <tr className="bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest">
                 <th className="border border-slate-900 p-3 text-left w-[32mm]">Dátum</th>
-                {exportOptions.showSites && <th className="border border-slate-900 p-3 text-left w-[28mm]">Miesto</th>}
+                {exportOptions.showSites && <th className="border border-slate-900 p-3 text-left w-[28mm]">Z�kazka</th>}
                 <th className="border border-slate-900 p-3 text-center w-[44mm]">Čas (Od - Do)</th>
                 {exportOptions.showDescription && <th className="border border-slate-900 p-3 text-left">Činnosť / Popis</th>}
                 <th className="border border-slate-900 p-3 text-right w-[24mm]">Hodiny</th>

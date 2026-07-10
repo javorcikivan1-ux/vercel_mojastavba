@@ -922,11 +922,13 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
       const params = new URLSearchParams(window.location.search);
       const urlCompanyId = params.get('companyId');
       const urlAction = params.get('action');
+      const urlEmail = params.get('email');
 
       // Vždy skontrolovať URL bez ohľadu na initialView
       if (urlAction === 'register-emp') {
           setView('register-emp');
           if (urlCompanyId) setCompanyId(urlCompanyId);
+          if (urlEmail) setEmail(urlEmail);
       } else {
           setView(initialView);
           if (initialCompanyId) setCompanyId(initialCompanyId);

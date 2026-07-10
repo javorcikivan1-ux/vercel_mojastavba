@@ -8,8 +8,7 @@ import {
   Copy, Lock, Camera, CheckCircle2, AlertCircle, Loader2, X, RefreshCw, Unlock, Printer, Search, Building2, Info, ListChecks
 } from 'lucide-react';
 import { formatDate } from '../lib/utils';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
+import { exportElementToPdf } from '../lib/pdfExport';
 
 const getLocalDateString = (date: Date) => {
     const y = date.getFullYear();
@@ -60,13 +59,13 @@ const compressImageToBlob = (file: File): Promise<Blob> => {
 
 const DIARY_TRANSLATIONS: any = {
   sk: {
-    manage_diary: 'Stavebný Denník', back_to_overview: 'Späť',
+    manage_diary: 'Denník práce', back_to_overview: 'Späť',
     diary_section_weather: '1. Poveternostné podmienky', diary_section_weather_sub: 'Teplota a počasie počas dňa',
     weather_status: 'Stav počasia', temp_morning: 'Teplota Ráno', temp_noon: 'Teplota Obed',
     weather_sunny: 'Slnečno', weather_partly_cloudy: 'Polooblačno', weather_cloudy: 'Oblačno',
     weather_rainy: 'Dážď', weather_storm: 'Búrka', weather_windy: 'Vietor', weather_snow: 'Sneženie',
     diary_section_notes: '2. Popis vykonaných prác', diary_section_notes_sub: 'Detailný záznam postupu prác',
-    diary_section_mechanisms: '3. Mechanizmy a Stroje', diary_section_mechanisms_sub: 'Nasadenie techniky na stavbe',
+    diary_section_mechanisms: '3. Mechanizmy a Stroje', diary_section_mechanisms_sub: 'Nasadenie techniky na zákazke',
     diary_section_photos: '4. Fotodokumentácia', diary_section_photos_sub: 'Fotografie sú bezpečne uložené v cloude',
     diary_notes_placeholder: 'Sem zapíšte priebeh prác...', mechanisms_placeholder: 'Napr. Bager (8h), žeriav...',
     save_draft: 'Uložiť (Rozpracované)', sign_and_close: 'Uzavrieť a Podpísať', take_photo: 'Pridať foto',
@@ -79,10 +78,10 @@ const DIARY_TRANSLATIONS: any = {
     no_day_records: 'Žiadne záznamy pre tento deň.', no_records: 'Žiadne záznamy', unlock_for_edits: 'Odomknúť pre úpravy',
     diary_signed_msg: 'Denník bol uzavretý a podpísaný.', diary_unlocked_msg: 'Záznam bol odomknutý pre úpravy.',
     diary_saved: 'Denník bol uložený.', prev_day_copied: 'Dáta z predchádzajúceho dňa boli skopírované.',
-    no_prev_day_record: 'Pre predchádzajúci deň sa nenašiel žiadny záznam.', search_site_placeholder: 'Hľadať a vybrať stavbu',
+    no_prev_day_record: 'Pre predchádzajúci deň sa nenašiel žiadny záznam.', search_site_placeholder: 'Vyhľadať zákazku',
     export_pdf: 'Export PDF', generating: 'Generujem...', archive_label: 'Archív', active_label: 'Aktívna',
     total_materials: 'Súčet materiálov', stamp_signature: 'Pečiatka a podpis zhotoviteľa', morning_7: 'Teplota 7:00', noon_13: 'Teplota 13:00',
-    days_short: ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'], site_label: 'Stavba', date_label: 'Dátum', generated_via: 'Vygenerované cez MojaStavba', unlock_for_edits_desc: 'Pre úpravy je potrebné záznam najskôr odomknúť.',
+    days_short: ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'], site_label: 'Zákazka', date_label: 'Dátum', generated_via: 'Vygenerované cez MojaStavba', unlock_for_edits_desc: 'Pre úpravy je potrebné záznam najskôr odomknúť.',
     confirm: 'Potvrdiť', cancel: 'Zrušiť', understand: 'Rozumiem'
   },
   en: {
@@ -225,10 +224,12 @@ interface DiaryScreenProps {
     profile: any;
     organization: any;
     fixedSiteId?: string; 
+    selectedSiteId?: string | null;
+    onSelectedSiteChange?: (siteId: string | null) => void;
     t?: (key: string) => string;
 }
 
-export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: DiaryScreenProps) => {
+export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId: routedSelectedSiteId, onSelectedSiteChange, t: tProp }: DiaryScreenProps) => {
   const [lang, setLang] = useState(() => {
     if (profile.role === 'admin') return 'sk';
     return localStorage.getItem('ms_worker_lang') || 'sk';
@@ -259,6 +260,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [diaryEntry, setDiaryEntry] = useState<any>(null);
   const [isLocked, setIsLocked] = useState(false);
+  const [siteFilterMode, setSiteFilterMode] = useState<'active' | 'archive' | 'all'>('active');
   
   const [dailyAttendance, setDailyAttendance] = useState<any[]>([]);
   const [dailyMaterials, setDailyMaterials] = useState<any[]>([]);
@@ -305,16 +307,8 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
             });
             setSites(sorted);
 
-            const lastSiteId = localStorage.getItem('ms_last_site_id');
-            const exists = sorted.find(s => s.id === lastSiteId);
-            
-            if (lastSiteId && exists) {
-                setSelectedSiteId(lastSiteId);
-                setSearchSiteQuery(exists.name);
-            } else {
-                setSelectedSiteId(sorted[0].id);
-                setSearchSiteQuery(sorted[0].name);
-            }
+            setSelectedSiteId('');
+            setSearchSiteQuery('');
         }
     };
     loadSites();
@@ -323,8 +317,34 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
   const handleSiteChange = (id: string, name: string) => {
       setSelectedSiteId(id);
       setSearchSiteQuery(name);
+      if (!fixedSiteId) onSelectedSiteChange?.(id);
       localStorage.setItem('ms_last_site_id', id);
   };
+
+  const handleBackToSitePicker = () => {
+      setSelectedSiteId('');
+      setSearchSiteQuery('');
+      setSelectedDay(null);
+      setPreviewDay(null);
+      if (!fixedSiteId) onSelectedSiteChange?.(null);
+  };
+
+  useEffect(() => {
+      if (fixedSiteId || routedSelectedSiteId === undefined) return;
+      const nextSiteId = routedSelectedSiteId || '';
+      setSelectedSiteId(nextSiteId);
+      if (!nextSiteId) {
+          setSearchSiteQuery('');
+          setSelectedDay(null);
+          setPreviewDay(null);
+          return;
+      }
+
+      const matchingSite = sites.find(site => site.id === nextSiteId);
+      if (matchingSite) {
+          setSearchSiteQuery(matchingSite.name);
+      }
+  }, [fixedSiteId, routedSelectedSiteId, sites]);
 
   useEffect(() => {
       if (selectedSiteId && !selectedDay) {
@@ -582,38 +602,14 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
 
   const handleExportPDF = async () => {
       if (!printRef.current) return;
-      
-      // Check if running on mobile device
-      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
+
       try {
           const dateStr = selectedDay?.toLocaleDateString(getLocaleCode());
-          const siteName = sites.find(s => s.id === selectedSiteId)?.name || 'Stavba';
-          const opt = { 
-              margin: [10, 10, 10, 10] as [number, number, number, number], 
-              filename: `SD_${siteName}_${dateStr}.pdf`, 
-              image: { type: 'jpeg' as const, quality: 0.98 }, 
-              html2canvas: { scale: 2, useCORS: true, allowTaint: true }, 
-              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const } 
-          };
-          
-          if (isMobile) {
-              // For mobile: generate PDF and create download link
-              const pdf = await html2pdf().set(opt).from(printRef.current).outputPdf('blob') as Blob;
-              const url = URL.createObjectURL(pdf);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `SD_${siteName}_${dateStr}.pdf`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-              
-              setAlertState({ open: true, message: 'PDF bolo vygenerované. Skontrolujte priečinok "Downloads" v telefóne.', type: 'success' });
-          } else {
-              // For desktop: use direct save
-              html2pdf().set(opt).from(printRef.current).save();
-          }
+          const siteName = sites.find(s => s.id === selectedSiteId)?.name || 'Zakazka';
+          await exportElementToPdf(printRef.current, {
+              filename: `SD_${siteName}_${dateStr}.pdf`,
+              pageMarginMm: 10
+          });
       } catch (e: any) {
           console.error('PDF Export Error:', e);
           setAlertState({ open: true, message: 'PDF export zlyhal. Skúste znova alebo použite desktop verziu.', type: 'error' });
@@ -649,54 +645,23 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
           });
 
           setFullExportData(groupedData);
+          await new Promise(resolve => setTimeout(resolve, 350));
 
-          setTimeout(() => {
-              if (!fullPrintRef.current) return;
-              
-              // Check if running on mobile device
-              const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-              const siteName = sites.find(s => s.id === selectedSiteId)?.name || 'Stavba';
-              const opt = { 
-                  margin: [10, 10, 10, 10] as [number, number, number, number], 
-                  filename: `Kompletny_Dennik_${siteName}.pdf`, 
-                  image: { type: 'jpeg' as const, quality: 0.98 }, 
-                  html2canvas: { scale: 2, useCORS: true, allowTaint: true }, 
-                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-                  pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-              };
-              
-              if (isMobile) {
-                  // For mobile: generate PDF and create download link
-                  html2pdf().set(opt).from(fullPrintRef.current).outputPdf('blob').then((pdfBlob: Blob) => {
-                      const url = URL.createObjectURL(pdfBlob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `Kompletny_Dennik_${siteName}.pdf`;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                      URL.revokeObjectURL(url);
-                      
-                      setExporting(false);
-                      setFullExportData(null);
-                      setAlertState({ open: true, message: 'PDF bolo vygenerované. Skontrolujte priečinok "Downloads" v telefóne.', type: 'success' });
-                  }).catch((error: any) => {
-                      console.error('PDF Export Error:', error);
-                      setAlertState({ open: true, message: 'PDF export zlyhal. Skúste znova alebo použite desktop verziu.', type: 'error' });
-                      setExporting(false);
-                  });
-              } else {
-                  // For desktop: use direct save
-                  html2pdf().set(opt).from(fullPrintRef.current).save().then(() => {
-                      setExporting(false);
-                      setFullExportData(null);
-                  });
-              }
-          }, 1500);
+          if (!fullPrintRef.current) {
+              throw new Error('Tlačový náhľad sa nepodarilo pripraviť.');
+          }
+
+          const siteName = sites.find(s => s.id === selectedSiteId)?.name || 'Zakazka';
+          await exportElementToPdf(fullPrintRef.current, {
+              filename: `Kompletny_Dennik_${siteName}.pdf`,
+              pageMarginMm: 10
+          });
       } catch (e: any) {
-          console.error(e);
-          setAlertState({ open: true, message: t('no_records'), type: 'error' });
+          console.error('PDF Export Error:', e);
+          setAlertState({ open: true, message: 'PDF export zlyhal. Skúste znova alebo použite desktop verziu.', type: 'error' });
+      } finally {
           setExporting(false);
+          setFullExportData(null);
       }
   };
 
@@ -723,7 +688,64 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
   const filteredSitesList = sites.filter(s => 
     s.name.toLowerCase().includes(searchSiteQuery.toLowerCase())
   );
-  const currentSiteName = sites.find(s => s.id === selectedSiteId)?.name || t('site_label');
+  const selectedSite = sites.find(s => s.id === selectedSiteId);
+  const currentSiteName = selectedSite?.name || t('site_label');
+  const activeSites = sites.filter(s => s.status !== 'completed');
+  const archivedSites = sites.filter(s => s.status === 'completed');
+  const visibleSites = searchSiteQuery
+      ? filteredSitesList
+      : siteFilterMode === 'archive'
+          ? archivedSites
+          : siteFilterMode === 'all'
+              ? sites
+              : activeSites;
+  const visibleSitesLabel = searchSiteQuery
+      ? 'Výsledky vyhľadávania'
+      : siteFilterMode === 'archive'
+          ? 'Ukončené zákazky'
+          : siteFilterMode === 'all'
+              ? 'Všetky zákazky'
+              : 'Aktívne zákazky';
+
+  const shouldShowSiteStatus = searchSiteQuery.length > 0 || siteFilterMode === 'all';
+
+  const SitePickerList = ({ list }: { list: any[] }) => (
+      <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white overflow-hidden">
+          {list.map(site => (
+              <button
+                  key={site.id}
+                  onClick={() => handleSiteChange(site.id, site.name)}
+                  className={`group w-full text-left px-4 py-3 transition-all hover:bg-orange-50/60 ${
+                      selectedSiteId === site.id ? 'bg-orange-50 text-orange-800' : 'bg-white'
+                  }`}
+              >
+                  <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                              site.status === 'completed' ? 'bg-slate-100 text-slate-400' : 'bg-orange-50 text-orange-600'
+                          }`}>
+                              <Building2 size={17} />
+                          </div>
+                          <div className="min-w-0">
+                              <div className="font-semibold text-slate-900 truncate group-hover:text-orange-700">{site.name}</div>
+                              {shouldShowSiteStatus && (
+                                  <div className="mt-0.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                                      {site.status === 'completed' ? t('archive_label') : t('active_label')}
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                          {shouldShowSiteStatus && <span className="hidden sm:inline text-xs font-bold uppercase tracking-wider text-slate-500">
+                              {site.status === 'completed' ? t('archive_label') : t('active_label')}
+                          </span>}
+                          <ArrowRight size={15} className="text-slate-400 group-hover:text-orange-500" />
+                      </div>
+                  </div>
+              </button>
+          ))}
+      </div>
+  );
 
    const renderWeatherIcon = (weather?: string) => {
       switch (weather) {
@@ -749,56 +771,111 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
   return (
     <div className="space-y-6 relative">
       {!selectedDay && (
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 animate-in fade-in duration-300">
-            <div>
-               <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                  <BookOpen className="text-orange-600" size={32} />
-                  {t('manage_diary')}
-               </h2>
-               <p className="text-sm text-slate-500 mt-1 font-medium">Elektronický stavebný denník</p>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-end">
-                {!fixedSiteId && (
-                    <div className="w-full sm:w-80 relative">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                            <Search size={12}/> {t('search_site_placeholder')}
-                        </label>
-                        <input 
-                            type="text" 
-                            placeholder={t('search_site_placeholder') + "..."}
-                            value={searchSiteQuery}
-                            onChange={(e) => setSearchSiteQuery(e.target.value)}
-                            onFocus={() => { if(searchSiteQuery === currentSiteName) setSearchSiteQuery(''); }}
-                            className="w-full p-2.5 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:border-orange-500 shadow-sm transition-all"
-                        />
-                        {searchSiteQuery !== currentSiteName && searchSiteQuery.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border-2 border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto custom-scrollbar">
-                                {filteredSitesList.map(s => (
-                                    <button 
-                                        key={s.id} 
-                                        onClick={() => handleSiteChange(s.id, s.name)}
-                                        className="w-full text-left p-4 hover:bg-orange-50 border-b border-slate-50 flex items-center justify-between group transition"
-                                    >
-                                        <div>
-                                            <div className="font-bold text-slate-900 group-hover:text-orange-700">{s.name}</div>
-                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{s.status === 'completed' ? t('archive_label') : t('active_label')}</div>
-                                        </div>
-                                        <Building2 size={16} className="text-slate-200 group-hover:text-orange-300"/>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-                
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="flex flex-col md:flex-row justify-between md:items-start gap-4">
+                <div>
+                   <h2 className="app-section-title">
+                      <BookOpen className="text-orange-600" />
+                      {t('manage_diary')}
+                   </h2>
+                   <p className="app-section-subtitle">Zápisy prác podľa zákazky a dňa</p>
+                </div>
+
                 {selectedSiteId && (
-                    <Button onClick={handleExportFullPDF} disabled={exporting} className="whitespace-nowrap h-[46px] mt-auto">
-                        {exporting ? <Loader2 className="animate-spin" size={18}/> : <Printer size={18}/>} 
+                    <Button onClick={handleExportFullPDF} disabled={exporting} className="whitespace-nowrap md:mt-1">
+                        {exporting ? <Loader2 className="animate-spin" size={18}/> : <Printer size={18}/>}
                         {exporting ? t('generating') : t('export_pdf')}
                     </Button>
                 )}
             </div>
+
+            {!fixedSiteId && !selectedSiteId && (
+                <Card className="border-orange-100 bg-white shadow-sm">
+                    <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+                        <div className="lg:w-80 shrink-0">
+                            <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mb-4">
+                                <Building2 size={24}/>
+                            </div>
+                            <h3 className="text-xl font-extrabold text-slate-900">Vyberte zákazku</h3>
+                            <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                                Najprv zvoľte zákazku, pre ktorú chcete zobraziť alebo doplniť denník práce.
+                            </p>
+                            <div className="mt-4 relative">
+                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                                <input
+                                    type="text"
+                                    placeholder="Hľadať zákazku..."
+                                    value={searchSiteQuery}
+                                    onChange={(e) => setSearchSiteQuery(e.target.value)}
+                                    className="w-full h-11 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none focus:border-orange-500 focus:bg-white shadow-sm transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex-1 space-y-4">
+                            {!searchSiteQuery && (
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { id: 'active', label: 'Aktívne', count: activeSites.length },
+                                        { id: 'archive', label: 'Ukončené', count: archivedSites.length },
+                                        { id: 'all', label: 'Všetky', count: sites.length },
+                                    ].map(option => (
+                                        <button
+                                            key={option.id}
+                                            type="button"
+                                            onClick={() => setSiteFilterMode(option.id as 'active' | 'archive' | 'all')}
+                                            className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                                                siteFilterMode === option.id
+                                                    ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm'
+                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-orange-200'
+                                            }`}
+                                        >
+                                            <div className="text-sm font-bold leading-tight">{option.label}</div>
+                                            <div className="text-xs font-semibold opacity-80">{option.count} zákaziek</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div>
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <div className="text-sm font-bold text-slate-700">{visibleSitesLabel}</div>
+                                    <div className="text-sm font-semibold text-slate-600">{visibleSites.length} výsledkov</div>
+                                </div>
+                                {visibleSites.length > 0 ? (
+                                    <div className="max-h-[430px] overflow-y-auto custom-scrollbar">
+                                        <SitePickerList list={visibleSites} />
+                                    </div>
+                                ) : (
+                                    <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 bg-slate-50">
+                                        Žiadna zákazka sa nenašla.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+            )}
+
+            {!fixedSiteId && selectedSiteId && (
+                <Card padding="p-4" className="border-slate-200 bg-white shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                                <Building2 size={20}/>
+                            </div>
+                            <div className="min-w-0">
+                                <div className="text-xl font-extrabold text-slate-950 truncate">{currentSiteName}</div>
+                            </div>
+                        </div>
+
+                        <Button variant="secondary" size="sm" onClick={handleBackToSitePicker} className="w-full sm:w-auto">
+                            <ArrowLeft size={16}/>
+                            Zmeniť zákazku
+                        </Button>
+                    </div>
+                </Card>
+            )}
           </div>
       )}
 
@@ -869,7 +946,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
              <div className="sticky top-0 z-30 mb-6 bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
   
-  {/* HORNÝ RIADOK – názov stavby + status */}
+  {/* HORNÝ RIADOK - názov zákazky + status */}
   <div className="bg-slate-50 border-b border-slate-100 px-4 py-2 flex items-center justify-between">
       <div className="flex items-center gap-2 min-w-0 flex-1">
           <Building2 size={14} className="text-slate-400 flex-shrink-0"/>
@@ -1189,7 +1266,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
               </div>
           </div>
           )
-      ) : (
+      ) : selectedSiteId ? (
           <Card className="animate-in slide-in-from-bottom-2 duration-500 shadow-md">
               <div className="flex justify-between items-center mb-6">
                   <div className="flex items-center gap-4">
@@ -1253,7 +1330,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, t: tProp }: Di
                   })}
               </div>
           </Card>
-      )}
+      ) : null}
 
       {fullExportData && (
           <div className="fixed left-[-9999px]">

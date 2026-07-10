@@ -229,11 +229,11 @@ export const AdvancesScreen = ({ profile }: any) => {
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                        <Banknote className="text-orange-600" size={32} />
+                    <h2 className="app-section-title">
+                        <Banknote className="text-orange-600" />
                         Zálohy zamestnancov
                     </h2>
-                    <p className="text-sm text-slate-500 mt-1 font-medium">Evidencia splátok a zostatkov záloh</p>
+                    <p className="app-section-subtitle">Evidencia splátok a zostatkov záloh</p>
                 </div>
                 <Button onClick={() => { setEditingAdvance(null); setFormData({ user_id: '', amount: '', date: new Date().toISOString().split('T')[0], description: '' }); setShowModal(true); }}>
                     <Plus size={18}/> Vyplatiť Zálohu

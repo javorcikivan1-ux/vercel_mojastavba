@@ -277,11 +277,11 @@ export const FinanceScreen = ({ profile }: any) => {
     <div className="space-y-6 pb-24 min-h-screen animate-in fade-in duration-300">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-           <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              <Wallet className="text-orange-600" size={32} />
+           <h2 className="app-section-title">
+              <Wallet className="text-orange-600" />
               Financie
            </h2>
-           <p className="text-sm text-slate-500 mt-1 font-medium">Firemná analytika</p>
+           <p className="app-section-subtitle">Firemná analytika</p>
         </div>
         <div className="flex gap-2">
             <Button onClick={() => {

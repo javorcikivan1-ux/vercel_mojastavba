@@ -104,11 +104,11 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex justify-between items-end">
         <div>
-           <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              <LayoutGrid className="text-orange-600" size={28} />
+           <h2 className="app-section-title">
+              <LayoutGrid className="text-orange-600" />
               Nástenka
            </h2>
-           <p className="text-xs text-slate-500 font-medium">Vitaj, {organization?.name}</p>
+           <p className="app-section-subtitle">Vitaj, {organization?.name}</p>
         </div>
       </div>
 
@@ -123,7 +123,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
           </button>
           <button onClick={() => onNavigate('diary')} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-orange-300 hover:shadow-md transition flex items-center gap-3 group text-left">
               <div className="bg-orange-50 text-orange-600 p-2 rounded-lg group-hover:scale-110 transition"><BookOpen size={18}/></div>
-              <div><div className="text-xs font-bold text-slate-900">Stavebný denník</div><div className="text-[10px] text-slate-400">Zápis dňa</div></div>
+              <div><div className="text-xs font-bold text-slate-900">Denník práce</div><div className="text-[10px] text-slate-400">Zápis dňa</div></div>
           </button>
           <button onClick={() => onNavigate('team')} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-purple-300 hover:shadow-md transition flex items-center gap-3 group text-left">
               <div className="bg-purple-50 text-purple-600 p-2 rounded-lg group-hover:scale-110 transition"><Users size={18}/></div>

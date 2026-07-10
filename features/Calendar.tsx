@@ -143,11 +143,11 @@ export const CalendarScreen = ({ profile, onNavigate }: any) => {
       {/* MAPRESTAV HEADER STYLE */}
       <div className="shrink-0 space-y-4 md:space-y-0 md:flex md:justify-between md:items-center">
         <div>
-           <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+           <h2 className="app-section-title">
               <CalendarIcon className="text-orange-600" />
               Kalendár
            </h2>
-           <p className="text-sm text-slate-500 mt-1 font-medium">Plánovanie úloh a harmonogram</p>
+           <p className="app-section-subtitle">Plánovanie úloh a harmonogram</p>
         </div>
         
         <div className="flex flex-col gap-4 md:flex-row md:items-center">

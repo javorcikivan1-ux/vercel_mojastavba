@@ -337,8 +337,8 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   return (
     <div className="space-y-6">
         <div className="mb-2">
-           <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2"><Settings className="text-orange-600" size={32} /> Nastavenia</h2>
-           <p className="text-sm text-slate-500 mt-1 font-medium">Správa účtu a firemné predvoľby</p>
+           <h2 className="app-section-title"><Settings className="text-orange-600" /> Nastavenia</h2>
+           <p className="app-section-subtitle">Správa účtu a firemné predvoľby</p>
         </div>
 
         <div className="bg-white border-b border-slate-200 sticky top-0 z-20 -mx-4 px-4 md:mx-0 md:px-0 md:static">
