@@ -223,9 +223,15 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
   const selectedEmployeeName = profile.role === 'admin' 
     ? (employees.find(e => e.id === selectedEmpId)?.full_name || 'Vyberte zamestnanca')
     : profile.full_name;
+  const selectedEmployee = profile.role === 'admin'
+    ? employees.find(e => e.id === selectedEmpId)
+    : profile;
+  const monthLabel = currentDate.toLocaleString('sk-SK', { month: 'long', year: 'numeric' });
+  const visibleColumnCount = 3 + (exportOptions.showSites ? 1 : 0) + (exportOptions.showDescription ? 1 : 0);
+  const totalLabelColSpan = Math.max(1, visibleColumnCount - 1);
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0">
+    <div className="space-y-6 pb-4 md:pb-0">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h2 className="app-section-title">
@@ -439,101 +445,128 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
 
       {/* Skrytá sekcia pre PDF export */}
       <div className="fixed left-[-9999px]">
-        <div ref={printRef} className="w-[190mm] bg-white p-12 text-slate-900 font-sans text-sm leading-normal relative box-border text-left flex flex-col min-h-[277mm]">
-          <div className="flex justify-between items-start mb-8 border-b-4 border-slate-900 pb-6">
+        <div ref={printRef} className="w-[190mm] bg-white p-0 text-slate-900 font-sans text-sm leading-normal relative box-border text-left flex flex-col min-h-[277mm]">
+          <div className="px-10 pt-7 pb-3 flex justify-between items-start text-[10px] text-slate-500 border-b border-slate-100">
             <div>
-              <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">Mesačný výkaz prác</h1>
-              <div className="text-slate-500 mt-1 font-bold">Obdobie: {currentDate.toLocaleString('sk-SK', { month: 'long', year: 'numeric' })}</div>
-            </div>
-            <div className="text-right">
-              <div className="font-black text-xl text-orange-600">{organization.name}</div>
-              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">vytvorené v MojaStavba</div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-8 mb-10">
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pracovník / Zamestnanec</div>
-              <div className="text-xl font-extrabold text-slate-800">{selectedEmployeeName}</div>
-            </div>
-            <div className="bg-orange-50 p-5 rounded-2xl text-right border border-orange-100">
-              <div className="text-[10px] font-black text-orange-800/50 uppercase tracking-widest mb-1">Súčet hodín k výplate</div>
-              <div className="text-4xl font-black text-orange-900">{stats.hourlyHours.toFixed(1)} <span className="text-base font-medium opacity-50 uppercase">h</span></div>
-            </div>
-          </div>
-
-          <table className="w-full border-collapse mb-12 table-fixed">
-            <thead>
-              <tr className="bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest">
-                <th className="border border-slate-900 p-3 text-left w-[32mm]">Dátum</th>
-                {exportOptions.showSites && <th className="border border-slate-900 p-3 text-left w-[28mm]">Z�kazka</th>}
-                <th className="border border-slate-900 p-3 text-center w-[44mm]">Čas (Od - Do)</th>
-                {exportOptions.showDescription && <th className="border border-slate-900 p-3 text-left">Činnosť / Popis</th>}
-                <th className="border border-slate-900 p-3 text-right w-[24mm]">Hodiny</th>
-              </tr>
-            </thead>
-            <tbody>
-              {editableLogs.map((log, idx) => (
-                <tr key={`${log.id}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                  <td className="border border-slate-200 p-3 align-top">
-                      <div className="font-bold text-xs whitespace-nowrap">{formatDate(log.date)}</div>
-                      <div className="text-[8px] text-slate-400 uppercase font-black">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'short'})}</div>
-                  </td>
-                  {exportOptions.showSites && <td className="border border-slate-200 p-3 font-bold text-[10px] leading-tight align-top">{log.siteName || '-'}</td>}
-                  <td className="border border-slate-200 p-3 text-center font-mono text-[9px] align-top">
-                    <div className="whitespace-normal leading-tight">
-                        {log.displayTime.split(',').map((part: string, i: number) => (
-                          <div key={i} className={i > 0 ? "mt-1 border-t border-slate-100 pt-1" : ""}>
-                            {part.trim()}
-                          </div>
-                        ))}
-                    </div>
-                  </td>
-                  {exportOptions.showDescription && (
-                    <td className="border border-slate-200 p-3 text-[10px] italic text-slate-500 leading-snug align-top overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                      {log.description || '-'}
-                    </td>
-                  )}
-                  <td className={`border border-slate-200 p-3 text-right font-black align-top ${log.isFixed ? 'bg-orange-50/40' : ''}`}>
-                    <div className="flex flex-col items-end">
-                      <span className={log.isFixed ? 'text-orange-700' : 'text-slate-900'}>{parseFloat(log.hours || 0).toFixed(1)} h</span>
-                      {log.isFixed && <span className="text-[7px] font-black uppercase tracking-tighter text-orange-600 mt-0.5 leading-none">ÚKOL</span>}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-slate-100 font-black">
-                <td colSpan={exportOptions.showSites && exportOptions.showDescription ? 4 : (exportOptions.showSites || exportOptions.showDescription ? 3 : 2)} className="border border-slate-200 p-4 text-right uppercase tracking-widest text-xs font-black">HODINY K VÝPLATE (SÚČET)</td>
-                <td className="border border-slate-200 p-4 text-right text-xl whitespace-nowrap">{stats.hourlyHours.toFixed(1)} h</td>
-              </tr>
-              {stats.fixedCount > 0 && (
-                <tr className="bg-orange-50 font-bold text-orange-800 italic">
-                    <td colSpan={exportOptions.showSites && exportOptions.showDescription ? 4 : (exportOptions.showSites || exportOptions.showDescription ? 3 : 2)} className="border border-slate-200 p-2 text-right uppercase tracking-widest text-[10px]">SAMOSTATNE ÚKOLOVÉ PRÁCE (FIXNÁ ODMENA):</td>
-                    <td className="border border-slate-200 p-2 text-right text-sm whitespace-nowrap font-black">{stats.fixedCount} ks / {stats.fixedHours.toFixed(1)} h</td>
-                </tr>
-              )}
-            </tfoot>
-          </table>
-
-          <div className="mt-auto pt-20 grid grid-cols-2 gap-20 pb-10">
-            <div className="text-center">
-              <div className="h-16 border-b-2 border-slate-200 mb-2"></div>
-              <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Podpis zamestnanca</div>
-            </div>
-            <div className="text-center relative">
-              <div className="h-16 border-b-2 border-slate-200 mb-2 flex items-center justify-center text-center">
-                   {organization.stamp_url && (
-                        <img 
-                          src={organization.stamp_url} 
-                          alt="Pečiatka" 
-                          crossOrigin="anonymous" 
-                          className="h-28 absolute -top-12 rotate-3 opacity-95" 
-                        />
-                   )}
+              <div className="font-bold text-slate-950 text-sm leading-tight">{organization.name}</div>
+              <div className="mt-1 space-y-0.5">
+                {organization.ico && <div>IČO: {organization.ico}</div>}
+                {organization.dic && <div>DIČ: {organization.dic}</div>}
+                {organization.is_vat_payer && organization.ic_dph && <div>IČ DPH: {organization.ic_dph}</div>}
+                {organization.business_address && <div>{organization.address_type === 'sidlo' ? 'Sídlo' : 'Miesto podnikania'}: {organization.business_address}</div>}
               </div>
-              <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pečiatka a podpis zamestnávateľa</div>
+            </div>
+            <div className="text-right text-slate-400">
+              <div>Vygenerované cez MojaStavba • {new Date().toLocaleDateString('sk-SK')}</div>
+              <div>www.moja-stavba.sk</div>
+            </div>
+          </div>
+
+          <div className="px-10 py-8 flex-1 flex flex-col">
+            <div className="flex justify-between items-start mb-7 border-b border-slate-200 pb-5">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-600 mb-2">Podklad pre mzdy</div>
+                <h1 className="text-[24px] font-bold text-slate-950 leading-tight tracking-normal">Mesačný výkaz dochádzky</h1>
+                <div className="text-sm text-slate-500 mt-1 font-medium">Obdobie: {monthLabel}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1">Zamestnanec</div>
+                <div className="text-lg font-bold text-slate-950 leading-tight">{selectedEmployeeName}</div>
+                {selectedEmployee?.hourly_rate ? (
+                  <div className="text-[10px] text-slate-500 mt-1">Hodinová sadzba: {Number(selectedEmployee.hourly_rate).toFixed(2)} € / hod</div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 mb-8 break-inside-avoid">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">Hodiny k výplate</div>
+                <div className="text-2xl font-bold text-slate-950 tabular-nums">{stats.hourlyHours.toFixed(1)} h</div>
+              </div>
+              <div className="bg-orange-50/70 p-4 rounded-xl border border-orange-100">
+                <div className="text-[10px] font-bold text-orange-800/70 uppercase tracking-[0.14em] mb-1">Úkolové práce</div>
+                <div className="text-2xl font-bold text-orange-800 tabular-nums">{stats.fixedCount} ks</div>
+                <div className="text-[10px] text-orange-700/70 font-semibold">{stats.fixedHours.toFixed(1)} h evidenčne</div>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">Počet riadkov</div>
+                <div className="text-2xl font-bold text-slate-950 tabular-nums">{editableLogs.length}</div>
+              </div>
+            </div>
+
+            <table className="w-full border-collapse mb-10 table-fixed text-xs rounded-xl overflow-hidden">
+              <thead>
+                <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                  <th className="border-b border-slate-200 p-2.5 text-left w-[30mm]">Dátum</th>
+                  {exportOptions.showSites && <th className="border-b border-slate-200 p-2.5 text-left w-[32mm]">Zákazka</th>}
+                  <th className="border-b border-slate-200 p-2.5 text-center w-[42mm]">Čas od - do</th>
+                  {exportOptions.showDescription && <th className="border-b border-slate-200 p-2.5 text-left">Činnosť / popis</th>}
+                  <th className="border-b border-slate-200 p-2.5 text-right w-[24mm]">Hodiny</th>
+                </tr>
+              </thead>
+              <tbody>
+                {editableLogs.map((log, idx) => (
+                  <tr key={`${log.id}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
+                    <td className="border-b border-slate-100 p-2.5 align-top">
+                        <div className="font-semibold text-slate-800 whitespace-nowrap tabular-nums">{formatDate(log.date)}</div>
+                        <div className="text-[9px] text-slate-500 uppercase font-semibold">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'short'})}</div>
+                    </td>
+                    {exportOptions.showSites && <td className="border-b border-slate-100 p-2.5 font-semibold text-slate-800 leading-tight align-top">{log.siteName || '-'}</td>}
+                    <td className="border-b border-slate-100 p-2.5 text-center text-[10px] align-top tabular-nums text-slate-700">
+                      <div className="whitespace-normal leading-tight">
+                          {log.displayTime.split(',').map((part: string, i: number) => (
+                            <div key={i} className={i > 0 ? "mt-1 border-t border-slate-100 pt-1" : ""}>
+                              {part.trim()}
+                            </div>
+                          ))}
+                      </div>
+                    </td>
+                    {exportOptions.showDescription && (
+                      <td className="border-b border-slate-100 p-2.5 text-[10px] text-slate-600 leading-snug align-top overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                        {log.description || '-'}
+                      </td>
+                    )}
+                    <td className={`border-b border-slate-100 p-2.5 text-right font-bold align-top tabular-nums ${log.isFixed ? 'bg-orange-50/40' : ''}`}>
+                      <div className="flex flex-col items-end">
+                        <span className={log.isFixed ? 'text-orange-800' : 'text-slate-950'}>{parseFloat(log.hours || 0).toFixed(1)} h</span>
+                        {log.isFixed && <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-orange-700 mt-0.5 leading-none">Úkol</span>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-50 font-bold text-slate-900">
+                  <td colSpan={totalLabelColSpan} className="border-t border-slate-200 p-3 text-right uppercase tracking-[0.12em] text-[10px] text-slate-600">Hodiny k výplate</td>
+                  <td className="border-t border-slate-200 p-3 text-right text-base whitespace-nowrap tabular-nums">{stats.hourlyHours.toFixed(1)} h</td>
+                </tr>
+                {stats.fixedCount > 0 && (
+                  <tr className="bg-orange-50 font-bold text-orange-800">
+                      <td colSpan={totalLabelColSpan} className="border-t border-orange-100 p-2.5 text-right uppercase tracking-[0.12em] text-[10px]">Samostatné úkolové práce</td>
+                      <td className="border-t border-orange-100 p-2.5 text-right text-sm whitespace-nowrap tabular-nums">{stats.fixedCount} ks / {stats.fixedHours.toFixed(1)} h</td>
+                  </tr>
+                )}
+              </tfoot>
+            </table>
+
+            <div className="mt-auto pt-16 grid grid-cols-2 gap-16 pb-4 break-inside-avoid">
+              <div className="text-center">
+                <div className="h-16 border-b border-slate-300 mb-2"></div>
+                <div className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.14em]">Podpis zamestnanca</div>
+              </div>
+              <div className="text-center relative">
+                <div className="h-16 border-b border-slate-300 mb-2 flex items-center justify-center text-center">
+                     {organization.stamp_url && (
+                          <img 
+                            src={organization.stamp_url} 
+                            alt="Pečiatka" 
+                            crossOrigin="anonymous" 
+                            className="h-28 max-w-[70mm] object-contain absolute -top-14 left-1/2 -translate-x-1/2 opacity-95 pointer-events-none" 
+                          />
+                     )}
+                </div>
+                <div className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.14em]">Pečiatka a podpis zamestnávateľa</div>
+              </div>
             </div>
           </div>
         </div>

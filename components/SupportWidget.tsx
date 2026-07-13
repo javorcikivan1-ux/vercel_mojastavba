@@ -2,10 +2,11 @@
 import React, { useState } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button } from './UI';
-import { MessageSquare, Phone, X, Send, CheckCircle2, Mail, PhoneCall } from 'lucide-react';
+import { Bug, MessageSquare, X, Send, CheckCircle2, Mail, PhoneCall } from 'lucide-react';
 
 export const SupportWidget = ({ profile, organization }: { profile: UserProfile, organization: any }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [requestType, setRequestType] = useState<'support' | 'feedback'>('support');
     const [message, setMessage] = useState("");
     const [contactEmail, setContactEmail] = useState(profile.email || "");
     const [contactPhone, setContactPhone] = useState(profile.phone || "");
@@ -23,17 +24,34 @@ export const SupportWidget = ({ profile, organization }: { profile: UserProfile,
         setError(null);
         
         try {
-            const { error: dbError } = await supabase.from('support_requests').insert([{
-                organization_id: profile.organization_id,
-                user_id: profile.id,
-                user_name: profile.full_name,
-                org_name: organization.name,
-                user_email: contactEmail.trim(),
-                user_phone: contactPhone.trim(),
-                message: message.trim()
-            }]);
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData.session?.access_token;
 
-            if(dbError) throw dbError;
+            if (!accessToken) {
+                throw new Error("Chýba prihlásenie pre odoslanie emailu podpory.");
+            }
+
+            const mailResponse = await fetch('/api/support-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                    message: message.trim(),
+                    contactEmail: contactEmail.trim(),
+                    contactPhone: contactPhone.trim(),
+                    requestType,
+                    userName: profile.full_name,
+                    organizationName: organization.name,
+                    organizationId: profile.organization_id
+                })
+            });
+
+            const mailResult = await mailResponse.json().catch(() => ({}));
+            if (!mailResponse.ok) {
+                throw new Error(mailResult.error || "Požiadavka bola uložená, ale email podpory sa nepodarilo odoslať.");
+            }
 
             setSent(true);
             setTimeout(() => { setSent(false); setMessage(""); setIsOpen(false); }, 3000);
@@ -45,36 +63,49 @@ export const SupportWidget = ({ profile, organization }: { profile: UserProfile,
         }
     };
 
+    const openPanel = (type: 'support' | 'feedback') => {
+        setRequestType(type);
+        setError(null);
+        setSent(false);
+        setIsOpen(true);
+    };
+
+    const isFeedback = requestType === 'feedback';
+
     return (
         <div className="fixed inset-y-0 right-0 z-[120] pointer-events-none flex items-end justify-center mb-40 md:items-center md:mb-0">
             {isOpen && (
-                <div className="absolute bottom-16 right-4 w-72 md:w-80 bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-in zoom-in-95 slide-in-from-right-4 duration-300 pointer-events-auto">
+                <>
+                <div
+                    className="fixed inset-0 z-0 bg-slate-950/35 backdrop-blur-[1px] md:hidden pointer-events-auto animate-in fade-in duration-200"
+                    onClick={() => setIsOpen(false)}
+                />
+                <div className="fixed left-4 right-4 bottom-24 z-10 max-h-[calc(100dvh-8rem)] md:absolute md:left-auto md:right-4 md:bottom-16 md:w-80 md:max-h-none bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 md:slide-in-from-right-4 duration-300 pointer-events-auto">
                     <div className="p-5 flex justify-between items-start border-b border-slate-50 bg-slate-50/50">
                         <div>
                             <h3 className="font-black text-sm text-slate-800 tracking-tight flex items-center gap-2">
-                                <MessageSquare size={16} className="text-orange-500 fill-orange-50"/> Technická Podpora
+                                {isFeedback ? (
+                                    <Bug size={16} className="text-orange-500 fill-orange-50"/>
+                                ) : (
+                                    <MessageSquare size={16} className="text-orange-500 fill-orange-50"/>
+                                )}
+                                {isFeedback ? 'Podnet na zlepšenie' : 'Napíšte nám'}
                             </h3>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Odpovedáme spravidla do 24h.</p>
+                            <p className="text-xs text-slate-500 font-medium mt-1 leading-snug">
+                                {isFeedback ? 'Napíšte, čo by sme mali opraviť alebo doplniť.' : 'Ozveme sa späť do 24 h.'}
+                            </p>
                         </div>
                         <button onClick={() => setIsOpen(false)} className="text-slate-300 hover:text-slate-600 transition p-1 hover:bg-white rounded-lg border border-transparent hover:border-slate-100"><X size={18}/></button>
                     </div>
                     
-                    <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                        <div className="space-y-1">
-                            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">Telefonický kontakt</p>
-                            <a href="tel:0948225713" className="flex items-center gap-2.5 group">
-                                <Phone size={16} className="text-orange-500 group-hover:animate-bounce" fill="currentColor"/>
-                                <span className="text-xl font-black text-slate-800 tracking-tighter group-hover:text-orange-600 transition-colors">0948 225 713</span>
-                            </a>
-                        </div>
-
+                    <div className="p-5 space-y-4 max-h-[calc(100dvh-14rem)] md:max-h-[70vh] overflow-y-auto custom-scrollbar">
                        <div className="relative py-1">
   <div className="absolute inset-0 flex items-center">
     <div className="w-full border-t border-orange-500"></div>
   </div>
   <div className="relative flex justify-center">
-    <span className="bg-white px-3 text-[9px] font-black text-orange-600 uppercase tracking-[0.2em]">
-      alebo nám napíšte
+    <span className="bg-white px-3 text-[11px] font-bold text-orange-600">
+      {isFeedback ? 'Váš podnet' : 'Správa'}
     </span>
   </div>
 </div>
@@ -116,29 +147,42 @@ export const SupportWidget = ({ profile, organization }: { profile: UserProfile,
 
                                 <textarea 
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 text-xs font-medium h-24 resize-none transition-all placeholder:text-slate-300 focus:bg-white"
-                                    placeholder="Popíšte stručne váš problém alebo otázku..."
+                                    placeholder={isFeedback ? "Našli ste chybu, niečo vám chýba alebo máte nápad na zlepšenie?" : "Popíšte stručne váš problém alebo otázku..."}
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
                                     required
                                 />
                                 <Button type="submit" fullWidth loading={sending} className="h-10 text-[10px] font-black uppercase tracking-[0.15em] rounded-xl shadow-lg shadow-orange-50">
-                                    <Send size={14}/> Odoslať správu
+                                    <Send size={14}/> {isFeedback ? 'Odoslať podnet' : 'Odoslať správu'}
                                 </Button>
                             </form>
                         )}
                     </div>
                 </div>
+                </>
             )}
             
             <button 
-                onClick={() => setIsOpen(!isOpen)}
-                className={`fixed right-0 bottom-40 z-[110] h-12 w-10 flex items-center justify-start pl-2 rounded-l-xl bg-white border-y border-l border-slate-200 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all duration-500 pointer-events-auto hover:w-12 group ${isOpen ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}
+                onClick={() => isOpen && requestType === 'support' ? setIsOpen(false) : openPanel('support')}
+                className={`fixed right-0 bottom-40 z-[110] h-10 w-8 md:h-12 md:w-10 flex items-center justify-start pl-1.5 md:pl-2 rounded-l-lg md:rounded-l-xl bg-white border-y border-l border-slate-200 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all duration-500 pointer-events-auto hover:w-9 md:hover:w-12 group ${isOpen ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}
                 title="Technická podpora"
             >
                 <div className="relative">
-                    <MessageSquare size={20} className="text-orange-500 group-hover:scale-110 transition-transform" />
+                    <MessageSquare size={18} className="text-orange-500 group-hover:scale-110 transition-transform md:w-5 md:h-5" />
                     {!isOpen && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-600 rounded-full border border-white animate-pulse"></span>
+                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 md:-top-1 md:-right-1 md:w-2 md:h-2 bg-orange-600 rounded-full border border-white animate-pulse"></span>
+                    )}
+                </div>
+            </button>
+            <button 
+                onClick={() => isOpen && requestType === 'feedback' ? setIsOpen(false) : openPanel('feedback')}
+                className={`fixed right-0 bottom-56 z-[110] h-10 w-8 md:h-12 md:w-10 flex items-center justify-start pl-1.5 md:pl-2 rounded-l-lg md:rounded-l-xl bg-white border-y border-l border-slate-200 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all duration-500 pointer-events-auto hover:w-9 md:hover:w-12 group ${isOpen ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}
+                title="Poslať podnet na zlepšenie"
+            >
+                <div className="relative">
+                    <Bug size={18} className="text-orange-500 group-hover:scale-110 transition-transform md:w-5 md:h-5" />
+                    {!isOpen && (
+                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 md:-top-1 md:-right-1 md:w-2 md:h-2 bg-orange-600 rounded-full border border-white animate-pulse"></span>
                     )}
                 </div>
             </button>

@@ -131,13 +131,14 @@ const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string,
 
     return (
         <div className="space-y-6 animate-in fade-in">
-            <div className="p-5 bg-blue-50 border border-blue-100 rounded-3xl flex items-start gap-4">
-                <div className="bg-blue-600 text-white p-2 rounded-xl shadow-lg shadow-blue-200">
+            <div className="p-5 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-4">
+                <div className="bg-blue-600 text-white p-2.5 rounded-xl shadow-sm shrink-0">
                     <Shield size={20}/>
                 </div>
-                <div>
-                    <p className="text-xs text-blue-700 font-medium leading-relaxed mt-1">
-                        Tu môžete určiť, ktorí zamestnanci majú právo spravovať túto zákazku s možnosťou zápisov do <strong>Stavebného denníka</strong> a zaznamenávaním <strong>nákladov a PHM</strong>.
+                <div className="min-w-0">
+                    <h3 className="text-base font-bold text-blue-950">Prístup k zákazke</h3>
+                    <p className="text-sm text-blue-800/85 font-medium leading-relaxed mt-1">
+                        Vyberte zamestnancov, ktorí môžu spravovať túto zákazku, zapisovať denník práce a evidovať náklady alebo PHM.
                     </p>
                 </div>
             </div>
@@ -162,7 +163,7 @@ const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string,
                                     <button 
                                         onClick={() => { setConfirmUser(w); setConfirmField('can_manage_diary'); setIsGranting(!p?.can_manage_diary); setShowConfirmModal(true); }}
                                         disabled={savingId === w.id + '_can_manage_diary'}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${p?.can_manage_diary ? 'bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-100' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all border ${p?.can_manage_diary ? 'bg-orange-600 text-white border-orange-600 shadow-sm shadow-orange-100' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
                                     >
                                         {savingId === w.id + '_can_manage_diary' ? <Loader2 size={14} className="animate-spin"/> : <BookOpen size={14}/>}
                                         Vedenie denníka
@@ -170,7 +171,7 @@ const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string,
                                     <button 
                                         onClick={() => { setConfirmUser(w); setConfirmField('can_manage_finance'); setIsGranting(!p?.can_manage_finance); setShowConfirmModal(true); }}
                                         disabled={savingId === w.id + '_can_manage_finance'}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${p?.can_manage_finance ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all border ${p?.can_manage_finance ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-100' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
                                     >
                                         {savingId === w.id + '_can_manage_finance' ? <Loader2 size={14} className="animate-spin"/> : <Package size={14}/>}
                                         Správa nákupov
@@ -210,7 +211,7 @@ const ProjectPermissionsManager = ({ siteId, organizationId }: { siteId: string,
     );
 };
 
-export const ProjectsScreen = ({ profile, onSelect, selectedSiteId, organization }: { profile: UserProfile, onSelect: (id: string | null) => void, selectedSiteId: string | null, organization: any }) => {
+export const ProjectsScreen = ({ profile, onSelect, selectedSiteId, organization, initialAction, onInitialActionHandled }: { profile: UserProfile, onSelect: (id: string | null) => void, selectedSiteId: string | null, organization: any, initialAction?: any, onInitialActionHandled?: () => void }) => {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
   const onBackInternal = () => {
@@ -225,10 +226,10 @@ export const ProjectsScreen = ({ profile, onSelect, selectedSiteId, organization
       return <LeadDetail siteId={selectedLeadId} profile={profile} onBack={() => setSelectedLeadId(null)} organization={organization} onConvertToProject={() => { setSelectedLeadId(null); onSelect(null); }} />;
   }
 
-  return <ProjectManager profile={profile} onSelect={onSelect} onSelectLead={setSelectedLeadId} organization={organization} />;
+  return <ProjectManager profile={profile} onSelect={onSelect} onSelectLead={setSelectedLeadId} organization={organization} initialAction={initialAction} onInitialActionHandled={onInitialActionHandled} />;
 };
 
-const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) => {
+const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initialAction, onInitialActionHandled }: any) => {
   const [activeTab, setActiveTab] = useState<'leads' | 'active' | 'archive'>('active');
   const [sites, setSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -246,6 +247,15 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
   
   const [alertState, setAlertState] = useState<{open: boolean, title: string, message: string, type: string}>({ open: false, title: '', message: '', type: 'success' });
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string | null}>({ open: false, action: '', id: null });
+
+  const openCreateSiteModal = (tab: 'leads' | 'active') => {
+      setActiveTab(tab);
+      setEditingSite(null);
+      setFormData({ name: '', address: '', client_name: '', budget: 0, status: tab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 20, isIndividualVat: false });
+      setBudgetBreakdown([]);
+      setShowBreakdown(false);
+      setShowModal(true);
+  };
 
   // --- LOGIKA LIMITOV STAVIEB ---
   const [org, setOrg] = useState<any>(organization);
@@ -291,6 +301,20 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
   useEffect(() => {
     if (page > 0) load(false);
   }, [page]);
+
+  useEffect(() => {
+    if (!initialAction?.action) return;
+
+    if (initialAction.action === 'new-project') {
+      openCreateSiteModal('active');
+      onInitialActionHandled?.();
+    }
+
+    if (initialAction.action === 'new-lead') {
+      openCreateSiteModal('leads');
+      onInitialActionHandled?.();
+    }
+  }, [initialAction]);
 
   const load = async (reset = false) => {
     if (reset) {
@@ -552,13 +576,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
                 <Button 
                     fullWidth 
                     className={isSiteLimitReached && activeTab === 'active' ? 'grayscale opacity-50' : ''}
-                    onClick={() => {
-                        setEditingSite(null);
-                        setFormData({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 20, isIndividualVat: false });
-                        setBudgetBreakdown([]);
-                        setShowBreakdown(false);
-                        setShowModal(true);
-                    }}
+                    onClick={() => openCreateSiteModal(activeTab === 'leads' ? 'leads' : 'active')}
                 >
                     <Plus size={18}/> Pridať {activeTab === 'active' ? 'zákazku' : 'dopyt'}
                 </Button>
@@ -582,8 +600,8 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
           </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="bg-slate-100 p-1 rounded-xl flex gap-1 shadow-inner border border-slate-200 overflow-x-auto w-full lg:w-auto">
+      <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-white p-2 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="flex gap-1 overflow-hidden w-full lg:w-auto lg:gap-1.5 lg:overflow-x-auto">
             {[
                 { id: 'active', label: 'Realizácia', icon: HardHat },
                 { id: 'leads', label: 'Obchod', icon: Briefcase },
@@ -592,14 +610,14 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization }: any) 
                 <button 
                     key={tab.id}
                     onClick={() => handleTabChange(tab.id as any)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 whitespace-nowrap flex-1 lg:flex-none justify-center ${
+                    className={`min-h-[42px] flex-1 lg:flex-none min-w-0 lg:min-w-max py-2.5 px-2.5 sm:px-3 lg:px-4 text-[13px] sm:text-sm font-semibold text-center rounded-2xl transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 lg:gap-2 ${
                         activeTab === tab.id 
-                        ? 'bg-white text-orange-600 shadow-sm ring-1 ring-black/5' 
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                        ? 'bg-orange-50 text-orange-700 border border-orange-100 shadow-sm' 
+                        : 'text-slate-700 border border-transparent hover:bg-slate-50 hover:text-slate-950'
                     }`}
                 >
-                    <tab.icon size={16} className={activeTab === tab.id ? "text-orange-600" : "text-slate-400"}/> 
-                    {tab.label}
+                    <tab.icon size={15} className="text-orange-600 shrink-0 lg:w-4 lg:h-4"/> 
+                    <span className="truncate">{tab.label}</span>
                 </button>
             ))}
         </div>
@@ -1128,10 +1146,10 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     const { cleanNotes, breakdown: budgetItems } = parseNotesData(lead.notes);
 
     return (
-        <div className="space-y-6 pb-20">
+        <div className="space-y-6 pb-4 md:pb-20">
             <div className="flex justify-between items-center">
-                <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-sm flex items-center gap-1 hover:text-slate-900 transition">
-                    <ArrowLeft size={16}/> Späť
+                <button onClick={onBack} className="h-10 px-3 rounded-xl text-slate-600 hover:text-slate-950 hover:bg-white border border-transparent hover:border-slate-200 font-semibold text-sm flex items-center gap-2 transition group">
+                    <ArrowLeft size={17} className="group-hover:-translate-x-0.5 transition-transform"/> Späť
                 </button>
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setShowConvertModal(true)}><CheckCircle2 size={16}/> Začať realizáciu</Button>
@@ -1613,7 +1631,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
             {selectedQuote ? (
                 <div className="animate-in fade-in slide-in-from-right-8">
                     <div className="flex justify-between items-center mb-6">
-                        <button onClick={() => setSelectedQuote(null)} className="text-slate-500 font-bold text-sm flex items-center gap-1 hover:text-slate-900 transition"><ArrowLeft size={16}/> Späť na zoznam</button>
+                        <button onClick={() => setSelectedQuote(null)} className="h-10 px-3 rounded-xl text-slate-600 hover:text-slate-950 hover:bg-white border border-transparent hover:border-slate-200 font-semibold text-sm flex items-center gap-2 transition group"><ArrowLeft size={17} className="group-hover:-translate-x-0.5 transition-transform"/> Späť na zoznam</button>
                         <div className="flex gap-2">
                             <Button variant="secondary" onClick={handleDelete} className="text-red-600 border-red-200 hover:bg-red-50"><Trash2 size={16}/> Zmazať</Button>
                             <Button onClick={generatePDF}><Printer size={16}/> Stiahnuť PDF</Button>
@@ -1687,7 +1705,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                                     })}
                                 </tbody>
                             </table>
-                            <div className="flex justify-end mb-20">
+                            <div className="flex justify-end mb-4 md:mb-20">
                                 <div className="w-64 bg-slate-50 p-4 rounded-xl border border-slate-100">
                                     <div className="flex justify-between items-center mb-2 text-slate-500 text-xs">
                                         <span>Základ dane celkom</span>
@@ -1770,31 +1788,31 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
     const totalCost = roundFin(Object.values(summary).reduce<number>((acc, item: any) => acc + Number(item.cost), 0));
 
     return (
-        <div className="bg-orange-50/50 rounded-2xl border border-orange-100 overflow-hidden mb-6 shadow-sm">
-            <div className="p-4 bg-orange-100/50 border-b border-orange-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                 <h3 className="font-bold text-orange-800 flex items-center gap-2 text-sm sm:text-base"><Euro size={18}/> Finančný súhrn prác</h3>
-                 <span className="text-[10px] font-black uppercase text-orange-600 bg-white px-2.5 py-1.5 rounded-xl shadow-sm border border-orange-100 whitespace-nowrap tracking-widest">
+        <div className="bg-orange-50/40 rounded-2xl border border-orange-100 overflow-hidden mb-6 shadow-sm">
+            <div className="p-4 bg-orange-50 border-b border-orange-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                 <h3 className="font-bold text-orange-900 flex items-center gap-2 text-sm sm:text-base"><Euro size={18}/> Finančný súhrn prác</h3>
+                 <span className="text-xs font-semibold text-orange-700 bg-white px-2.5 py-1 rounded-lg shadow-sm border border-orange-100 whitespace-nowrap">
                     {Object.keys(summary).length} pracovníkov
                  </span>
             </div>
             <div className="overflow-x-auto custom-scrollbar">
                 <table className="w-full text-sm text-left min-w-[450px]">
-                    <thead className="bg-orange-50 text-orange-600 font-bold border-b border-orange-100 uppercase text-[10px] tracking-wider">
-                        <tr><th className="p-4">Meno</th><th className="p-4 text-right">Odpracovaný Čas</th><th className="p-4 text-right">Náklady na prácu</th><th className="p-4 text-right">Podiel</th></tr>
+                    <thead className="bg-orange-50 text-orange-700 font-bold border-b border-orange-100 uppercase text-xs">
+                        <tr><th className="p-4">Meno</th><th className="p-4 text-right">Odpracovaný čas</th><th className="p-4 text-right">Náklady na prácu</th><th className="p-4 text-right">Podiel</th></tr>
                     </thead>
                     <tbody className="divide-y divide-orange-100/50">
                         {Object.entries(summary).map(([name, data]: any) => (
                             <tr key={name} className="hover:bg-orange-100/20 transition">
-                                <td className="p-4 font-bold text-slate-700">{name}</td>
-                                <td className="p-4 text-right font-mono text-slate-600">{formatDuration(Number(data.hours))}</td>
-                                <td className="p-4 text-right font-black text-slate-900">{formatMoney(Number(data.cost))}</td>
-                                <td className="p-4 text-right text-[10px] text-slate-500 font-bold">{((data.cost / (totalCost || 1)) * 100).toFixed(0)} %</td>
+                                <td className="p-4 font-semibold text-slate-800">{name}</td>
+                                <td className="p-4 text-right font-semibold text-slate-700 tabular-nums">{formatDuration(Number(data.hours))}</td>
+                                <td className="p-4 text-right font-bold text-slate-900 tabular-nums">{formatMoney(Number(data.cost))}</td>
+                                <td className="p-4 text-right text-sm text-slate-600 font-semibold tabular-nums">{((data.cost / (totalCost || 1)) * 100).toFixed(0)} %</td>
                             </tr>
                         ))}
-                         <tr className="bg-orange-100/40 font-black text-orange-950 border-t-2 border-orange-200">
-                            <td className="p-4 text-xs sm:text-sm">CELKOVÝ SÚČET</td>
-                            <td className="p-4 text-right text-sm sm:text-lg">{formatDuration(totalHours)}</td>
-                            <td className="p-4 text-right text-sm sm:text-xl">{formatMoney(totalCost)}</td>
+                         <tr className="bg-orange-100/50 font-bold text-orange-950 border-t border-orange-200">
+                            <td className="p-4 text-sm">Celkový súčet</td>
+                            <td className="p-4 text-right text-base tabular-nums">{formatDuration(totalHours)}</td>
+                            <td className="p-4 text-right text-base tabular-nums">{formatMoney(totalCost)}</td>
                             <td className="p-4"></td>
                         </tr>
                     </tbody>
@@ -2094,47 +2112,52 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between gap-4">
-        <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition group">
-            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform"/> Späť
+      <div className="flex items-center justify-between gap-3">
+        <button onClick={onBack} className="h-10 px-3 rounded-xl text-slate-600 hover:text-slate-950 hover:bg-white border border-transparent hover:border-slate-200 font-semibold text-sm flex items-center gap-2 transition group">
+            <ArrowLeft size={17} className="group-hover:-translate-x-0.5 transition-transform"/> Späť
         </button>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setModals({...modals, export: true})}><FileDown size={16}/> Stiahnuť PDF</Button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setModals({...modals, export: true})} className="h-10 px-4 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-slate-950 hover:border-slate-300 shadow-sm font-semibold text-sm flex items-center gap-2 transition">
+            <FileDown size={16}/> Stiahnuť PDF
+          </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 flex flex-col lg:flex-row justify-between items-start gap-6">
-        <div className="flex-1">
-          <h1 className="text-2xl md:text-[1.625rem] font-extrabold text-slate-900 mb-2 leading-tight tracking-normal">{site.name}</h1>
-          <div className="flex items-center gap-3 text-sm flex-wrap">
-            <span className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 font-medium"><MapPin size={14} className="text-orange-500"/> {site.address}</span>
-            {site.client_name && <span className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 font-medium"><User size={14} className="text-blue-500"/> {site.client_name}</span>}
-            <button onClick={() => setStatusModalOpen(true)} className="flex items-center gap-1 group hover:opacity-80 transition active:scale-95">
+      <div className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-slate-200 flex flex-col xl:flex-row justify-between xl:items-center gap-5">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 text-sm flex-wrap mb-3">
+            <button onClick={() => setStatusModalOpen(true)} className="inline-flex items-center gap-1 rounded-full hover:bg-slate-50 transition active:scale-95">
                 <Badge status={site.status} />
-                <ChevronDown size={14} className="text-slate-400 group-hover:text-slate-600"/>
+                <ChevronDown size={14} className="text-slate-500 group-hover:text-slate-700"/>
             </button>
+            {site.client_name && <span className="flex items-center gap-1.5 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 font-medium"><User size={14} className="text-slate-400"/> {site.client_name}</span>}
+          </div>
+          <h1 className="text-2xl md:text-[1.75rem] font-bold text-slate-950 mb-3 leading-tight tracking-normal truncate" title={site.name}>{site.name}</h1>
+          <div className="flex items-center gap-3 text-sm flex-wrap">
+            {site.address && <span className="flex items-center gap-1.5 text-slate-600 font-medium min-w-0"><MapPin size={15} className="text-orange-500 shrink-0"/> <span className="truncate">{site.address}</span></span>}
           </div>
         </div>
         
-        <div className="bg-white p-5 rounded-2xl shadow-sm border-2 border-slate-100 min-w-[220px] relative overflow-hidden group">
-          <div className={`absolute left-0 top-0 bottom-0 w-2 ${stats.profit >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <div className="pl-2">
-              <div className="text-[10px] uppercase text-slate-400 font-black tracking-widest mb-1 flex items-center gap-2">
+        <div className={`w-full xl:w-auto xl:min-w-[260px] p-4 rounded-2xl shadow-sm border relative overflow-hidden group ${stats.profit >= 0 ? 'bg-green-50/70 border-green-100' : 'bg-red-50/70 border-red-100'}`}>
+          <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${stats.profit >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <div className="pl-2 pr-12 relative z-10">
+              <div className={`text-xs font-semibold mb-1 flex items-center gap-2 ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                 <Activity size={12} className={stats.profit >= 0 ? 'text-green-500' : 'text-red-500'}/>
-                Priebežný Zisk
+                Priebežný zisk
               </div>
-              <div className={`text-2xl font-black ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'} tracking-tighter`}>
+              <div className={`text-2xl md:text-[1.7rem] font-bold ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'} tabular-nums leading-tight`}>
                 {formatMoney(stats.profit)}
               </div>
           </div>
-          <div className={`absolute right-[-20px] bottom-[-20px] opacity-[0.03] group-hover:scale-110 transition-transform duration-700 ${stats.profit >= 0 ? 'text-green-900' : 'text-red-900'}`}>
-             <TrendingUp size={100} />
+          <div className={`absolute right-4 top-4 h-10 w-10 rounded-xl flex items-center justify-center ${stats.profit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+             <TrendingUp size={20} />
           </div>
         </div>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-[600px]">
-        <div className="flex border-b border-slate-100 bg-slate-50/50 p-1 overflow-x-auto no-scrollbar">
+        <div className="border-b border-slate-100 bg-white px-2 py-2">
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {[
             { id: 'overview', label: 'Prehľad', icon: BarChart3 },
             { id: 'labor', label: 'Dochádzka', icon: HardHat },
@@ -2146,13 +2169,14 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-3 px-4 text-[11px] font-black uppercase tracking-widest text-center rounded-2xl transition whitespace-nowrap flex items-center justify-center gap-2 ${
-                activeTab === tab.id ? 'bg-white text-orange-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'
+              className={`min-h-[42px] flex-1 min-w-max py-2.5 px-4 text-sm font-semibold text-center rounded-2xl transition-colors whitespace-nowrap flex items-center justify-center gap-2 ${
+                activeTab === tab.id ? 'bg-orange-50 text-orange-700 border border-orange-100 shadow-sm' : 'text-slate-700 border border-transparent hover:bg-slate-50 hover:text-slate-950'
               }`}
             >
-              <tab.icon size={16} className={activeTab === tab.id ? "text-orange-600" : "text-slate-400"} /> {tab.label}
+              <tab.icon size={16} className="text-orange-600 shrink-0" /> <span>{tab.label}</span>
             </button>
           ))}
+          </div>
         </div>
 
         <div className="p-4 md:p-8 flex-1">
@@ -2160,28 +2184,28 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             <div className="space-y-8 animate-in fade-in">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <Card className="bg-white border-slate-200 shadow-sm">
-                    <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2"><BarChart3 size={20} className="text-orange-500"/> Finančný Rozbor</h3>
-                    <div className="space-y-4">
+                    <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2"><BarChart3 size={20} className="text-orange-500"/> Finančný rozbor</h3>
+                    <div className="space-y-3">
                     <div className="flex justify-between items-center p-4 bg-green-50 rounded-xl border border-green-100">
-                        <span className="font-bold text-green-800 text-xs uppercase tracking-wider">Príjmy (Platby)</span>
-                        <span className="font-black text-green-700 text-xl">+{formatMoney(stats.paid)}</span>
+                        <span className="font-semibold text-green-800 text-sm">Príjmy (platby)</span>
+                        <span className="font-bold text-green-700 text-lg tabular-nums">+{formatMoney(stats.paid)}</span>
                     </div>
                     <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
-                        <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Materiál & Iné</span>
-                        <span className="font-black text-red-700 text-xl">-{formatMoney(roundFin(stats.totalCost - stats.laborCost - stats.fuelCost))}</span>
+                        <span className="font-semibold text-red-800 text-sm">Materiál a iné</span>
+                        <span className="font-bold text-red-700 text-lg tabular-nums">-{formatMoney(roundFin(stats.totalCost - stats.laborCost - stats.fuelCost))}</span>
                     </div>
                     <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
-                        <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Práca (Mzdy)</span>
-                        <span className="font-black text-red-700 text-xl">-{formatMoney(stats.laborCost)}</span>
+                        <span className="font-semibold text-red-800 text-sm">Práca (mzdy)</span>
+                        <span className="font-bold text-red-700 text-lg tabular-nums">-{formatMoney(stats.laborCost)}</span>
                     </div>
                     <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl border border-red-100">
-                        <span className="font-bold text-red-800 text-xs uppercase tracking-wider">Pohonné Hmoty</span>
-                        <span className="font-black text-red-700 text-xl">-{formatMoney(stats.fuelCost)}</span>
+                        <span className="font-semibold text-red-800 text-sm">Pohonné hmoty</span>
+                        <span className="font-bold text-red-700 text-lg tabular-nums">-{formatMoney(stats.fuelCost)}</span>
                     </div>
-                    <div className="border-t-2 border-dashed border-slate-100 my-4 pt-6">
+                    <div className="border-t border-dashed border-slate-200 my-4 pt-5">
                         <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                        <span className="font-black text-slate-600 uppercase text-[10px] tracking-widest">Celkový profit</span>
-                        <span className={`font-black text-3xl tracking-tighter ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(stats.profit)}</span>
+                        <span className="font-semibold text-slate-700 text-sm">Celkový profit</span>
+                        <span className={`font-bold text-2xl tabular-nums ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(stats.profit)}</span>
                         </div>
                     </div>
                     </div>
@@ -2189,21 +2213,21 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 
                 <Card className="bg-white border-slate-200 shadow-sm">
                     <h3 className="font-bold text-lg text-slate-900 mb-6 flex items-center gap-2"><Package size={20} className="text-orange-500"/> Rozpočet</h3>
-                    <div className="flex justify-between text-[11px] mb-3 text-slate-500 font-black uppercase tracking-widest">
-                    <span>Aktuálne: {formatMoney(stats.totalCost)}</span>
-                    <span>Limit: {formatMoney(site.budget)}</span>
+                    <div className="flex justify-between text-sm mb-3 text-slate-600 font-semibold">
+                    <span>Aktuálne: <strong className="text-slate-900 tabular-nums">{formatMoney(stats.totalCost)}</strong></span>
+                    <span>Limit: <strong className="text-slate-900 tabular-nums">{formatMoney(site.budget)}</strong></span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-5 overflow-hidden mb-8 border border-slate-200 shadow-inner p-1">
                     <div className={`${stats.totalCost > site.budget ? 'bg-red-500' : 'bg-orange-500'} h-full rounded-full transition-all duration-1000 shadow-sm`} style={{ width: `${Math.min(100, (stats.totalCost / site.budget) * 100)}%` }}></div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div className="text-[10px] uppercase text-slate-400 font-black mb-1">Hodiny</div>
-                        <div className="text-2xl font-black text-slate-900 tracking-tight">{formatDuration(stats.laborHours)}</div>
+                        <div className="text-xs text-slate-500 font-semibold mb-1">Hodiny</div>
+                        <div className="text-xl font-bold text-slate-900 tabular-nums">{formatDuration(stats.laborHours)}</div>
                     </div>
                     <div className="text-center p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div className="text-[10px] uppercase text-slate-400 font-black mb-1">Materiál</div>
-                        <div className="text-2xl font-black text-slate-900 tracking-tight">{formatMoney(stats.materialCost)}</div>
+                        <div className="text-xs text-slate-500 font-semibold mb-1">Materiál</div>
+                        <div className="text-xl font-bold text-slate-900 tabular-nums">{formatMoney(stats.materialCost)}</div>
                     </div>
                     </div>
                 </Card>
@@ -2213,35 +2237,35 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" padding="p-0">
                     <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
                         <ListPlus size={20} className="text-orange-500"/>
-                        <h3 className="font-black text-lg text-slate-900 uppercase tracking-tight">Položkový rozpis rozpočtu</h3>
+                        <h3 className="font-bold text-lg text-slate-900">Položkový rozpis rozpočtu</h3>
                     </div>
                     <div className="p-6 space-y-1">
-                        <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">
+                        <div className="flex justify-between items-center text-xs font-semibold text-slate-500 uppercase px-2 mb-2">
                             <span>Názov položky</span>
                             <span>Suma (€)</span>
                         </div>
                         {budgetItems.map((item) => (
                             <div key={item.id} className="flex justify-between items-center py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 px-2 rounded-lg transition group">
-                                <span className="text-sm font-bold text-slate-700 group-hover:text-orange-600">{item.label}</span>
-                                <span className="font-mono font-black text-slate-900 text-base">{formatMoney(item.amount)}</span>
+                                <span className="text-sm font-semibold text-slate-700 group-hover:text-orange-600">{item.label}</span>
+                                <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(item.amount)}</span>
                             </div>
                         ))}
                         <div className="mt-6 pt-6 border-t-2 border-dashed border-slate-200 flex flex-col items-end gap-1.5">
                             {hasVat && (
                                 <>
-                                    <div className="flex gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <div className="flex gap-4 text-xs font-semibold text-slate-500">
                                         <span>Základ bez DPH:</span>
                                         <span>{formatMoney(roundFin(budgetItems.reduce((acc, i) => acc + Number(i.amount), 0)))}</span>
                                     </div>
-                                    <div className="flex gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <div className="flex gap-4 text-xs font-semibold text-slate-500">
                                         <span>DPH:</span>
                                         <span>{formatMoney(roundFin(site.budget - budgetItems.reduce((acc, i) => acc + Number(i.amount), 0)))}</span>
                                     </div>
                                 </>
                             )}
-                            <div className="flex gap-6 text-sm font-black text-slate-900 uppercase tracking-widest mt-2 bg-slate-100 px-6 py-3 rounded-2xl border border-slate-200 shadow-inner">
-                                <span className="text-slate-500">CELKOVÝ ROZPOČET {hasVat ? 'S DPH' : ''}:</span>
-                                <span className="text-2xl text-orange-600 tracking-tighter">{formatMoney(site.budget)}</span>
+                            <div className="flex gap-6 text-sm font-bold text-slate-900 mt-2 bg-slate-100 px-6 py-3 rounded-2xl border border-slate-200 shadow-inner">
+                                <span className="text-slate-600">Celkový rozpočet {hasVat ? 's DPH' : ''}:</span>
+                                <span className="text-xl text-orange-600 tabular-nums">{formatMoney(site.budget)}</span>
                             </div>
                         </div>
                     </div>
@@ -2277,46 +2301,46 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                     setModals({...modals, transaction: true}); 
                 }}><Plus size={18}/> Pridať pohyb</Button>
               </div>
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="w-full overflow-x-auto custom-scrollbar">
                     <table className="w-full text-sm text-left min-w-[700px]">
-                      <thead className="bg-slate-50 text-slate-500 font-black uppercase text-[10px] tracking-widest border-b border-slate-200">
+                      <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs border-b border-slate-200">
                         <tr><th className="p-4">Dátum</th><th className="p-4">Položka</th><th className="p-4 text-right">Suma</th><th className="p-4 text-center">Stav</th><th className="p-4"></th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {financeItems.map((t: any) => (
                           <tr key={t.id} onClick={() => handleEditFinance(t)} className="hover:bg-slate-50 transition group cursor-pointer">
-                            <td className="p-4 font-mono text-slate-400 text-xs whitespace-nowrap">{formatDate(t.date)}</td>
+                            <td className="p-4 font-medium text-slate-500 text-sm whitespace-nowrap tabular-nums">{formatDate(t.date)}</td>
                             <td className="p-4">
-                                <div className="font-bold flex items-center gap-2 text-slate-700">
-                                    {t.itemType === 'material' && <div className="p-1.5 bg-orange-100 text-orange-600 rounded-md"><Package size={14}/></div>}
-                                    {t.itemType === 'transaction' && t.type === 'invoice' && <div className="p-1.5 bg-green-100 text-green-600 rounded-md"><Euro size={14}/></div>}
-                                    {t.itemType === 'transaction' && t.type === 'expense' && <div className="p-1.5 bg-red-100 text-red-600 rounded-md"><Euro size={14}/></div>}
-                                    <div>
-                                        <span>{t.itemType === 'material' ? t.description : t.category}</span>
-                                        <div className="text-[10px] text-slate-400 font-medium">{t.itemType === 'material' ? t.category : t.description}</div>
+                                <div className="font-semibold flex items-center gap-3 text-slate-800">
+                                    {t.itemType === 'material' && <div className="p-2 bg-orange-50 text-orange-600 rounded-lg border border-orange-100"><Package size={15}/></div>}
+                                    {t.itemType === 'transaction' && t.type === 'invoice' && <div className="p-2 bg-green-50 text-green-600 rounded-lg border border-green-100"><Euro size={15}/></div>}
+                                    {t.itemType === 'transaction' && t.type === 'expense' && <div className="p-2 bg-red-50 text-red-600 rounded-lg border border-red-100"><Euro size={15}/></div>}
+                                    <div className="min-w-0">
+                                        <span className="block truncate max-w-[360px]">{t.itemType === 'material' ? t.description : t.category}</span>
+                                        <div className="text-xs text-slate-500 font-medium truncate max-w-[360px]">{t.itemType === 'material' ? t.category : t.description}</div>
                                     </div>
                                 </div>
                             </td>
-                            <td className={`p-4 text-right font-black text-base tracking-tight ${t.type === 'invoice' ? 'text-green-600' : 'text-red-600'}`}>
+                            <td className={`p-4 text-right font-bold text-base tabular-nums ${t.type === 'invoice' ? 'text-green-600' : 'text-red-600'}`}>
                               {t.type === 'invoice' ? '+' : '-'}{formatMoney(t.amount)}
                             </td>
                             <td className="p-4 text-center">
                               {t.itemType === 'transaction' ? (
                                   <button 
                                     onClick={(e) => { e.stopPropagation(); togglePaid(t); }}
-                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border cursor-pointer hover:opacity-80 transition shadow-sm ${t.is_paid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}
+                                    className={`px-3 py-1 rounded-lg text-xs font-semibold border cursor-pointer hover:opacity-80 transition shadow-sm ${t.is_paid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}
                                   >
                                     {t.is_paid ? 'Uhradené' : 'Čaká'}
                                   </button>
                               ) : (
-                                  <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border bg-slate-50 text-slate-500 border-slate-200 tracking-wider">Materiál</span>
+                                  <span className="px-3 py-1 rounded-lg text-xs font-semibold border bg-slate-50 text-slate-600 border-slate-200">Materiál</span>
                               )}
                             </td>
                             <td className="p-4 text-right">
                                 <div className="flex gap-1 justify-end">
-                                    <button onClick={(e) => { e.stopPropagation(); handleEditFinance(t); }} className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-full transition opacity-0 group-hover:opacity-100"><Pencil size={16}/></button>
-                                    <button onClick={(e) => { e.stopPropagation(); requestDelete(t.itemType === 'material' ? 'materials' : 'transactions', t.id); }} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleEditFinance(t); }} className="p-2 text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-lg transition"><Pencil size={16}/></button>
+                                    <button onClick={(e) => { e.stopPropagation(); requestDelete(t.itemType === 'material' ? 'materials' : 'transactions', t.id); }} className="p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition"><Trash2 size={16}/></button>
                                 </div>
                             </td>
                           </tr>
@@ -2336,7 +2360,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 <h3 className="font-extrabold text-xl text-slate-900">Denník prác (História)</h3>
                 <button 
                   onClick={() => { setFormState({ date: new Date().toISOString().split('T')[0], start_time: '07:00', end_time: '15:30', payment_type: 'hourly', fixed_amount: 0 }); setModals({...modals, log: true}); }}
-                  className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-xl hover:bg-slate-900 transition font-bold text-sm shadow-sm w-full sm:w-auto justify-center"
+                  className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2.5 rounded-xl hover:bg-orange-700 transition font-bold text-sm shadow-sm shadow-orange-100 w-full sm:w-auto justify-center"
                 >
                   <Clock size={16}/> Zapísať dochádzku
                 </button>
@@ -2348,29 +2372,32 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                       <div 
                         key={l.id} 
                         onClick={() => setSelectedLog(l)}
-                        className="bg-white p-5 rounded-2xl border border-slate-200 flex justify-between items-center cursor-pointer hover:border-orange-300 hover:shadow-md transition active:scale-[0.98] group shadow-sm"
+                        className="bg-white p-5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 cursor-pointer hover:border-orange-300 hover:shadow-md transition active:scale-[0.98] group shadow-sm"
                       >
                           <div className="min-w-0 flex-1">
-                              <div className="font-black text-slate-900 flex items-center gap-2 group-hover:text-orange-600 transition">
+                              <div className="font-bold text-slate-900 flex items-center gap-2 group-hover:text-orange-600 transition">
                                 <User size={14} className="text-orange-500"/>
                                 {l.profiles?.full_name || 'Neznámy'}
-                                {l.payment_type === 'fixed' && <span className="text-[8px] bg-orange-600 text-white px-1.5 py-0.5 rounded font-black uppercase">Úkol</span>}
+                                {l.payment_type === 'fixed' && <span className="text-xs bg-orange-600 text-white px-2 py-0.5 rounded-md font-semibold">Úkol</span>}
                               </div>
-                              <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1 mt-2 font-medium">
-                                  <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-black uppercase text-slate-500 tracking-tight whitespace-nowrap">{formatDate(l.date)}</span>
-                                  {l.description && <span className="italic truncate max-w-[200px] text-slate-400">"{l.description}"</span>}
+                              <div className="text-sm text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 font-medium">
+                                  <span className="bg-slate-100 px-2 py-1 rounded-md text-xs font-semibold text-slate-600 whitespace-nowrap">{formatDate(l.date)}</span>
+                                  {l.description && <span className="italic truncate max-w-[260px] text-slate-500">"{l.description}"</span>}
                               </div>
-                              <div className="text-[10px] font-bold text-slate-400 font-mono mt-2 flex items-center gap-1.5">
-                                <Clock size={12} className="text-slate-300"/>
-                                {l.start_time || '--:--'} - {l.end_time || '--:--'} ({formatDuration(Number(l.hours || 0))})
-                                • Cena práce: <span className="text-slate-600 font-black">{formatMoney(cost)}</span>
+                              <div className="text-sm font-semibold text-slate-500 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
+                                <Clock size={14} className="text-slate-400"/>
+                                <span>{l.start_time || '--:--'} - {l.end_time || '--:--'}</span>
+                                <span className="text-slate-300">•</span>
+                                <span>{formatDuration(Number(l.hours || 0))}</span>
+                                <span className="text-slate-300">•</span>
+                                <span>Cena práce: <strong className="text-slate-700 font-bold">{formatMoney(cost)}</strong></span>
                               </div>
                           </div>
-                          <div className="text-right flex items-center gap-4 ml-6">
-                              <div className="font-black text-slate-900 text-2xl tracking-tighter hidden sm:block">
+                          <div className="text-right flex items-center justify-between sm:justify-end gap-4 sm:ml-6">
+                              <div className="font-bold text-slate-900 text-xl tabular-nums whitespace-nowrap">
                                 {l.payment_type === 'fixed' ? <Briefcase className="text-orange-300" size={24}/> : formatDuration(Number(l.hours || 0))}
                               </div>
-                              <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <div className="flex gap-1 opacity-100">
                                 <button onClick={(e) => { e.stopPropagation(); handleEditLog(l); }} className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-90"><Pencil size={18}/></button>
                                 <button onClick={(e) => { e.stopPropagation(); requestDelete('attendance_logs', l.id); }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition active:scale-90"><Trash2 size={18}/></button>
                               </div>
@@ -2624,19 +2651,26 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       )}
 
       <div className="fixed left-[-9999px]">
-          <div ref={printRef} className="w-[190mm] bg-white p-12 text-slate-900 font-sans text-sm leading-normal relative box-border text-left flex flex-col min-h-[277mm]">
-              <div className="absolute top-4 right-4 text-[10px] text-slate-400">Vygenerované cez MojaStavba • {new Date().toLocaleDateString('sk-SK')}</div>
+          <div ref={printRef} className="w-[190mm] bg-white p-0 text-slate-900 font-sans text-sm leading-normal relative box-border text-left flex flex-col min-h-[277mm]">
+              <div className="px-10 pt-7 pb-3 flex justify-end text-[10px] text-slate-400 border-b border-slate-100">
+                  <div className="text-right">
+                      <div>Vygenerované cez MojaStavba • {new Date().toLocaleDateString('sk-SK')}</div>
+                      <div>www.moja-stavba.sk</div>
+                  </div>
+              </div>
+              <div className="px-10 py-8 flex-1 flex flex-col">
               
-              <div className="flex justify-between items-start mb-10 border-b-2 border-slate-200 pb-6">
-                <div>
-                    <h1 className="text-2xl font-black uppercase tracking-widest text-slate-800">{exportSettings.type === 'client' ? 'Výkaz prác' : 'Kompletný projektový výkaz'}</h1>
-                    <div className="text-orange-600 mt-2 font-bold text-lg">{site.name}</div>
-                    <div className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-wider">{site.address}</div>
+              <div className="flex justify-between items-start mb-8 border-b border-slate-200 pb-6">
+                <div className="max-w-[110mm]">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-600 mb-2">{exportSettings.type === 'client' ? 'Klientsky výkaz' : 'Interný projektový výkaz'}</div>
+                    <h1 className="text-[24px] font-bold tracking-normal text-slate-950 leading-tight">{exportSettings.type === 'client' ? 'Výkaz prác' : 'Projektový výkaz'}</h1>
+                    <div className="text-orange-600 mt-2 font-semibold text-base">{site.name}</div>
+                    {site.address && <div className="text-xs text-slate-500 mt-1 font-medium">{site.address}</div>}
                 </div>
-                <div className="text-right">
-                    <div className="font-black text-xl text-slate-800">{organization.name}</div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Zhotoviteľ</div>
-                    <div className="text-[9px] text-slate-400 mt-2 space-y-0.5">
+                <div className="text-right max-w-[62mm]">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">Zhotoviteľ</div>
+                    <div className="font-bold text-base text-slate-950 leading-tight">{organization.name}</div>
+                    <div className="text-[10px] text-slate-500 mt-3 space-y-1 leading-snug">
                         {organization.ico && <div>IČO: {organization.ico}</div>}
                         {organization.dic && <div>DIČ: {organization.dic}</div>}
                         {organization.is_vat_payer && organization.ic_dph && <div>IČ DPH: {organization.ic_dph}</div>}
@@ -2645,15 +2679,15 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-8 mb-10">
-                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Odberateľ / Klient</div>
-                      <div className="text-xl font-extrabold text-slate-800">{site.client_name || 'Nezadaný'}</div>
+              <div className="grid grid-cols-2 gap-5 mb-8">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">Odberateľ / klient</div>
+                      <div className="text-lg font-bold text-slate-950">{site.client_name || 'Nezadaný'}</div>
                   </div>
                   {(exportSettings.type === 'owner' || exportSettings.includeFinancials) && (
-                      <div className="bg-orange-50 p-5 rounded-2xl text-right border border-orange-100">
-                        <div className="text-[10px] font-black text-orange-800/50 uppercase tracking-widest mb-1">Aktuálna bilancia</div>
-                        <div className={`text-3xl font-black ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className="bg-orange-50/70 p-4 rounded-xl text-right border border-orange-100">
+                        <div className="text-[10px] font-bold text-orange-800/70 uppercase tracking-[0.14em] mb-1">Aktuálna bilancia</div>
+                        <div className={`text-2xl font-bold tabular-nums ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                             {formatMoney(stats.profit)}
                         </div>
                       </div>
@@ -2661,26 +2695,26 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
               </div>
 
               <div className="mb-10">
-                  <div className="font-black uppercase text-xs border-b border-slate-200 mb-4 pb-2 flex items-center gap-2 text-slate-800">
+                  <div className="font-bold text-sm border-b border-slate-200 mb-3 pb-2 flex items-center gap-2 text-slate-900">
                       <ClipboardList size={14} className="text-orange-600"/> Denník realizovaných prác
                   </div>
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-xs border-collapse rounded-xl overflow-hidden">
                       <thead>
-                          <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wider">
-                              <th className="border border-slate-200 p-2 text-left w-[30mm]">Dátum</th>
-                              <th className="border border-slate-200 p-2 text-left">Popis činnosti</th>
-                              <th className="border border-slate-200 p-2 text-right w-[20mm]">Rozsah</th>
+                          <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                              <th className="border-b border-slate-200 p-2.5 text-left w-[30mm]">Dátum</th>
+                              <th className="border-b border-slate-200 p-2.5 text-left">Popis činnosti</th>
+                              <th className="border-b border-slate-200 p-2.5 text-right w-[22mm]">Rozsah</th>
                           </tr>
                       </thead>
                       <tbody>
                           {data.logs.map((log: any, idx: number) => (
                               <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
-                                  <td className="border border-slate-200 p-2 align-top font-bold text-slate-700">{formatDate(log.date)}</td>
-                                  <td className="border border-slate-200 p-2 align-top italic text-slate-600">
-                                      {log.payment_type === 'fixed' && <span className="text-[8px] bg-orange-100 text-orange-600 px-1 py-0.5 rounded font-bold mr-2 uppercase">Úkol</span>}
+                                  <td className="border-b border-slate-100 p-2.5 align-top font-semibold text-slate-700 tabular-nums">{formatDate(log.date)}</td>
+                                  <td className="border-b border-slate-100 p-2.5 align-top text-slate-600">
+                                      {log.payment_type === 'fixed' && <span className="text-[9px] bg-orange-50 text-orange-700 border border-orange-100 px-1.5 py-0.5 rounded font-semibold mr-2 uppercase">Úkol</span>}
                                       {log.description || '(Bez popisu prác)'}
                                   </td>
-                                  <td className="border border-slate-200 p-2 align-top text-right font-bold text-slate-800">{formatDuration(Number(log.hours || 0))}</td>
+                                  <td className="border-b border-slate-100 p-2.5 align-top text-right font-semibold text-slate-900 tabular-nums">{formatDuration(Number(log.hours || 0))}</td>
                               </tr>
                           ))}
                       </tbody>
@@ -2689,32 +2723,32 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
               {(exportSettings.type === 'owner' || exportSettings.includeFinancials) && (
                   <div className="mb-10">
-                      <div className="font-black uppercase text-xs border-b border-slate-200 mb-4 pb-2 flex items-center gap-2 text-slate-800">
+                      <div className="font-bold text-sm border-b border-slate-200 mb-3 pb-2 flex items-center gap-2 text-slate-900">
                           <Package size={14} className="text-orange-600"/> Súpis materiálu a nákupov
                       </div>
-                      <table className="w-full text-xs border-collapse">
+                      <table className="w-full text-xs border-collapse rounded-xl overflow-hidden">
                           <thead>
-                              <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wider">
-                                  <th className="border border-slate-200 p-2 text-left w-[30mm]">Dátum</th>
-                                  <th className="border border-slate-200 p-2 text-left">Položka</th>
-                                  <th className="border border-slate-200 p-2 text-right w-[20mm]">Množstvo</th>
-                                  <th className="border border-slate-200 p-2 text-right w-[30mm]">Suma</th>
+                              <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                                  <th className="border-b border-slate-200 p-2.5 text-left w-[30mm]">Dátum</th>
+                                  <th className="border-b border-slate-200 p-2.5 text-left">Položka</th>
+                                  <th className="border-b border-slate-200 p-2.5 text-right w-[22mm]">Množstvo</th>
+                                  <th className="border-b border-slate-200 p-2.5 text-right w-[30mm]">Suma</th>
                               </tr>
                           </thead>
                           <tbody>
                               {data.materials.map((m: any, idx: number) => (
                                   <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
-                                      <td className="border border-slate-200 p-2 align-top">{formatDate(m.purchase_date)}</td>
-                                      <td className="border border-slate-200 p-2 align-top font-medium">{m.name}</td>
-                                      <td className="border border-slate-200 p-2 align-top text-right">{m.quantity} {m.unit}</td>
-                                      <td className="border border-slate-200 p-2 align-top text-right font-bold">{formatMoney(m.total_price)}</td>
+                                      <td className="border-b border-slate-100 p-2.5 align-top text-slate-600 tabular-nums">{formatDate(m.purchase_date)}</td>
+                                      <td className="border-b border-slate-100 p-2.5 align-top font-semibold text-slate-800">{m.name}</td>
+                                      <td className="border-b border-slate-100 p-2.5 align-top text-right text-slate-600">{m.quantity} {m.unit}</td>
+                                      <td className="border-b border-slate-100 p-2.5 align-top text-right font-semibold text-slate-900 tabular-nums">{formatMoney(m.total_price)}</td>
                                   </tr>
                               ))}
                           </tbody>
                           <tfoot>
-                              <tr className="bg-slate-50 font-black text-slate-800">
-                                  <td colSpan={3} className="border border-slate-200 p-2 text-right uppercase text-[9px]">Súčet materiálov</td>
-                                  <td className="border border-slate-200 p-2 text-right">{formatMoney(stats.materialCost)}</td>
+                              <tr className="bg-slate-50 font-bold text-slate-900">
+                                  <td colSpan={3} className="border-t border-slate-200 p-2.5 text-right text-[10px] uppercase tracking-[0.12em] text-slate-600">Súčet materiálov</td>
+                                  <td className="border-t border-slate-200 p-2.5 text-right tabular-nums">{formatMoney(stats.materialCost)}</td>
                               </tr>
                           </tfoot>
                       </table>
@@ -2723,15 +2757,15 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
               {exportSettings.type === 'owner' && (
                   <div className="mb-10">
-                      <div className="font-black uppercase text-xs border-b border-slate-200 mb-4 pb-2 flex items-center gap-2 text-slate-800">
+                      <div className="font-bold text-sm border-b border-slate-200 mb-3 pb-2 flex items-center gap-2 text-slate-900">
                           <HardHat size={14} className="text-orange-600"/> Detail mzdových nákladov
                       </div>
-                      <table className="w-full text-xs border-collapse">
+                      <table className="w-full text-xs border-collapse rounded-xl overflow-hidden">
                           <thead>
-                              <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wider">
-                                  <th className="border border-slate-200 p-2 text-left">Pracovník</th>
-                                  <th className="border border-slate-200 p-2 text-right">Hodiny</th>
-                                  <th className="border border-slate-200 p-2 text-right">Mzda celkom</th>
+                              <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                                  <th className="border-b border-slate-200 p-2.5 text-left">Pracovník</th>
+                                  <th className="border-b border-slate-200 p-2.5 text-right">Hodiny</th>
+                                  <th className="border-b border-slate-200 p-2.5 text-right">Mzda celkom</th>
                               </tr>
                           </thead>
                           <tbody>
@@ -2746,27 +2780,27 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                                   return acc;
                               }, {})).map(([name, stats]: any, idx: number) => (
                                   <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
-                                      <td className="border border-slate-200 p-2 align-top font-bold text-slate-700">{name}</td>
-                                      <td className="border border-slate-200 p-2 align-top text-right">{formatDuration(stats.h)}</td>
-                                      <td className="border border-slate-200 p-2 align-top text-right font-black text-slate-900">{formatMoney(stats.c)}</td>
+                                      <td className="border-b border-slate-100 p-2.5 align-top font-semibold text-slate-800">{name}</td>
+                                      <td className="border-b border-slate-100 p-2.5 align-top text-right text-slate-600 tabular-nums">{formatDuration(stats.h)}</td>
+                                      <td className="border-b border-slate-100 p-2.5 align-top text-right font-semibold text-slate-900 tabular-nums">{formatMoney(stats.c)}</td>
                                   </tr>
                               ))}
                           </tbody>
                           <tfoot>
-                              <tr className="bg-slate-100 font-black text-slate-800">
-                                  <td className="border border-slate-200 p-3 text-right uppercase text-[10px]">Celkové mzdy</td>
-                                  <td className="border border-slate-200 p-3 text-right">{formatDuration(stats.h)}</td>
-                                  <td className="border border-slate-200 p-3 text-right">{formatMoney(stats.laborCost)}</td>
+                              <tr className="bg-slate-50 font-bold text-slate-900">
+                                  <td className="border-t border-slate-200 p-2.5 text-right text-[10px] uppercase tracking-[0.12em] text-slate-600">Celkové mzdy</td>
+                                  <td className="border-t border-slate-200 p-2.5 text-right tabular-nums">{formatDuration(stats.laborHours)}</td>
+                                  <td className="border-t border-slate-200 p-2.5 text-right tabular-nums">{formatMoney(stats.laborCost)}</td>
                               </tr>
                           </tfoot>
                       </table>
                   </div>
               )}
 
-              <div className="mt-auto pt-20 grid grid-cols-2 gap-20 pb-10">
+              <div className="mt-auto pt-16 grid grid-cols-2 gap-16 pb-4 break-inside-avoid">
                   <div className="text-center">
                       <div className="border-b border-slate-300 mb-2 h-16"></div>
-                      <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Podpis Preberajúceho</div>
+                      <div className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.14em]">Podpis preberajúceho</div>
                   </div>
                   <div className="text-center relative">
                     <div className="h-16 border-b border-slate-300 mb-2 flex items-center justify-center">
@@ -2775,12 +2809,13 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                                 src={organization.stamp_url} 
                                 alt="Pečiatka" 
                                 crossOrigin="anonymous" 
-                                className="h-32 absolute -top-24 left-1/2 -translate-x-1/2 rotate-2 opacity-95 pointer-events-none" 
+                                className="h-28 max-w-[70mm] object-contain absolute -top-14 left-1/2 -translate-x-1/2 opacity-95 pointer-events-none" 
                             />
                         )}
                     </div>
-                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pečiatka a podpis zhotoviteľa</div>
+                    <div className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.14em]">Pečiatka a podpis zhotoviteľa</div>
                   </div>
+              </div>
               </div>
           </div>
       </div>

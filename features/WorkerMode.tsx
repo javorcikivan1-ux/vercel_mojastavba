@@ -1154,8 +1154,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
               />
               {!isSidebarCollapsed && (
                   <div className="min-w-0">
-                    <div className="font-extrabold text-xl tracking-tight text-slate-800">
-                        Moja<span className="text-orange-600">Stavba</span>
+                    <div className="brand-wordmark text-xl">
+                        Moja<span className="brand-wordmark-accent">Stavba</span>
                     </div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none truncate pr-2">{profile.full_name}</div>
                   </div>
@@ -1206,7 +1206,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
           <div className="md:hidden bg-white border-b border-slate-200 p-4 px-6 flex justify-between items-center sticky top-0 z-30 shadow-sm">
                <div className="flex items-center gap-2">
                   <img src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" alt="Logo" className="w-8 h-8" />
-                  <span className="font-extrabold text-lg tracking-tight">Moja<span className="text-orange-600">Stavba</span></span>
+                  <span className="brand-wordmark text-lg">Moja<span className="brand-wordmark-accent">Stavba</span></span>
                </div>
                <button onClick={() => setShowLogoutConfirm(true)} className="text-slate-400 p-1"><LogOut size={20}/></button>
           </div>

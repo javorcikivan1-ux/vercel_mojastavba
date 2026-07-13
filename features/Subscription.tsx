@@ -6,7 +6,7 @@ import {
   Check, X, ShieldCheck, LogOut, Loader2, 
   ChevronRight, Star, CheckCircle2, 
   Clock, ArrowRight, ArrowLeft, CreditCard, Zap, FileText, User,
-  LayoutGrid, Mail, Building2, MapPin, Hash, Globe, Trophy, Crown
+  LayoutGrid, Mail, Building2, MapPin, Hash, Globe, Trophy, Crown, Phone
 } from 'lucide-react';
 
 interface SubscriptionProps {
@@ -21,7 +21,7 @@ export const PLANS = [
   {
     id: 'base',
     name: 'SILVER',
-    price: '17',
+    price: '24',
     limit: 5,
     siteLimit: 3,
     desc: 'Pre malé firmy a živnostníkov',
@@ -44,7 +44,7 @@ export const PLANS = [
   {
     id: 'standard',
     name: 'GOLD',
-    price: '36',
+    price: '29',
     limit: 20,
     siteLimit: 10,
     desc: 'Zlatý štandard pre rastúce firmy',
@@ -104,7 +104,8 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
   const [showSelection, setShowSelection] = useState(false);
   
   const [formData, setFormData] = useState({
-    email: profile.email,
+    email: initialOrg.email || profile.email,
+    phone: profile.phone || '',
     name: initialOrg.name || '',
     ico: initialOrg.ico || '',
     dic: initialOrg.dic || '',
@@ -123,6 +124,8 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
         setOrganization(data);
         setFormData(prev => ({
           ...prev,
+          email: data.email || prev.email,
+          phone: prev.phone,
           name: data.name || prev.name,
           ico: data.ico || prev.ico,
           dic: data.dic || prev.dic,
@@ -149,27 +152,10 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
       const vat = net * 0.23;
       const total = net + vat;
 
-      const message = `!!! ŽIADOSŤ O AKTIVÁCIU !!!
-BALÍK: ${selectedPlan.name}
-CENA: ${net}€ bez DPH (${total.toFixed(2)}€ s DPH)
-FIRMA: ${formData.name}
-IČO: ${formData.ico || 'Nezadané'}
-DIČ: ${formData.dic || 'Nezadané'}
-IČ DPH: ${formData.ic_dph || 'Nezadané'}
-Adresa: ${formData.street || ''}, ${formData.zip || ''} ${formData.city || ''}
-Fakturačný Email: ${formData.email}`;
-      
-      await supabase.from('support_requests').insert([{
-        organization_id: organization.id,
-        user_name: profile.full_name,
-        org_name: formData.name,
-        user_email: formData.email,
-        message: message
-      }]);
-
       const { error } = await supabase.from('organizations').update({ 
           subscription_status: 'pending_payment',
           subscription_plan: selectedPlan.id,
+          email: formData.email,
           name: formData.name,
           ico: formData.ico,
           dic: formData.dic,
@@ -181,10 +167,57 @@ Fakturačný Email: ${formData.email}`;
       
       if (error) throw error;
 
+      if (formData.phone) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ phone: formData.phone })
+          .eq('id', profile.id);
+
+        if (profileError) throw profileError;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error('Chýba prihlásenie pre odoslanie emailu objednávky.');
+      }
+
+      const mailResponse = await fetch('/api/subscription-order-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          planName: selectedPlan.name,
+          planId: selectedPlan.id,
+          net,
+          vat,
+          total,
+          companyName: formData.name,
+          ico: formData.ico,
+          dic: formData.dic,
+          icDph: formData.ic_dph,
+          street: formData.street,
+          city: formData.city,
+          zip: formData.zip,
+          invoiceEmail: formData.email,
+          phone: formData.phone,
+          userName: profile.full_name,
+          organizationId: organization.id
+        })
+      });
+
+      const mailResult = await mailResponse.json().catch(() => ({}));
+      if (!mailResponse.ok) {
+        throw new Error(mailResult.error || 'Objednávka bola uložená, ale email notifikácia sa nepodarila odoslať.');
+      }
+
       setAlertState({ 
         open: true, 
         title: 'Hotovo', 
-        message: `Faktúru pre balík ${selectedPlan.name} pripravujeme a zasielame na ${formData.email}.`, 
+        message: `Faktúru pre balík ${selectedPlan.name} pripravíme a odošleme na ${formData.email}. Fakturácia prebieha v mesačnom harmonograme so 7-dňovou splatnosťou.`, 
         type: 'success' 
       });
       checkDbStatus(true);
@@ -288,16 +321,16 @@ Fakturačný Email: ${formData.email}`;
         {/* 4. PLAN SELECTION */}
         {step === 1 && (showSelection || (!isActive && !isPending)) && (
             <div className="animate-in slide-in-from-bottom-4 duration-500">
-                <div className="text-center mb-12">
-                    <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter mb-2 uppercase">
-                        Prejdite na <span className="text-orange-600">digitálne</span> stavebníctvo
+                <div className="text-center mb-9 md:mb-11">
+                    <h1 className="max-w-5xl mx-auto text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight mb-3">
+                        Všetky zákazky <span className="text-orange-600">v jednej aplikácii</span>
                     </h1>
-                    <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.4em]">
-                        Riešenie pre moderné stavebné firmy
+                    <p className="text-slate-500 font-semibold text-xs uppercase tracking-[0.18em]">
+                        Riešenie pre moderné firmy
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch mb-20">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch mb-16">
                   {PLANS.map((plan, idx) => {
                     const isCurrent = currentPlanId === plan.id;
                     
@@ -305,27 +338,27 @@ Fakturačný Email: ${formData.email}`;
                       <div 
                         key={plan.id} 
                         style={{ animationDelay: `${idx * 100}ms` }}
-                        className={`group relative flex flex-col bg-white rounded-[2rem] border transition-all duration-300 p-8 sm:p-10 animate-in fade-in slide-in-from-bottom-6 fill-mode-both 
+                        className={`group relative flex flex-col bg-white rounded-3xl border transition-all duration-300 p-6 sm:p-8 animate-in fade-in slide-in-from-bottom-6 fill-mode-both 
                           ${plan.recommended 
                             ? 'border-orange-200 shadow-2xl scale-[1.02] z-10 ring-4 ring-orange-50' 
                             : 'border-slate-100 hover:border-slate-200 shadow-sm'
                           }`}
                       >
                         {plan.recommended && (
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-600 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                            <Zap size={10} fill="currentColor"/> Odporúčané
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-600 text-white px-4 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-[0.14em] shadow-lg flex items-center gap-2">
+                            <Trophy size={10} fill="currentColor"/> Najobľúbenejšie
                           </div>
                         )}
 
                         <div className="mb-6 text-center lg:text-left">
-                          <h3 className={`text-3xl font-black mb-1 tracking-tighter uppercase ${plan.accent}`}>
+                          <h3 className={`text-2xl md:text-3xl font-extrabold mb-1 tracking-tight uppercase ${plan.accent}`}>
                             {plan.name}
                           </h3>
-                          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{plan.desc}</p>
+                          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.14em]">{plan.desc}</p>
                         </div>
 
-                        <div className="flex items-baseline gap-1 mb-8 pb-8 border-b border-slate-50">
-                          <span className="text-4xl font-black text-slate-900 tracking-tighter">{plan.price}€</span>
+                        <div className="flex items-baseline gap-1 mb-7 pb-7 border-b border-slate-50">
+                          <span className="text-4xl font-extrabold text-slate-900 tracking-tight">{plan.price}€</span>
                           <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">/ bez DPH</span>
                         </div>
 
@@ -383,100 +416,129 @@ Fakturačný Email: ${formData.email}`;
                                 <div className="w-10 h-10 bg-slate-50 text-slate-800 rounded-xl flex items-center justify-center border border-slate-100 shadow-inner">
                                     <Building2 size={20}/>
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Fakturačné údaje</h3>
+                                <h3 className="text-xl font-bold text-slate-900 tracking-tight">Fakturačné údaje</h3>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div className="sm:col-span-2 space-y-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Fakturačný Email</label>
-                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border-2 border-transparent focus-within:border-orange-600 focus-within:bg-white transition-all shadow-inner">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">Fakturačný email</label>
+                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/10 transition-all">
                                         <Mail size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
                                         <input 
                                             type="email" 
                                             value={formData.email} 
                                             onChange={(e) => setFormData({...formData, email: e.target.value})}
-                                            className="w-full bg-transparent outline-none text-sm font-bold text-slate-900"
+                                            className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900"
                                             placeholder="meno@firma.sk"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="sm:col-span-2 space-y-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Firma / Názov</label>
-                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border-2 border-transparent focus-within:border-orange-600 focus-within:bg-white transition-all shadow-inner">
-                                        <Building2 size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">Telefón</label>
+                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/10 transition-all">
+                                        <Phone size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
                                         <input 
-                                            type="text" 
-                                            value={formData.name} 
-                                            onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                            className="w-full bg-transparent outline-none text-sm font-bold text-slate-900"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">IČO</label>
-                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border-2 border-transparent focus-within:border-orange-600 focus-within:bg-white transition-all shadow-inner">
-                                        <Hash size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
-                                        <input 
-                                            type="text" 
-                                            value={formData.ico} 
-                                            onChange={(e) => setFormData({...formData, ico: e.target.value})}
-                                            className="w-full bg-transparent outline-none text-sm font-bold text-slate-900"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">DIČ</label>
-                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border-2 border-transparent focus-within:border-orange-600 focus-within:bg-white transition-all shadow-inner">
-                                        <ShieldCheck size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
-                                        <input 
-                                            type="text" 
-                                            value={formData.dic} 
-                                            onChange={(e) => setFormData({...formData, dic: e.target.value})}
-                                            className="w-full bg-transparent outline-none text-sm font-bold text-slate-900"
+                                            type="tel" 
+                                            value={formData.phone} 
+                                            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                                            className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900"
+                                            placeholder="+421..."
                                         />
                                     </div>
                                 </div>
 
                                 <div className="sm:col-span-2 space-y-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Sídlo (Ulica a číslo)</label>
-                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border-2 border-transparent focus-within:border-orange-600 focus-within:bg-white transition-all shadow-inner">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">Firma / názov</label>
+                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/10 transition-all">
+                                        <Building2 size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
+                                        <input 
+                                            type="text" 
+                                            value={formData.name} 
+                                            onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                            className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">IČO</label>
+                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/10 transition-all">
+                                        <Hash size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
+                                        <input 
+                                            type="text" 
+                                            value={formData.ico} 
+                                            onChange={(e) => setFormData({...formData, ico: e.target.value})}
+                                            className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">DIČ</label>
+                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/10 transition-all">
+                                        <ShieldCheck size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
+                                        <input 
+                                            type="text" 
+                                            value={formData.dic} 
+                                            onChange={(e) => setFormData({...formData, dic: e.target.value})}
+                                            className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">IČ DPH</label>
+                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/10 transition-all">
+                                        <ShieldCheck size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
+                                        <input 
+                                            type="text" 
+                                            value={formData.ic_dph} 
+                                            onChange={(e) => setFormData({...formData, ic_dph: e.target.value})}
+                                            className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900"
+                                            placeholder="SK2121234567"
+                                        />
+                                    </div>
+                                    <p className="text-[11px] font-medium text-slate-400 ml-1">Vyplňte iba ak ste platiteľ DPH.</p>
+                                </div>
+
+                                <div className="sm:col-span-2 space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">Sídlo (ulica a číslo)</label>
+                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/10 transition-all">
                                         <MapPin size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
                                         <input 
                                             type="text" 
                                             value={formData.street} 
                                             onChange={(e) => setFormData({...formData, street: e.target.value})}
-                                            className="w-full bg-transparent outline-none text-sm font-bold text-slate-900"
+                                            className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900"
                                             placeholder="Hlavná 1"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Mesto</label>
-                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border-2 border-transparent focus-within:border-orange-600 focus-within:bg-white transition-all shadow-inner">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">Mesto</label>
+                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/10 transition-all">
                                         <MapPin size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
                                         <input 
                                             type="text" 
                                             value={formData.city} 
                                             onChange={(e) => setFormData({...formData, city: e.target.value})}
-                                            className="w-full bg-transparent outline-none text-sm font-bold text-slate-900"
+                                            className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900"
                                             placeholder="Mesto"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">PSČ</label>
-                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border-2 border-transparent focus-within:border-orange-600 focus-within:bg-white transition-all shadow-inner">
+                                    <label className="text-xs font-semibold text-slate-600 ml-1">PSČ</label>
+                                    <div className="group flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/10 transition-all">
                                         <Hash size={16} className="text-slate-400 group-focus-within:text-orange-600 shrink-0"/>
                                         <input 
                                             type="text" 
                                             value={formData.zip} 
                                             onChange={(e) => setFormData({...formData, zip: e.target.value})}
-                                            className="w-full bg-transparent outline-none text-sm font-bold text-slate-900"
+                                            className="w-full bg-transparent outline-none text-sm font-semibold text-slate-900"
                                             placeholder="PSČ"
                                         />
                                     </div>
@@ -488,37 +550,37 @@ Fakturačný Email: ${formData.email}`;
                     {/* SUMMARY */}
                     <div className="lg:col-span-5">
                         <div className="bg-white rounded-[2rem] p-8 sm:p-10 border border-slate-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)] sticky top-6">
-                            <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase mb-8 pb-4 border-b border-slate-50">Súhrn objednávky</h3>
+                            <h3 className="text-xl font-bold text-slate-900 tracking-tight mb-8 pb-4 border-b border-slate-100">Súhrn objednávky</h3>
                             
                             <div className="space-y-4 mb-10">
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Zvolený program</p>
-                                        <p className={`text-lg font-black tracking-tight uppercase ${selectedPlan.accent}`}>{selectedPlan.name}</p>
+                                        <p className="text-xs font-semibold text-slate-500 mb-1">Zvolený program</p>
+                                        <p className={`text-lg font-bold tracking-tight ${selectedPlan.accent}`}>{selectedPlan.name}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Jednotková cena</p>
-                                        <p className="text-lg font-black text-slate-900">{selectedPlan.price}€ / mesiac</p>
+                                        <p className="text-xs font-semibold text-slate-500 mb-1">Jednotková cena</p>
+                                        <p className="text-lg font-bold text-slate-900">{selectedPlan.price}€ / mesiac</p>
                                     </div>
                                 </div>
 
                                 <div className="space-y-2 pt-4 border-t border-slate-50">
                                     <div className="flex justify-between items-center text-xs">
-                                        <span className="text-slate-400 font-bold uppercase tracking-widest">Cena bez DPH</span>
+                                        <span className="text-slate-500 font-semibold">Cena bez DPH</span>
                                         <span className="font-bold text-slate-700">{selectedPlan.price}€</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs">
-                                        <span className="text-slate-400 font-bold uppercase tracking-widest">DPH (23%)</span>
+                                        <span className="text-slate-500 font-semibold">DPH (23%)</span>
                                         <span className="font-bold text-slate-700">{(parseFloat(selectedPlan.price) * 0.23).toFixed(2)}€</span>
                                     </div>
                                 </div>
                                 
                                 <div className="flex justify-between items-end pt-4 border-t-2 border-slate-100">
                                     <div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Celkovovo k úhrade</p>
+                                        <p className="text-xs font-semibold text-slate-500 mb-0.5">Celkovo k úhrade</p>
                                         <p className="text-5xl font-black text-orange-600 tracking-tighter">{(parseFloat(selectedPlan.price) * 1.23).toFixed(2)}€</p>
                                     </div>
-                                    <p className="text-[8px] font-black uppercase text-slate-300 mb-1 text-right">Platba <br/> bankovým prevodom</p>
+                                    <p className="text-xs font-semibold text-slate-400 mb-1 text-right">Platba<br/>bankovým prevodom</p>
                                 </div>
                             </div>
 
@@ -532,9 +594,24 @@ Fakturačný Email: ${formData.email}`;
                             
                             <div className="mt-8 flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                                 <FileText size={16} className="text-slate-400 shrink-0"/>
-                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">
-                                    Faktúra s platobnými údajmi bude vygenerovaná automaticky a odoslaná na {formData.email}.
-                                </p>
+                                <div className="text-xs text-slate-600 font-medium leading-relaxed space-y-3">
+                                    <p>
+                                        Faktúru s platobnými údajmi pripravíme a odošleme na <span className="font-bold text-slate-900">{formData.email}</span>.
+                                        Faktúra bude zasielaná v mesačnom harmonograme so 7-dňovou splatnosťou.
+                                    </p>
+                                    <div className="pt-3 border-t border-slate-200">
+                                        <p className="font-bold text-slate-900 mb-1">Dodávateľ</p>
+                                        <p>LORD&apos;S BENISON s.r.o.</p>
+                                        <p>IČO: 52404901</p>
+                                        <p>DIČ: 2121022992</p>
+                                        <p>IČ DPH: SK2121022992</p>
+                                        <p>Sídlo: M. Nandrássyho 654/10, 050 01 Revúca</p>
+                                    </div>
+                                    <p className="pt-3 border-t border-slate-200">
+                                        V prípade potreby volajte na infolinku <a href="tel:0948225713" className="font-bold text-orange-600">0948 225 713</a>
+                                        {' '}alebo napíšte na <a href="mailto:sluzby@lordsbenison.eu" className="font-bold text-orange-600">sluzby@lordsbenison.eu</a>.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -542,6 +619,43 @@ Fakturačný Email: ${formData.email}`;
             </div>
         )}
       </div>
+
+      {step !== 2 && (
+      <footer className="max-w-6xl mx-auto w-full px-4 sm:px-6 mt-auto pt-6 md:max-w-4xl md:pt-10 md:pb-4">
+        <div className="bg-white/90 border border-slate-100 rounded-2xl p-4 sm:p-5 shadow-sm md:bg-transparent md:border-0 md:rounded-none md:p-0 md:shadow-none">
+          <div className="flex flex-col md:items-center gap-4 md:gap-2 md:text-center">
+            <div className="space-y-2 min-w-0 md:space-y-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 leading-tight md:text-[9px] md:tracking-[0.16em]">Prevádzkovateľ služby MojaStavba</p>
+              <div className="md:flex md:items-center md:justify-center md:gap-2">
+                <p className="text-sm font-bold text-slate-900 leading-snug md:text-xs">LORD&apos;S BENISON s.r.o.</p>
+                <span className="hidden md:block text-slate-300">•</span>
+                <p className="hidden md:block text-[11px] font-medium text-slate-500">M. Nandrássyho 654/10, 050 01 Revúca</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 text-xs text-slate-600 font-medium leading-relaxed md:flex md:flex-wrap md:justify-center md:gap-x-3 md:gap-y-0 md:text-[10px] md:text-slate-500">
+                <span>IČO: 52404901</span>
+                <span>DIČ: 2121022992</span>
+                <span>IČ DPH: SK2121022992</span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed md:hidden">
+                Sídlo: M. Nandrássyho 654/10, 050 01 Revúca
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 lg:items-end lg:text-right border-t border-slate-100 pt-3 md:border-t md:border-slate-100 md:pt-3 md:items-center md:text-center md:gap-2 md:w-full">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 text-xs font-bold md:text-[11px] md:font-semibold">
+                <a href="tel:0948225713" className="text-slate-800 hover:text-orange-600 transition">0948 225 713</a>
+                <span className="hidden sm:inline text-slate-300">·</span>
+                <a href="mailto:sluzby@lordsbenison.eu" className="text-slate-800 hover:text-orange-600 transition break-all sm:break-normal">sluzby@lordsbenison.eu</a>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] md:text-[9px] md:tracking-[0.14em]">
+                <a href="/vseobecne-obchodne-podmienky.html" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-orange-600 transition">VOP</a>
+                <span className="text-slate-200">/</span>
+                <a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-orange-600 transition">GDPR</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+      )}
 
       <AlertModal 
         isOpen={alertState.open} 

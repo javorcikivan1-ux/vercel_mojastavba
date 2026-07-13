@@ -133,6 +133,27 @@ h4 {
   font-weight: 500;
 }
 
+.brand-wordmark {
+  font-family: "Segoe UI Variable Display", "Aptos Display", "Trebuchet MS", Inter, system-ui, sans-serif;
+  font-weight: 850;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  color: #0f172a;
+  font-feature-settings: "ss01", "cv02", "cv03";
+}
+
+.brand-wordmark .brand-wordmark-accent {
+  color: #ea580c;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 48%, #c2410c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.brand-wordmark-light {
+  color: #fff;
+}
+
 @media (max-width: 640px) {
   body {
     -webkit-font-smoothing: subpixel-antialiased;

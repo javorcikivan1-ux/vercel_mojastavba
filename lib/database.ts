@@ -54,7 +54,8 @@ CREATE TABLE public.organizations (
     is_vat_payer BOOLEAN DEFAULT false,
     address_type TEXT DEFAULT 'sidlo',
     business_address TEXT,
-    stamp_url TEXT
+    stamp_url TEXT,
+    is_hidden_admin BOOLEAN DEFAULT false
 );
 
 CREATE TABLE public.profiles (

@@ -248,10 +248,16 @@ const TeamList = ({ profile, onSelect }: any) => {
           await supabase.from('profiles').update({ is_active: true }).eq('id', confirm.id);
       } else if (confirm.action === 'delete') {
           await supabase.from('profiles').delete().eq('id', confirm.id);
+      } else if (confirm.action === 'cancel-invite') {
+          await supabase
+              .from('employee_invites')
+              .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+              .eq('id', confirm.id);
+          setPendingInvites(prev => prev.filter(item => item.id !== confirm.id));
       }
       setConfirm({ ...confirm, open: false });
       setPage(0);
-      load(true);
+      if (confirm.action !== 'cancel-invite') load(true);
   };
 
   const toggleArchive = (worker: any, e: any) => {
@@ -269,19 +275,14 @@ const TeamList = ({ profile, onSelect }: any) => {
       setConfirm({ open: true, action: 'delete', id });
   }
 
-  const handleCancelInvite = async (invite: any, e: any) => {
+  const handleCancelInvite = (invite: any, e: any) => {
       e.stopPropagation();
-      try {
-          const { error } = await supabase
-              .from('employee_invites')
-              .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
-              .eq('id', invite.id);
-
-          if (error) throw error;
-          setPendingInvites(prev => prev.filter(item => item.id !== invite.id));
-      } catch (error: any) {
-          setAlert({ open: true, title: 'Chyba', message: error.message || 'Pozvánku sa nepodarilo zrušiť.' });
-      }
+      setConfirm({
+          open: true,
+          action: 'cancel-invite',
+          id: invite.id,
+          name: invite.employee_name || invite.email
+      });
   };
 
   const copyInviteLink = () => {
@@ -520,13 +521,15 @@ const TeamList = ({ profile, onSelect }: any) => {
         isOpen={confirm.open}
         onClose={() => setConfirm({ ...confirm, open: false })}
         onConfirm={handleConfirmAction}
-        title={confirm.action === 'archive' ? 'Archivovať?' : confirm.action === 'delete' ? 'Zmazať?' : 'Obnoviť?'}
+        title={confirm.action === 'archive' ? 'Archivovať?' : confirm.action === 'delete' ? 'Zmazať?' : confirm.action === 'cancel-invite' ? 'Zrušiť pozvánku?' : 'Obnoviť?'}
         message={confirm.action === 'archive' 
             ? `Naozaj chcete archivovať zamestnanca ${confirm.name}? Zmizne z výberu, ale dáta ostanú.`
             : confirm.action === 'delete' 
-            ? "Naozaj natrvalo zmazať? Odporúčame radšej archiváciu." 
+            ? "Naozaj natrvalo zmazať? Odporúčame radšej archiváciu."
+            : confirm.action === 'cancel-invite'
+            ? `Naozaj chcete zrušiť pozvánku pre ${confirm.name}? V zozname pozvaných sa už nebude zobrazovať.`
             : "Obnoviť zamestnanca do aktívneho stavu?"}
-        type={confirm.action === 'delete' ? 'danger' : 'primary'}
+        type={confirm.action === 'delete' || confirm.action === 'cancel-invite' ? 'danger' : 'primary'}
       />
       
       <AlertModal
@@ -837,10 +840,10 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
     if(loading) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-orange-600" size={40}/></div>;
 
     return (
-        <div className="space-y-6 pb-20 animate-in fade-in duration-300">
+        <div className="space-y-6 pb-8 md:pb-20 animate-in fade-in duration-300">
             <div className="flex justify-between items-center">
-                 <button onClick={onBack} className="text-slate-500 hover:text-slate-900 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition">
-                    <ArrowLeft size={16}/> Späť na tím
+                 <button onClick={onBack} className="h-10 px-3 rounded-xl text-slate-600 hover:text-slate-950 hover:bg-white border border-transparent hover:border-slate-200 font-semibold text-sm flex items-center gap-2 transition group">
+                    <ArrowLeft size={17} className="group-hover:-translate-x-0.5 transition-transform"/> Späť na tím
                  </button>
                  <button 
                     onClick={() => setShowEditModal(true)} 

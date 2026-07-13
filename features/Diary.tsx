@@ -5,9 +5,9 @@ import { Card, Button, Input, Select, AlertModal } from '../components/UI';
 import { 
   BookOpen, Calendar, Cloud, Sun, CloudRain, Wind, Thermometer, Truck, 
   Users, Package, Save, FileDown, ArrowLeft, Plus, PenTool, ArrowRight, 
-  Copy, Lock, Camera, CheckCircle2, AlertCircle, Loader2, X, RefreshCw, Unlock, Printer, Search, Building2, Info, ListChecks
+  Copy, Camera, AlertCircle, Loader2, X, RefreshCw, Printer, Search, Building2, Info, ListChecks
 } from 'lucide-react';
-import { formatDate } from '../lib/utils';
+import { formatDate, formatDuration } from '../lib/utils';
 import { exportElementToPdf } from '../lib/pdfExport';
 
 const getLocalDateString = (date: Date) => {
@@ -15,6 +15,13 @@ const getLocalDateString = (date: Date) => {
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
     const d = date.getDate().toString().padStart(2, '0');
     return `${y}-${m}-${d}`;
+};
+
+const getDiaryPhotoStoragePath = (url: string) => {
+    const marker = '/storage/v1/object/public/diary-photos/';
+    const index = url.indexOf(marker);
+    if (index === -1) return null;
+    return decodeURIComponent(url.substring(index + marker.length));
 };
 
 const compressImageToBlob = (file: File): Promise<Blob> => {
@@ -28,7 +35,7 @@ const compressImageToBlob = (file: File): Promise<Blob> => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_SIZE = 1024;
+                const MAX_SIZE = 960;
 
                 if (width > height) {
                     if (width > MAX_SIZE) {
@@ -50,7 +57,7 @@ const compressImageToBlob = (file: File): Promise<Blob> => {
                 canvas.toBlob((blob) => {
                     if (blob) resolve(blob);
                     else reject(new Error('Chyba pri kompresii.'));
-                }, 'image/jpeg', 0.7); 
+                }, 'image/jpeg', 0.55); 
             };
         };
         reader.onerror = (err) => reject(err);
@@ -68,20 +75,20 @@ const DIARY_TRANSLATIONS: any = {
     diary_section_mechanisms: '3. Mechanizmy a Stroje', diary_section_mechanisms_sub: 'Nasadenie techniky na zákazke',
     diary_section_photos: '4. Fotodokumentácia', diary_section_photos_sub: 'Fotografie sú bezpečne uložené v cloude',
     diary_notes_placeholder: 'Sem zapíšte priebeh prác...', mechanisms_placeholder: 'Napr. Bager (8h), žeriav...',
-    save_draft: 'Uložiť (Rozpracované)', sign_and_close: 'Uzavrieť a Podpísať', take_photo: 'Pridať foto',
-    daily_summary: 'Denný Súhrn', workers_on_site: 'pracovníkov na zákazke', hours_unit: 'hodín',
-    available_works: 'Dostupné práce', from_today_attendance: 'Z dnešnej dochádzky', material_purchases: 'Nákupy materiálu',
-    from_today_costs: 'Z dnešných nákladov', no_purchases: 'Žiadne nákupy.', status_draft: 'Rozpracovaný',
-    status_signed: 'Uzavretý', loading_record: 'Načítavam záznam...', copy_yesterday: 'Kopírovať včerajšok',
+    save_draft: 'Uložiť záznam', sign_and_close: 'Uložiť záznam', take_photo: 'Pridať foto',
+    daily_summary: 'Denný súhrn', workers_on_site: 'pracovníkov na zákazke', hours_unit: 'hodín',
+    available_works: 'Dostupné práce', from_today_attendance: 'Z dochádzky dňa', material_purchases: 'Nákupy materiálu',
+    from_today_costs: 'Z dnešných nákladov', no_purchases: 'Žiadne nákupy.', status_draft: 'Pracovný záznam',
+    status_signed: 'Uložený', loading_record: 'Načítavam záznam...', copy_yesterday: 'Kopírovať včerajšok',
     import_from_attendance: 'Importovať z dochádzky', last_saved: 'Naposledy uložené', not_saved_yet: 'Zatiaľ neuložené',
     details: 'Podrobnosti', workers: 'Pracovníci', record: 'Záznam', click_to_edit: 'Kliknutím otvorte na úpravu',
-    no_day_records: 'Žiadne záznamy pre tento deň.', no_records: 'Žiadne záznamy', unlock_for_edits: 'Odomknúť pre úpravy',
-    diary_signed_msg: 'Denník bol uzavretý a podpísaný.', diary_unlocked_msg: 'Záznam bol odomknutý pre úpravy.',
-    diary_saved: 'Denník bol uložený.', prev_day_copied: 'Dáta z predchádzajúceho dňa boli skopírované.',
+    no_day_records: 'Žiadne záznamy pre tento deň.', no_records: 'Žiadne záznamy', unlock_for_edits: 'Upraviť záznam',
+    diary_signed_msg: 'Záznam bol uložený.', diary_unlocked_msg: 'Záznam je pripravený na úpravu.',
+    diary_saved: 'Záznam bol uložený.', prev_day_copied: 'Dáta z predchádzajúceho dňa boli skopírované.',
     no_prev_day_record: 'Pre predchádzajúci deň sa nenašiel žiadny záznam.', search_site_placeholder: 'Vyhľadať zákazku',
     export_pdf: 'Export PDF', generating: 'Generujem...', archive_label: 'Archív', active_label: 'Aktívna',
     total_materials: 'Súčet materiálov', stamp_signature: 'Pečiatka a podpis zhotoviteľa', morning_7: 'Teplota 7:00', noon_13: 'Teplota 13:00',
-    days_short: ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'], site_label: 'Zákazka', date_label: 'Dátum', generated_via: 'Vygenerované cez MojaStavba', unlock_for_edits_desc: 'Pre úpravy je potrebné záznam najskôr odomknúť.',
+    days_short: ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'], site_label: 'Zákazka', date_label: 'Dátum', generated_via: 'Vygenerované cez MojaStavba', unlock_for_edits_desc: 'Záznam je možné priebežne upravovať.',
     confirm: 'Potvrdiť', cancel: 'Zrušiť', understand: 'Rozumiem'
   },
   en: {
@@ -259,7 +266,6 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
   
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [diaryEntry, setDiaryEntry] = useState<any>(null);
-  const [isLocked, setIsLocked] = useState(false);
   const [siteFilterMode, setSiteFilterMode] = useState<'active' | 'archive' | 'all'>('active');
   
   const [dailyAttendance, setDailyAttendance] = useState<any[]>([]);
@@ -418,7 +424,6 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
               status: 'draft',
               photos: []
           });
-          setIsLocked(record?.status === 'signed');
           setDailyAttendance(attendance || []);
           setDailyMaterials(materials || []);
       } catch (e) {
@@ -513,48 +518,28 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
   const handleSave = async (e?: React.FormEvent, status = 'draft') => {
       if(e) e.preventDefault();
       if(!selectedDay || !selectedSiteId || !diaryEntry) return;
+      const normalizedStatus = 'draft';
       const dateStr = getLocalDateString(selectedDay);
       const payload = {
           ...diaryEntry,
           site_id: selectedSiteId,
           organization_id: profile.organization_id,
           date: dateStr,
-          status
+          status: normalizedStatus
       };
 
       const { id, ...saveData } = payload; 
       try {
           if (diaryEntry.id) {
-              await supabase.from('diary_records').update({ ...saveData, status }).eq('id', diaryEntry.id);
+              await supabase.from('diary_records').update({ ...saveData, status: normalizedStatus }).eq('id', diaryEntry.id);
           } else {
               const { data } = await supabase.from('diary_records').insert([saveData]).select().single();
               if(data) setDiaryEntry(data);
           }
-          if (status === 'signed') {
-              setIsLocked(true);
-              setAlertState({ open: true, message: t('diary_signed_msg'), type: 'success' });
-          } else {
-              setAlertState({ open: true, message: t('diary_saved'), type: 'success' });
-          }
+          setAlertState({ open: true, message: t('diary_saved'), type: 'success' });
           fetchMonthOverview();
       } catch (err: any) {
           setAlertState({ open: true, message: err.message, type: 'error' });
-      }
-  };
-
-  const handleUnlock = async () => {
-      if (!diaryEntry?.id) return;
-      setLoading(true);
-      try {
-          await supabase.from('diary_records').update({ status: 'draft' }).eq('id', diaryEntry.id);
-          setDiaryEntry({ ...diaryEntry, status: 'draft' });
-          setIsLocked(false);
-          setAlertState({ open: true, message: t('diary_unlocked_msg'), type: 'success' });
-          fetchMonthOverview();
-      } catch (err: any) {
-          setAlertState({ open: true, message: err.message, type: 'error' });
-      } finally {
-          setLoading(false);
       }
   };
 
@@ -593,7 +578,19 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
       }
   };
 
-  const removePhoto = (index: number) => {
+  const removePhoto = async (index: number) => {
+      const photoUrl = diaryEntry.photos?.[index];
+      const storagePath = photoUrl ? getDiaryPhotoStoragePath(photoUrl) : null;
+
+      if (storagePath) {
+          const { error } = await supabase.storage.from('diary-photos').remove([storagePath]);
+          if (error) {
+              console.error(error);
+              setAlertState({ open: true, message: error.message, type: 'error' });
+              return;
+          }
+      }
+
       setDiaryEntry((prev: any) => ({
           ...prev,
           photos: (prev.photos || []).filter((_: any, i: number) => i !== index)
@@ -814,7 +811,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
 
                         <div className="flex-1 space-y-4">
                             {!searchSiteQuery && (
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                                     {[
                                         { id: 'active', label: 'Aktívne', count: activeSites.length },
                                         { id: 'archive', label: 'Ukončené', count: archivedSites.length },
@@ -824,14 +821,17 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                                             key={option.id}
                                             type="button"
                                             onClick={() => setSiteFilterMode(option.id as 'active' | 'archive' | 'all')}
-                                            className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                                            className={`rounded-xl border px-2 py-2 sm:px-3 sm:py-2.5 text-center sm:text-left transition ${
                                                 siteFilterMode === option.id
                                                     ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm'
                                                     : 'border-slate-200 bg-white text-slate-700 hover:border-orange-200'
                                             }`}
                                         >
-                                            <div className="text-sm font-bold leading-tight">{option.label}</div>
-                                            <div className="text-xs font-semibold opacity-80">{option.count} zákaziek</div>
+                                            <div className="text-[13px] sm:text-sm font-bold leading-tight whitespace-nowrap">{option.label}</div>
+                                            <div className="text-[11px] sm:text-xs font-semibold opacity-80 leading-tight">
+                                                <span className="tabular-nums">{option.count}</span>
+                                                <span className="hidden sm:inline"> zákaziek</span>
+                                            </div>
                                         </button>
                                     ))}
                                 </div>
@@ -839,8 +839,8 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
 
                             <div>
                                 <div className="flex items-center justify-between gap-3 mb-2">
-                                    <div className="text-sm font-bold text-slate-700">{visibleSitesLabel}</div>
-                                    <div className="text-sm font-semibold text-slate-600">{visibleSites.length} výsledkov</div>
+                                    <div className="text-sm font-bold text-slate-700 truncate">{visibleSitesLabel}</div>
+                                    <div className="text-sm font-semibold text-slate-600 whitespace-nowrap">{visibleSites.length} výsledkov</div>
                                 </div>
                                 {visibleSites.length > 0 ? (
                                     <div className="max-h-[430px] overflow-y-auto custom-scrollbar">
@@ -890,7 +890,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
               <div className="flex justify-between items-start mb-3">
                   <h4 className="font-extrabold text-slate-900">{previewDay.date.toLocaleDateString(getLocaleCode(), { day: 'numeric', month: 'long' })}</h4>
                   <div className="flex gap-1">
-                    {previewDay.stats?.status === 'signed' && <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold uppercase">{t('status_signed')}</span>}
+                    {previewDay.stats?.record && <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold uppercase">{t('record')}</span>}
                     {previewDay.stats?.totalHours > 0 && <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">{previewDay.stats.totalHours.toFixed(1)}h</span>}
                   </div>
               </div>
@@ -946,7 +946,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
              <div className="sticky top-0 z-30 mb-6 bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
   
-  {/* HORNÝ RIADOK - názov zákazky + status */}
+  {/* HORNÝ RIADOK - názov zákazky */}
   <div className="bg-slate-50 border-b border-slate-100 px-4 py-2 flex items-center justify-between">
       <div className="flex items-center gap-2 min-w-0 flex-1">
           <Building2 size={14} className="text-slate-400 flex-shrink-0"/>
@@ -954,16 +954,6 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
               {currentSiteName}
           </span>
       </div>
-
-      {isLocked ? (
-          <span className="text-green-700 flex items-center gap-1 bg-green-100 px-2 py-0.5 rounded-full border border-green-200 text-[9px] font-bold uppercase tracking-wider">
-              <Lock size={10}/> {t('status_signed')}
-          </span>
-      ) : (
-          <span className="text-orange-700 flex items-center gap-1 bg-orange-100 px-2 py-0.5 rounded-full border border-orange-200 text-[9px] font-bold uppercase tracking-wider">
-              <PenTool size={10}/> {t('status_draft')}
-          </span>
-      )}
   </div>
 
   {/* HLAVNÝ RIADOK – späť / dátum / akcie */}
@@ -1003,17 +993,15 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
 
       {/* PRAVO – akcie */}
       <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
-          {!isLocked && (
-              <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleCopyPreviousDay}
-                  className="flex-1 sm:flex-none"
-              >
-                  <Copy size={16}/>
-                  <span className="hidden lg:inline ml-1">{t('copy_yesterday')}</span>
-              </Button>
-          )}
+          <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCopyPreviousDay}
+              className="flex-1 sm:flex-none"
+          >
+              <Copy size={16}/>
+              <span className="hidden lg:inline ml-1">{t('copy_yesterday')}</span>
+          </Button>
 
           <Button
               variant="secondary"
@@ -1032,21 +1020,6 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                   <div className="xl:col-span-2 space-y-6">
                       <Card className="border-t-4 border-t-orange-500 relative overflow-hidden shadow-md">
-                          {isLocked && (
-                              <div className="absolute inset-0 bg-slate-50/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm animate-in fade-in">
-                                  <div className="bg-white p-6 rounded-2xl shadow-2xl font-bold flex flex-col items-center gap-4 text-center border border-slate-200 max-w-sm">
-                                      <div className="bg-green-100 p-3 rounded-full text-green-600"><Lock size={32}/></div>
-                                      <div>
-                                          <h3 className="text-lg text-slate-900">{t('status_signed')}</h3>
-                                          <p className="text-xs text-slate-500 font-medium mt-1">{t('unlock_for_edits_desc')}</p>
-                                      </div>
-                                      <Button variant="secondary" onClick={handleUnlock} size="sm" className="mt-2 w-full text-red-600 hover:bg-red-50 hover:border-red-200">
-                                          <Unlock size={16}/> {t('unlock_for_edits')}
-                                      </Button>
-                                  </div>
-                              </div>
-                          )}
-                          
                           <SectionHeader icon={Cloud} title={t('diary_section_weather')} sub={t('diary_section_weather_sub')} />
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100">
                               <Select label={t('weather_status')} value={diaryEntry.weather} onChange={(e: any) => setDiaryEntry({...diaryEntry, weather: e.target.value})}>
@@ -1067,7 +1040,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                             title={t('diary_section_notes')} 
                             sub={t('diary_section_notes_sub')} 
                             action={
-                                !isLocked && dailyAttendance.length > 0 && (
+                                dailyAttendance.length > 0 && (
                                     <button onClick={importAttendanceToNotes} className="text-[10px] flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 transition font-bold" title={t('import_from_attendance')}>
                                         <RefreshCw size={12}/> {t('import_from_attendance')}
                                     </button>
@@ -1104,7 +1077,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
 
                           <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
                               <div 
-                                onClick={() => !isLocked && !loading && fileInputRef.current?.click()}
+                                onClick={() => !loading && fileInputRef.current?.click()}
                                 className="aspect-square border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-orange-400 cursor-pointer transition active:scale-95"
                               >
                                   {loading ? <Loader2 size={24} className="animate-spin mb-2"/> : <Camera size={24} className="mb-2"/>}
@@ -1114,14 +1087,12 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                               {diaryEntry.photos?.map((photo: string, index: number) => (
                                   <div key={index} className="aspect-square relative rounded-xl overflow-hidden border border-slate-200 group bg-slate-100 shadow-sm">
                                       <img src={photo} alt={`Foto ${index + 1}`} crossOrigin="anonymous" className="w-full h-full object-cover" loading="lazy" />
-                                      {!isLocked && (
-                                          <button 
-                                            onClick={() => removePhoto(index)}
-                                            className="absolute top-1 right-1 bg-white/90 p-1.5 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition hover:bg-white hover:text-red-600 shadow-sm"
-                                          >
-                                              <X size={14} />
-                                          </button>
-                                      )}
+                                      <button 
+                                        onClick={() => removePhoto(index)}
+                                        className="absolute top-1 right-1 bg-white/90 p-1.5 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition hover:bg-white hover:text-red-600 shadow-sm"
+                                      >
+                                          <X size={14} />
+                                      </button>
                                   </div>
                               ))}
                           </div>
@@ -1130,9 +1101,6 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                               <div className="flex flex-col gap-3 w-full md:flex-row md:justify-end md:gap-3 order-1 md:order-2">
                                   <Button variant="secondary" onClick={(e: any) => handleSave(e, 'draft')} fullWidth className="md:w-auto justify-center">
                                       <Save size={18}/> {t('save_draft')}
-                                  </Button>
-                                  <Button variant="primary" onClick={(e: any) => handleSave(e, 'signed')} fullWidth className="md:w-auto bg-green-600 hover:bg-green-700 shadow-green-200 border-none text-white justify-center">
-                                      <CheckCircle2 size={18}/> {t('sign_and_close')}
                                   </Button>
                               </div>
                               <div className="text-xs text-slate-400 text-center md:text-left order-2 md:order-1 w-full md:w-auto mt-2 md:mt-0">
@@ -1143,31 +1111,31 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                   </div>
 
                   <div className="space-y-6">
-                      <div className="bg-gradient-to-br from-orange-50 to-white text-slate-800 p-5 rounded-2xl shadow-md border border-orange-100 relative overflow-hidden">
+                      <div className="bg-white text-slate-800 p-5 rounded-2xl shadow-sm border border-orange-100 relative overflow-hidden">
                           <div className="relative z-10">
-                              <h4 className="font-bold text-xs uppercase tracking-wider mb-2 text-orange-600 opacity-80">{t('daily_summary')}</h4>
-                              <div className="text-3xl font-extrabold flex items-baseline gap-2 text-slate-900">
-                                  {dailyAttendance.reduce((a,b) => a + Number(b.hours), 0).toFixed(1)} <span className="text-lg font-medium opacity-60">{t('hours_unit')}</span>
+                              <h4 className="font-semibold text-sm text-slate-700 mb-2">{t('daily_summary')}</h4>
+                              <div className="text-2xl font-bold flex items-baseline gap-2 text-slate-900 tabular-nums">
+                                  {formatDuration(dailyAttendance.reduce((a,b) => a + Number(b.hours), 0))} <span className="text-sm font-medium text-slate-500">spolu</span>
                               </div>
-                              <div className="mt-2 text-xs font-medium text-slate-500">{dailyAttendance.length} {t('workers_on_site')}</div>
+                              <div className="mt-2 text-sm font-medium text-slate-500">{dailyAttendance.length} {t('workers_on_site')}</div>
                           </div>
-                          <div className="absolute right-[-10px] bottom-[-10px] text-orange-500/10 transform rotate-12">
-                              <Users size={100} />
+                          <div className="absolute right-4 top-4 text-orange-500/15">
+                              <Users size={38} />
                           </div>
                       </div>
 
                       <Card className="bg-white border-slate-200 shadow-sm p-4">
-                          <SectionHeader icon={ListChecks} title={t('available_works')} sub={t('from_today_attendance')} />
+                          <SectionHeader icon={ListChecks} title={t('available_works')} sub={`${t('from_today_attendance')} ${formatDate(getLocalDateString(selectedDay))}`} />
                           {dailyAttendance.length === 0 ? <div className="text-sm text-slate-400 italic py-2 text-center">{t('no_records')}.</div> : (
                               <div className="space-y-3">
                                   {dailyAttendance.map(log => (
-                                      <div key={log.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs shadow-sm hover:border-blue-200 transition group relative overflow-hidden">
-                                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400"></div>
-                                          <div className="flex justify-between items-start mb-1">
-                                              <span className="font-black text-slate-800 uppercase tracking-tighter text-[9px]">{log.profiles?.full_name}</span>
-                                              <span className="font-mono font-bold text-blue-600">{Number(log.hours).toFixed(1)}h</span>
+                                      <div key={log.id} className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 text-sm shadow-sm hover:border-blue-200 transition group relative overflow-hidden">
+                                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400/70"></div>
+                                          <div className="flex justify-between items-start gap-3 mb-1 pl-1">
+                                              <span className="font-semibold text-slate-900 leading-snug">{log.profiles?.full_name}</span>
+                                              <span className="font-semibold text-blue-700 tabular-nums whitespace-nowrap">{formatDuration(Number(log.hours || 0))}</span>
                                           </div>
-                                          <p className="text-slate-600 italic font-medium leading-relaxed">
+                                          <p className="text-slate-600 italic font-medium leading-relaxed pl-1">
                                               {log.description || `(${t('no_records')})`}
                                           </p>
                                       </div>
@@ -1196,36 +1164,48 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
               </div>
 
               <div className="fixed left-[-9999px]">
-                  <div ref={printRef} className="w-[190mm] bg-white p-8 text-slate-900 font-sans text-sm leading-normal relative box-border text-left flex flex-col min-h-[277mm]">
-                      <div className="absolute top-4 right-4 text-[10px] text-slate-400">{t('generated_via')}</div>
-                      <div className="border-b-2 border-black pb-4 mb-6">
-                          <h1 className="text-2xl font-bold uppercase tracking-widest text-center mb-2">{t('manage_diary')}</h1>
-                          <div className="flex justify-between items-end mt-4">
-                              <div>
-                                  <div className="font-bold text-lg">{currentSiteName}</div>
-                                  <div className="text-xs uppercase tracking-wide text-slate-500">{t('site_label')}</div>
-                              </div>
-                              <div className="text-right">
-                                  <div className="font-bold text-xl">{selectedDay.toLocaleDateString(getLocaleCode())}</div>
-                                  <div className="text-xs uppercase tracking-wide text-slate-500">{t('date_label')}</div>
+                  <div ref={printRef} className="w-[190mm] bg-white p-0 text-slate-900 font-sans text-sm leading-normal relative box-border text-left flex flex-col min-h-[277mm]">
+                      <div className="px-10 pt-7 pb-3 flex justify-between items-start text-[10px] text-slate-500 border-b border-slate-100">
+                          <div>
+                              <div className="font-bold text-slate-950 text-sm leading-tight">{organization?.name}</div>
+                              <div className="mt-1 space-y-0.5">
+                                  {organization?.ico && <div>IČO: {organization.ico}</div>}
+                                  {organization?.dic && <div>DIČ: {organization.dic}</div>}
+                                  {organization?.business_address && <div>{organization.address_type === 'sidlo' ? 'Sídlo' : 'Miesto podnikania'}: {organization.business_address}</div>}
                               </div>
                           </div>
+                          <div className="text-right text-slate-400">
+                              <div>{t('generated_via')} • {new Date().toLocaleDateString(getLocaleCode())}</div>
+                              <div>www.moja-stavba.sk</div>
+                          </div>
                       </div>
-                      <div className="border border-black mb-6">
-                          <div className="bg-slate-100 border-b border-black p-1 text-center font-bold uppercase text-xs">{t('diary_section_weather')}</div>
-                          <div className="grid grid-cols-3 divide-x divide-black text-center p-2">
+                      <div className="px-10 py-8 flex-1 flex flex-col">
+                      <div className="flex justify-between items-start mb-7 border-b border-slate-200 pb-5">
+                          <div>
+                              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-600 mb-2">Denník práce</div>
+                              <h1 className="text-[24px] font-bold text-slate-950 leading-tight tracking-normal">{t('manage_diary')}</h1>
+                              <div className="text-sm text-slate-500 mt-1 font-medium">{currentSiteName}</div>
+                          </div>
+                          <div className="text-right">
+                              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-1">{t('date_label')}</div>
+                              <div className="text-lg font-bold text-slate-950 leading-tight">{selectedDay.toLocaleDateString(getLocaleCode())}</div>
+                          </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 mb-7 break-inside-avoid">
+                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center">{renderWeatherIcon(diaryEntry.weather)}</div>
                               <div>
-                                  <span className="block text-[10px] text-slate-500 uppercase">{t('weather_status')}</span>
-                                  <span className="font-bold">{diaryEntry.weather || '-'}</span>
+                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">{t('weather_status')}</div>
+                                  <div className="font-bold text-slate-950">{diaryEntry.weather || '-'}</div>
                               </div>
-                              <div>
-                                  <span className="block text-[10px] text-slate-500 uppercase">{t('morning_7')}</span>
-                                  <span className="font-bold">{diaryEntry.temperature_morning || '-'} °C</span>
-                              </div>
-                              <div>
-                                  <span className="block text-[10px] text-slate-500 uppercase">{t('noon_13')}</span>
-                                  <span className="font-bold">{diaryEntry.temperature_noon || '-'} °C</span>
-                              </div>
+                          </div>
+                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">{t('morning_7')}</div>
+                              <div className="text-xl font-bold text-slate-950 tabular-nums">{diaryEntry.temperature_morning || '-'} °C</div>
+                          </div>
+                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">{t('noon_13')}</div>
+                              <div className="text-xl font-bold text-slate-950 tabular-nums">{diaryEntry.temperature_noon || '-'} °C</div>
                           </div>
                       </div>
                       {[
@@ -1233,34 +1213,39 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                           { title: `2. ${t('diary_section_mechanisms')}`, content: diaryEntry.mechanisms || t('no_records') },
                           { title: `3. ${t('material_purchases')}`, content: dailyMaterials.length > 0 ? dailyMaterials.map(m => `${m.name} (${m.quantity} ${m.unit})`).join(', ') : t('no_purchases') },
                       ].map((sec, i) => (
-                          <div key={i} className="mb-6">
-                              <div className="font-bold uppercase text-xs border-b border-slate-300 mb-2 pb-1">{sec.title}</div>
-                              <div className="text-justify leading-snug">{sec.content}</div>
+                          <div key={i} className="mb-5 break-inside-avoid">
+                              <div className="font-bold text-sm border-b border-slate-200 mb-2 pb-2 text-slate-900">{sec.title}</div>
+                              <div className="text-slate-700 leading-relaxed">{sec.content}</div>
                           </div>
                       ))}
-                      <div className="mb-8 flex-1">
-                          <div className="font-bold uppercase text-xs border-b border-black mb-2 pb-1">4. {t('diary_section_notes')}</div>
-                          <div className="whitespace-pre-wrap text-justify min-h-[100px] text-sm leading-relaxed border-l-2 border-slate-100 pl-4">{diaryEntry.notes || t('no_records')}</div>
+                      <div className="mb-7 flex-1">
+                          <div className="font-bold text-sm border-b border-slate-200 mb-2 pb-2 text-slate-900">4. {t('diary_section_notes')}</div>
+                          <div className="whitespace-pre-wrap text-slate-700 min-h-[90px] text-sm leading-relaxed bg-slate-50/70 rounded-xl border border-slate-100 p-4">{diaryEntry.notes || t('no_records')}</div>
                       </div>
 
-                      <div className="mt-auto pt-10 border-t border-slate-200 grid grid-cols-2 gap-10">
-                          <div className="text-center">
-                              <div className="h-16 border-b border-slate-300 mb-2"></div>
-                              <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{t('stamp_signature')}</div>
+                      {diaryEntry.photos?.length > 0 && (
+                          <div className="mb-8 break-inside-avoid">
+                              <div className="font-bold text-sm border-b border-slate-200 mb-3 pb-2 text-slate-900">Fotodokumentácia</div>
+                              <div className="grid grid-cols-3 gap-3">
+                                  {diaryEntry.photos.slice(0, 6).map((photo: string, index: number) => (
+                                      <div key={index} className="h-28 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                                          <img src={photo} alt={`Foto ${index + 1}`} crossOrigin="anonymous" className="w-full h-full object-cover" />
+                                      </div>
+                                  ))}
+                              </div>
                           </div>
-                          <div className="text-center relative">
+                      )}
+
+                      <div className="mt-auto pt-16 flex justify-end pb-4 break-inside-avoid">
+                          <div className="text-center relative w-[80mm]">
                               <div className="h-16 border-b border-slate-300 mb-2 flex items-center justify-center">
-                                  {organization.stamp_url && (
-                                      <img 
-                                          src={organization.stamp_url} 
-                                          alt="Pečiatka" 
-                                          crossOrigin="anonymous" 
-                                          className="h-28 absolute -top-12 rotate-3 opacity-95 pointer-events-none" 
-                                      />
+                                  {organization?.stamp_url && (
+                                      <img src={organization.stamp_url} alt="Pečiatka" crossOrigin="anonymous" className="h-28 max-w-[70mm] object-contain absolute -top-14 left-1/2 -translate-x-1/2 opacity-95 pointer-events-none" />
                                   )}
                               </div>
-                              <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{t('stamp_signature')}</div>
+                              <div className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.14em]">{t('stamp_signature')}</div>
                           </div>
+                      </div>
                       </div>
                   </div>
               </div>
@@ -1316,7 +1301,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                                 </div>
                                 {hasContent && (
                                     <div className="flex gap-0.5 md:gap-1 bg-white/90 p-0.5 md:p-1 rounded-full shadow-sm border border-slate-100">
-                                        {stats?.hasRecord && <div className={`w-1 h-1 md:w-2 md:h-2 rounded-full ${stats.status === 'signed' ? 'bg-green-500' : 'bg-orange-500'}`}></div>}
+                                        {stats?.hasRecord && <div className="w-1 h-1 md:w-2 md:h-2 rounded-full bg-orange-500"></div>}
                                         {stats?.logs?.length > 0 && <div className="w-1 h-1 md:w-2 md:h-2 rounded-full bg-blue-500"></div>}
                                     </div>
                                 )}
@@ -1334,39 +1319,56 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
 
       {fullExportData && (
           <div className="fixed left-[-9999px]">
-              <div ref={fullPrintRef} className="w-[190mm] bg-white p-8 text-slate-900 font-sans text-xs leading-normal box-border text-left">
-                  <div className="text-right text-[10px] text-slate-400 mb-2">{t('generated_via')}</div>
-                  <div className="border-b-2 border-black pb-4 mb-8">
-                      <h1 className="text-2xl font-bold uppercase tracking-widest text-center mb-1">{t('manage_diary')}</h1>
-                      <div className="text-center text-lg font-bold text-slate-700 uppercase">{currentSiteName}</div>
+              <div ref={fullPrintRef} className="w-[190mm] bg-white p-0 text-slate-900 font-sans text-xs leading-normal box-border text-left">
+                  <div className="px-10 pt-7 pb-3 flex justify-between items-start text-[10px] text-slate-500 border-b border-slate-100">
+                      <div>
+                          <div className="font-bold text-slate-950 text-sm leading-tight">{organization?.name}</div>
+                          <div className="mt-1 space-y-0.5">
+                              {organization?.ico && <div>IČO: {organization.ico}</div>}
+                              {organization?.dic && <div>DIČ: {organization.dic}</div>}
+                          </div>
+                      </div>
+                      <div className="text-right text-slate-400">
+                          <div>{t('generated_via')} • {new Date().toLocaleDateString(getLocaleCode())}</div>
+                          <div>www.moja-stavba.sk</div>
+                      </div>
+                  </div>
+                  <div className="px-10 py-8">
+                  <div className="border-b border-slate-200 pb-5 mb-8">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-600 mb-2">Kompletný export</div>
+                      <h1 className="text-[24px] font-bold text-slate-950 leading-tight tracking-normal">{t('manage_diary')}</h1>
+                      <div className="text-sm text-slate-500 mt-1 font-medium">{currentSiteName}</div>
                   </div>
 
                   {fullExportData.map((day, idx) => (
-                      <div key={idx} className="mb-12 border-b border-slate-200 pb-12 break-inside-avoid">
-                          <div className="flex justify-between items-center mb-4 bg-slate-50 p-2 border-l-4 border-black">
-                              <div className="text-lg font-bold">{formatDate(day.date)}</div>
-                              <div className="text-[10px] uppercase font-bold text-slate-500">{t('record')}</div>
+                      <div key={idx} className="mb-10 border border-slate-200 rounded-2xl overflow-hidden break-inside-avoid">
+                          <div className="flex justify-between items-center bg-slate-50 px-4 py-3 border-b border-slate-200">
+                              <div className="text-base font-bold text-slate-950 tabular-nums">{formatDate(day.date)}</div>
+                              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-[0.14em]">{t('record')}</div>
                           </div>
 
-                          <div className="grid grid-cols-3 border border-black text-center mb-4 bg-slate-100/30">
-                              <div className="p-2 border-r border-black">
-                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center">{t('weather_status')}</div>
-                                  <div className="font-bold text-xs text-center">{day.record?.weather || '-'}</div>
+                          <div className="grid grid-cols-3 gap-3 p-4 border-b border-slate-100">
+                              <div className="bg-slate-50 rounded-xl p-3 flex items-center justify-center gap-2 text-center">
+                                  {renderWeatherIcon(day.record?.weather)}
+                                  <div>
+                                      <div className="text-[8px] uppercase text-slate-500 font-bold text-center tracking-[0.12em]">{t('weather_status')}</div>
+                                      <div className="font-bold text-xs text-center text-slate-900">{day.record?.weather || '-'}</div>
+                                  </div>
                               </div>
-                              <div className="p-2 border-r border-black">
-                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center">{t('morning_7')}</div>
-                                  <div className="font-bold text-xs text-center">{day.record?.temperature_morning ? `${day.record.temperature_morning}°C` : '-'}</div>
+                              <div className="bg-slate-50 rounded-xl p-3">
+                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center tracking-[0.12em]">{t('morning_7')}</div>
+                                  <div className="font-bold text-xs text-center text-slate-900 tabular-nums">{day.record?.temperature_morning ? `${day.record.temperature_morning}°C` : '-'}</div>
                               </div>
-                              <div className="p-2">
-                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center">{t('noon_13')}</div>
-                                  <div className="font-bold text-xs text-center">{day.record?.temperature_noon ? `${day.record.temperature_noon}°C` : '-'}</div>
+                              <div className="bg-slate-50 rounded-xl p-3">
+                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center tracking-[0.12em]">{t('noon_13')}</div>
+                                  <div className="font-bold text-xs text-center text-slate-900 tabular-nums">{day.record?.temperature_noon ? `${day.record.temperature_noon}°C` : '-'}</div>
                               </div>
                           </div>
 
-                          <div className="space-y-4">
+                          <div className="space-y-4 p-4">
                               <div>
-                                  <div className="font-bold uppercase text-[10px] border-b border-slate-300 mb-2 pb-1">1. {t('workers')}</div>
-                                  <div className="text-xs leading-relaxed">
+                                  <div className="font-bold text-[11px] border-b border-slate-200 mb-2 pb-1 text-slate-900">1. {t('workers')}</div>
+                                  <div className="text-xs leading-relaxed text-slate-700">
                                       {day.logs?.length > 0 
                                           ? day.logs.map((l: any, i: number) => `${l.profiles?.full_name} (${Number(l.hours).toFixed(1)}h)`).join(', ') 
                                           : t('no_records')}
@@ -1374,13 +1376,13 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                               </div>
 
                               <div>
-                                  <div className="font-bold uppercase text-[10px] border-b border-slate-300 mb-2 pb-1">2. {t('diary_section_mechanisms')}</div>
-                                  <div className="text-xs">{day.record?.mechanisms || t('no_records')}</div>
+                                  <div className="font-bold text-[11px] border-b border-slate-200 mb-2 pb-1 text-slate-900">2. {t('diary_section_mechanisms')}</div>
+                                  <div className="text-xs text-slate-700">{day.record?.mechanisms || t('no_records')}</div>
                               </div>
 
                               <div>
-                                  <div className="font-bold uppercase text-[10px] border-b border-slate-300 mb-2 pb-1">3. {t('material_purchases')}</div>
-                                  <div className="text-xs">
+                                  <div className="font-bold text-[11px] border-b border-slate-200 mb-2 pb-1 text-slate-900">3. {t('material_purchases')}</div>
+                                  <div className="text-xs text-slate-700">
                                       {day.materials?.length > 0 
                                           ? day.materials.map((m: any, i: number) => `${m.name} (${m.quantity} ${m.unit})`).join(', ') 
                                           : t('no_purchases')}
@@ -1388,28 +1390,42 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                               </div>
 
                               <div>
-                                  <div className="font-bold uppercase text-[10px] border-b border-black mb-2 pb-1">4. {t('diary_section_notes')}</div>
-                                  <div className="text-xs whitespace-pre-wrap text-justify leading-relaxed bg-slate-50/50 p-2 rounded">
+                                  <div className="font-bold text-[11px] border-b border-slate-200 mb-2 pb-1 text-slate-900">4. {t('diary_section_notes')}</div>
+                                  <div className="text-xs whitespace-pre-wrap leading-relaxed bg-slate-50/70 border border-slate-100 p-3 rounded-xl text-slate-700">
                                       {day.record?.notes || t('no_records')}
                                   </div>
                               </div>
+
+                              {day.record?.photos?.length > 0 && (
+                                  <div>
+                                      <div className="font-bold text-[11px] border-b border-slate-200 mb-2 pb-1 text-slate-900">Fotodokumentácia</div>
+                                      <div className="grid grid-cols-4 gap-2">
+                                          {day.record.photos.slice(0, 8).map((photo: string, photoIndex: number) => (
+                                              <div key={photoIndex} className="h-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+                                                  <img src={photo} alt={`Foto ${photoIndex + 1}`} crossOrigin="anonymous" className="w-full h-full object-cover" />
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              )}
                           </div>
                       </div>
                   ))}
                   
-                  <div className="mt-12 pt-8 border-t-2 border-black flex justify-between items-start">
+                  <div className="mt-12 pt-16 grid grid-cols-2 gap-16 pb-4 break-inside-avoid">
                       <div className="text-[10px] text-slate-400">
-                          {t('generated_via')}<br/>
+                          {t('generated_via')}<br />
                           {new Date().toLocaleString(getLocaleCode())}
                       </div>
-                      <div className="text-center relative w-48">
-                            <div className="h-12 border-b border-dotted border-black mb-1 flex items-center justify-center">
-                                {organization.stamp_url && (
-                                    <img src={organization.stamp_url} crossOrigin="anonymous" className="h-20 absolute -top-8 rotate-2 opacity-80" />
-                                )}
-                            </div>
-                            <div className="text-[9px] uppercase font-bold">{t('stamp_signature')}</div>
+                      <div className="text-center relative">
+                          <div className="h-16 border-b border-slate-300 mb-2 flex items-center justify-center">
+                              {organization?.stamp_url && (
+                                  <img src={organization.stamp_url} alt="Pečiatka" crossOrigin="anonymous" className="h-28 max-w-[70mm] object-contain absolute -top-14 left-1/2 -translate-x-1/2 opacity-95 pointer-events-none" />
+                              )}
+                          </div>
+                          <div className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.14em]">{t('stamp_signature')}</div>
                       </div>
+                  </div>
                   </div>
               </div>
           </div>

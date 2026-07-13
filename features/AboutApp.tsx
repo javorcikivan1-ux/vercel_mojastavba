@@ -258,7 +258,7 @@ export const AboutApp = () => {
                 alt="Logo" 
                 className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-9 lg:h-9 object-contain shrink-0 group-hover:scale-110 transition-transform duration-500" 
               />
-              <span className="font-extrabold text-xs sm:text-sm md:text-base lg:text-xl tracking-tight text-slate-900 truncate">Moja<span className="text-orange-600">Stavba</span></span>
+              <span className="brand-wordmark text-xs sm:text-sm md:text-base lg:text-xl truncate">Moja<span className="brand-wordmark-accent">Stavba</span></span>
             </a>
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                <button onClick={() => setShowPricing(true)} className="px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-[9px] sm:text-[10px] md:text-xs font-bold text-slate-800 hover:text-orange-600 rounded-lg sm:rounded-xl border border-slate-200 hover:border-orange-200 bg-white shadow-sm transition-all whitespace-nowrap active:scale-95">Cenník</button>
@@ -383,7 +383,7 @@ export const AboutApp = () => {
                         alt="Logo" 
                         className="w-8 h-8 sm:w-10 sm:h-10 object-contain" 
                       />
-                      <span className="font-black text-lg sm:text-xl tracking-tight text-white">Moja<span className="text-orange-500">Stavba</span></span>
+                      <span className="brand-wordmark brand-wordmark-light text-lg sm:text-xl">Moja<span className="brand-wordmark-accent">Stavba</span></span>
                     </div>
                     <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
                       Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 30 dní zadarmo a bez zadávania platobných údajov.

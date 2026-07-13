@@ -9,7 +9,15 @@ const DAY_HOURS = 18; // Show 18 hours (5:00 - 23:00)
 
 const PRIORITY_FLAG = "#PRIORITY";
 
-export const CalendarScreen = ({ profile, onNavigate }: any) => {
+const isSameCalendarDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
+
+const formatTaskTime = (date: Date) =>
+  date.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' });
+
+export const CalendarScreen = ({ profile, onNavigate, initialAction, onInitialActionHandled }: any) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tasks, setTasks] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
@@ -115,6 +123,28 @@ export const CalendarScreen = ({ profile, onNavigate }: any) => {
       return new Date(date.getTime() - offset).toISOString().slice(0, 16);
   };
 
+  useEffect(() => {
+    if (initialAction?.action !== 'new-task') return;
+
+    const start = new Date();
+    start.setMinutes(0, 0, 0);
+    start.setHours(Math.max(START_HOUR, Math.min(22, start.getHours() + 1)));
+
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    setCurrentDate(start);
+    setNewTask({
+      title: '',
+      description: '',
+      start_date: toLocalIso(start),
+      end_date: toLocalIso(end),
+      categoryId: categories[0]?.id,
+      status: 'todo',
+      isPriority: false
+    });
+    setShowModal(true);
+    onInitialActionHandled?.();
+  }, [initialAction]);
+
   const onDrop = async (e: React.DragEvent, day: Date, hour: number) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('taskId');
@@ -138,8 +168,67 @@ export const CalendarScreen = ({ profile, onNavigate }: any) => {
     }).eq('id', taskId);
   };
 
+  const handleMarkDone = async (taskId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'done' } : t));
+    await supabase.from('tasks').update({ status: 'done' }).eq('id', taskId);
+  };
+
+  const taskLayouts = (() => {
+    const layouts: Record<string, { lane: number; totalLanes: number }> = {};
+
+    weekDays.forEach(day => {
+      const dayTasks = tasks
+        .map(task => ({
+          task,
+          start: new Date(task.start_date),
+          end: new Date(task.end_date)
+        }))
+        .filter(item => item.task.id && !Number.isNaN(item.start.getTime()) && !Number.isNaN(item.end.getTime()) && isSameCalendarDay(item.start, day))
+        .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+      const overlapGroups: Array<typeof dayTasks> = [];
+      let currentGroup: typeof dayTasks = [];
+      let currentGroupEnd: Date | null = null;
+
+      dayTasks.forEach(item => {
+        if (!currentGroup.length || (currentGroupEnd && item.start < currentGroupEnd)) {
+          currentGroup.push(item);
+          if (!currentGroupEnd || item.end > currentGroupEnd) currentGroupEnd = item.end;
+        } else {
+          overlapGroups.push(currentGroup);
+          currentGroup = [item];
+          currentGroupEnd = item.end;
+        }
+      });
+
+      if (currentGroup.length) overlapGroups.push(currentGroup);
+
+      overlapGroups.forEach(group => {
+        const lanes: Array<typeof dayTasks> = [];
+
+        group.forEach(item => {
+          let laneIndex = 0;
+          while (lanes[laneIndex]?.some(existing => existing.start < item.end && existing.end > item.start)) {
+            laneIndex++;
+          }
+          if (!lanes[laneIndex]) lanes[laneIndex] = [];
+          lanes[laneIndex].push(item);
+          layouts[item.task.id] = { lane: laneIndex, totalLanes: 1 };
+        });
+
+        const totalLanes = Math.max(1, lanes.length);
+        group.forEach(item => {
+          layouts[item.task.id] = { lane: layouts[item.task.id]?.lane || 0, totalLanes };
+        });
+      });
+    });
+
+    return layouts;
+  })();
+
   return (
-    <div className="h-full flex flex-col space-y-4">
+    <div className="h-full flex flex-col space-y-4 pb-8 md:pb-0">
       {/* MAPRESTAV HEADER STYLE */}
       <div className="shrink-0 space-y-4 md:space-y-0 md:flex md:justify-between md:items-center">
         <div>
@@ -179,7 +268,7 @@ export const CalendarScreen = ({ profile, onNavigate }: any) => {
 
       <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-auto relative flex flex-col">
         <div className="min-w-[900px] flex-1 relative">
-          <div className="grid grid-cols-[60px_1fr] border-b border-slate-200 sticky top-0 bg-white z-20">
+          <div className="grid grid-cols-[68px_1fr] border-b border-slate-200 sticky top-0 bg-white z-20">
             <div className="p-3 text-center flex items-center justify-center">
                <span className="text-[10px] font-black text-slate-300 uppercase">Čas</span>
             </div>
@@ -198,12 +287,12 @@ export const CalendarScreen = ({ profile, onNavigate }: any) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-[60px_1fr]">
-            <div className="border-r border-slate-200 bg-white">
+          <div className="grid grid-cols-[68px_1fr]">
+            <div className="border-r border-slate-200 bg-white pt-0">
               {Array.from({length: DAY_HOURS}, (_, i) => i + START_HOUR).map(h => (
-                <div key={h} className="h-16 border-b border-slate-100 relative group">
-                   <span className="absolute -top-2.5 left-1/2 transform -translate-x-1/2 bg-white px-1 text-[10px] text-slate-400 group-hover:text-orange-500 font-mono">
-                    {h}:00
+                <div key={h} className="h-16 border-b border-slate-100 group flex items-center justify-center">
+                   <span className="text-[12px] leading-none text-slate-500 group-hover:text-orange-600 font-medium tabular-nums">
+                    {String(h).padStart(2, '0')}:00
                    </span>
                 </div>
               ))}
@@ -238,9 +327,14 @@ export const CalendarScreen = ({ profile, onNavigate }: any) => {
                 const top = (startHour - START_HOUR) * 64; 
                 const durationHrs = (end.getTime() - start.getTime()) / 3600000;
                 const height = durationHrs * 64;
+                const layout = taskLayouts[task.id] || { lane: 0, totalLanes: 1 };
+                const dayWidth = 100 / 7;
+                const widthPercent = dayWidth / layout.totalLanes;
+                const leftPercent = (dayIndex * dayWidth) + (layout.lane * widthPercent);
                 
                 const isPriority = task.description?.includes(PRIORITY_FLAG);
                 const cleanDesc = (task.description || '').replace(PRIORITY_FLAG, '').trim();
+                const isDone = task.status === 'done';
 
                 if (top < 0) return null; 
 
@@ -263,23 +357,43 @@ export const CalendarScreen = ({ profile, onNavigate }: any) => {
                         }); 
                         setShowModal(true); 
                     }}
-                    className="absolute m-0.5 rounded-lg px-2 py-1 shadow-sm overflow-hidden cursor-pointer hover:shadow-md hover:scale-[1.02] transition z-10 border-l-4 border-black/5 select-none flex flex-col group"
+                    className={`absolute rounded-lg px-2 py-1 shadow-sm overflow-hidden cursor-pointer hover:shadow-lg hover:scale-[1.02] transition z-10 border select-none flex flex-col group ${
+                      isDone
+                        ? 'border-slate-300 bg-[repeating-linear-gradient(-45deg,rgba(148,163,184,0.10)_0,rgba(148,163,184,0.10)_5px,rgba(248,250,252,0.95)_5px,rgba(248,250,252,0.95)_12px)] text-slate-500 opacity-90'
+                        : 'border-black/10 text-slate-800'
+                    }`}
                     style={{
                       top: `${top}px`,
-                      left: `calc(${dayIndex * 100}% / 7)`,
-                      width: `calc(100% / 7 - 4px)`,
+                      left: `calc(${leftPercent}% + 2px)`,
+                      width: `calc(${widthPercent}% - 4px)`,
                       height: `${Math.max(30, height)}px`,
-                      backgroundColor: task.color || '#f1f5f9'
+                      backgroundColor: isDone ? undefined : (task.color || '#f1f5f9')
                     }}
                   >
                     <div className="flex justify-between items-start gap-1">
-                         <div className="font-bold truncate w-full leading-tight text-slate-800 text-xs flex items-center gap-1">
-                            {isPriority && <AlertCircle size={12} className="text-red-600 shrink-0" strokeWidth={3}/>}
-                            {task.title}
+                         <div className="min-w-0 flex-1">
+                            <div className={`text-[10px] font-bold leading-none mb-1 flex items-center gap-1 ${isDone ? 'text-slate-500' : 'text-slate-600'}`}>
+                              <span>{formatTaskTime(start)}</span>
+                              {isPriority && <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-100 text-[9px] font-black text-red-700 border border-red-200">!</span>}
+                            </div>
+                            <div className={`font-bold truncate w-full leading-tight text-xs flex items-center gap-1 ${isDone ? 'text-slate-500 line-through decoration-slate-400/70 decoration-2' : 'text-slate-800'}`}>
+                              {isDone && <Check size={12} className="text-slate-500 shrink-0" strokeWidth={3}/>}
+                              {task.title}
+                            </div>
                          </div>
+                         {!isDone && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleMarkDone(task.id, e)}
+                            className="opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 h-5 w-5 rounded-full bg-white/90 border border-green-200 text-green-700 flex items-center justify-center shadow-sm hover:bg-green-50 transition"
+                            title="Označiť ako hotové"
+                          >
+                            <Check size={12} strokeWidth={3}/>
+                          </button>
+                         )}
                     </div>
                     {cleanDesc && (
-                        <div className="truncate w-full opacity-70 text-[9px] font-medium leading-tight mt-0.5 text-slate-600">{cleanDesc}</div>
+                        <div className={`truncate w-full opacity-75 text-[9px] font-medium leading-tight mt-0.5 ${isDone ? 'text-slate-500' : 'text-slate-600'}`}>{cleanDesc}</div>
                     )}
                   </div>
                 )
@@ -318,6 +432,11 @@ export const CalendarScreen = ({ profile, onNavigate }: any) => {
                 {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
               </Select>
             </div>
+
+            <Select label="Stav úlohy" value={newTask.status || 'todo'} onChange={(e: any) => setNewTask({...newTask, status: e.target.value})}>
+              <option value="todo">Na pláne</option>
+              <option value="done">Hotovo</option>
+            </Select>
             
             <div>
               <div className="flex justify-between items-center mb-2">
@@ -365,7 +484,14 @@ export const CalendarScreen = ({ profile, onNavigate }: any) => {
 
             <div className="flex justify-between items-center pt-4 border-t border-slate-100 mt-2">
               {newTask.id ? <Button type="button" variant="danger" onClick={handleDeleteClick}><Trash2 size={16}/> Zmazať</Button> : <div></div>}
-              <Button type="submit">Uložiť Úlohu</Button>
+              <div className="flex items-center gap-2">
+                {newTask.id && newTask.status !== 'done' && (
+                  <Button type="button" variant="secondary" onClick={() => setNewTask({...newTask, status: 'done'})}>
+                    <Check size={16}/> Hotovo
+                  </Button>
+                )}
+                <Button type="submit">Uložiť Úlohu</Button>
+              </div>
             </div>
           </form>
         </Modal>

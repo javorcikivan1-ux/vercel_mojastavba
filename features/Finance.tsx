@@ -108,7 +108,7 @@ export const FinanceScreen = ({ profile }: any) => {
 
     const [transRes, logsRes, fuelRes, matsRes] = await Promise.all([
         supabase.from('transactions').select('*, sites(name)').eq('organization_id', orgId).gte('date', start).lte('date', end),
-        supabase.from('attendance_logs').select('*, sites(name), profiles(full_name, hourly_rate)').eq('organization_id', orgId).gte('date', start).lte('date', end),
+        supabase.from('attendance_logs').select('*, sites(name), profiles(full_name, hourly_rate, cost_rate)').eq('organization_id', orgId).gte('date', start).lte('date', end),
         supabase.from('fuel_logs').select('*, sites(name)').eq('organization_id', orgId).gte('date', start).lte('date', end),
         supabase.from('materials').select('*, sites(name)').eq('organization_id', orgId).gte('purchase_date', start).lte('purchase_date', end)
     ]);
@@ -123,7 +123,9 @@ export const FinanceScreen = ({ profile }: any) => {
         const userId = l.user_id;
         const siteId = l.site_id || 'none';
         const key = `${userId}_${siteId}`;
-        const amt = l.payment_type === 'fixed' ? Number(l.fixed_amount) : (Number(l.hours) * (l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
+        const amt = l.payment_type === 'fixed'
+            ? Number(l.fixed_amount)
+            : (Number(l.hours) * (l.cost_rate_snapshot || l.profiles?.cost_rate || l.hourly_rate_snapshot || l.profiles?.hourly_rate || 0));
         
         if (!wageGroups[key]) {
             wageGroups[key] = {
@@ -143,7 +145,7 @@ export const FinanceScreen = ({ profile }: any) => {
         if (l.date > wageGroups[key].date) wageGroups[key].date = l.date;
     });
 
-    const income = transData.filter(t => t.type === 'invoice').reduce((s, t) => s + Number(t.amount), 0);
+    const income = transData.filter(t => t.type === 'invoice' && t.is_paid).reduce((s, t) => s + Number(t.amount), 0);
     const otherCost = transData.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
     const fuelCost = fuelData.reduce((s, f) => s + Number(f.amount), 0);
     const materialCost = matsData.reduce((s, m) => s + Number(m.total_price), 0);
@@ -274,7 +276,7 @@ export const FinanceScreen = ({ profile }: any) => {
   const filteredSites = sites.filter(s => s.name.toLowerCase().includes(siteSearchQuery.toLowerCase()));
 
   return (
-    <div className="space-y-6 pb-24 min-h-screen animate-in fade-in duration-300">
+    <div className="space-y-6 pb-4 md:pb-24 md:min-h-screen animate-in fade-in duration-300">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
            <h2 className="app-section-title">
@@ -293,73 +295,73 @@ export const FinanceScreen = ({ profile }: any) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white border-slate-100 p-6 flex flex-col justify-between shadow-sm border-t-4 border-t-green-500">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-white border-slate-200 p-5 flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-4">
-              <div className="p-2.5 bg-green-50 text-green-600 rounded-xl"><ArrowUpRight size={20}/></div>
-              <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Príjmy</div>
+              <div className="p-2.5 bg-green-50 text-green-700 rounded-xl border border-green-100"><ArrowUpRight size={20}/></div>
+              <div className="text-sm font-semibold text-slate-600">Uhradené príjmy</div>
           </div>
-          <div className="text-3xl font-black text-slate-900 tracking-tight">{formatMoney(stats.income)}</div>
+          <div className="text-2xl font-bold text-green-700 tracking-normal tabular-nums">{formatMoney(stats.income)}</div>
         </Card>
 
-        <Card className="bg-white border-slate-100 p-6 flex flex-col justify-between shadow-sm border-t-4 border-t-red-500">
+        <Card className="bg-white border-slate-200 p-5 flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-4">
-              <div className="p-2.5 bg-red-50 text-red-600 rounded-xl"><ArrowDownLeft size={20}/></div>
-              <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Náklady</div>
+              <div className="p-2.5 bg-red-50 text-red-700 rounded-xl border border-red-100"><ArrowDownLeft size={20}/></div>
+              <div className="text-sm font-semibold text-slate-600">Náklady</div>
           </div>
-          <div className="text-3xl font-black text-slate-900 tracking-tight">{formatMoney(stats.expense)}</div>
+          <div className="text-2xl font-bold text-slate-900 tracking-normal tabular-nums">{formatMoney(stats.expense)}</div>
         </Card>
 
-        <Card className={`p-6 border flex flex-col justify-between shadow-sm transition-all duration-300 border-t-4 ${stats.profit >= 0 ? 'bg-green-50/20 border-green-500' : 'bg-red-50/20 border-red-500'}`}>
+        <Card className={`p-5 border flex flex-col justify-between shadow-sm transition-all duration-300 ${stats.profit >= 0 ? 'bg-green-50/70 border-green-100' : 'bg-red-50/70 border-red-100'}`}>
            <div className="flex justify-between items-start mb-4">
-               <div className={`p-2.5 rounded-xl shadow-sm ${stats.profit >= 0 ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}><TrendingUp size={20}/></div>
-               <div className={`text-[10px] font-black uppercase tracking-widest ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Bilancia (Zisk/Strata)</div>
+               <div className={`p-2.5 rounded-xl border ${stats.profit >= 0 ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}><TrendingUp size={20}/></div>
+               <div className={`text-sm font-semibold ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>Bilancia</div>
            </div>
-           <div className={`text-3xl font-black tracking-tight ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+           <div className={`text-2xl font-bold tracking-normal tabular-nums ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                {formatMoney(stats.profit)}
            </div>
         </Card>
       </div>
 
       {stats.unpaidCount > 0 && (
-          <div className="bg-white border-2 border-red-100 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 animate-in slide-in-from-top-2">
+          <div className="bg-red-50/60 border border-red-100 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 animate-in slide-in-from-top-2">
               <div className="flex items-center gap-3">
-                  <div className="bg-red-500 text-white p-3 rounded-xl ring-4 ring-red-50/50"><AlertCircle size={24}/></div>
+                  <div className="bg-white text-red-600 p-3 rounded-xl border border-red-100 shadow-sm"><AlertCircle size={22}/></div>
                   <div>
-                      <h4 className="font-black text-red-900 text-sm uppercase tracking-tight">Nezaplatené faktúry (Dlžníci)</h4>
-                      <p className="text-xs text-red-700 font-medium">Celkovovo dlhujú <span className="font-black underline">{formatMoney(stats.unpaidTotal)}</span>.</p>
+                      <h4 className="font-semibold text-red-900 text-sm">Nezaplatené faktúry</h4>
+                      <p className="text-sm text-red-700 font-medium">Celkom čaká na úhradu <span className="font-bold">{formatMoney(stats.unpaidTotal)}</span>.</p>
                   </div>
               </div>
-              <button onClick={() => setShowUnpaidModal(true)} className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition shadow-lg shadow-red-200">Zobraziť</button>
+              <button onClick={() => setShowUnpaidModal(true)} className="px-5 py-2.5 bg-white hover:bg-red-600 text-red-700 hover:text-white border border-red-200 rounded-xl text-sm font-semibold transition shadow-sm">Zobraziť</button>
           </div>
       )}
 
-      <Card className="bg-white border-slate-200 shadow-xl p-4">
-          <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-4">
-                    <div className="bg-slate-100 p-1 rounded-xl flex items-center shadow-inner">
-                        <button onClick={() => setDateMode('month')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition ${dateMode === 'month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Mesiac</button>
-                        <button onClick={() => setDateMode('year')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition ${dateMode === 'year' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Rok</button>
-                        <button onClick={() => setDateMode('all')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition ${dateMode === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>Všetko</button>
+      <Card className="bg-white border-slate-200 shadow-sm p-4 md:p-5">
+          <div className="space-y-3.5">
+              <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-3.5">
+                    <div className="bg-slate-100/80 p-1 rounded-xl flex items-center">
+                        <button onClick={() => setDateMode('month')} className={`px-4 py-1.5 rounded-lg text-xs font-semibold uppercase transition ${dateMode === 'month' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'}`}>Mesiac</button>
+                        <button onClick={() => setDateMode('year')} className={`px-4 py-1.5 rounded-lg text-xs font-semibold uppercase transition ${dateMode === 'year' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'}`}>Rok</button>
+                        <button onClick={() => setDateMode('all')} className={`px-4 py-1.5 rounded-lg text-xs font-semibold uppercase transition ${dateMode === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'}`}>Všetko</button>
                     </div>
 
                     <div className="flex items-center gap-2 h-10 px-3 bg-slate-50 rounded-xl border border-slate-200 min-w-[180px] justify-center">
                         {dateMode === 'month' && (
                             <div className="flex items-center gap-2">
-                                <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-transparent font-black text-xs text-slate-700 outline-none cursor-pointer">
+                                <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-transparent font-semibold text-sm text-slate-800 outline-none cursor-pointer">
                                     {FULL_MONTH_NAMES_SK.map((m, i) => <option key={i} value={i}>{m}</option>)}
                                 </select>
-                                <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-transparent font-black text-xs text-slate-700 outline-none cursor-pointer border-l border-slate-300 pl-2">
+                                <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-transparent font-semibold text-sm text-slate-800 outline-none cursor-pointer border-l border-slate-300 pl-2">
                                     {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
                                 </select>
                             </div>
                         )}
                         {dateMode === 'year' && (
-                            <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-transparent font-black text-xs text-slate-700 outline-none cursor-pointer">
+                            <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-transparent font-semibold text-sm text-slate-800 outline-none cursor-pointer">
                                 {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
                         )}
-                        {dateMode === 'all' && <span className="text-[10px] font-black text-slate-400 uppercase">Všetky dáta</span>}
+                        {dateMode === 'all' && <span className="text-xs font-semibold text-slate-600 uppercase">Všetky dáta</span>}
                     </div>
               </div>
 
@@ -371,7 +373,7 @@ export const FinanceScreen = ({ profile }: any) => {
                         placeholder="Hľadať v popise..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-orange-500/20 transition h-11"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-200 transition h-11"
                       />
                   </div>
 
@@ -384,7 +386,7 @@ export const FinanceScreen = ({ profile }: any) => {
                             value={siteSearchQuery}
                             onFocus={() => setShowSiteResults(true)}
                             onChange={(e) => { setSiteSearchQuery(e.target.value); if(!e.target.value) setFilterSiteId(''); }}
-                            className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-orange-500/20 transition h-11"
+                            className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-200 transition h-11"
                         />
                         {filterSiteId && (
                             <button onClick={() => {setFilterSiteId(''); setSiteSearchQuery('');}} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"><X size={14}/></button>
@@ -403,24 +405,24 @@ export const FinanceScreen = ({ profile }: any) => {
                       )}
                   </div>
 
-                  <Select value={filterType} onChange={(e: any) => setFilterType(e.target.value)} className="mb-0 bg-slate-50 border-slate-200 h-11 text-xs font-bold">
+                  <Select value={filterType} onChange={(e: any) => setFilterType(e.target.value)} className="mb-0 bg-slate-50 border-slate-200 h-11 text-sm font-semibold">
                       <option value="all">Všetky typy</option>
                       <option value="invoice">Len Príjmy</option>
                       <option value="expense">Len Náklady</option>
                   </Select>
 
-                  <Select value={filterCategory} onChange={(e: any) => setFilterCategory(e.target.value)} className="mb-0 bg-slate-50 border-slate-200 h-11 text-xs font-bold">
+                  <Select value={filterCategory} onChange={(e: any) => setFilterCategory(e.target.value)} className="mb-0 bg-slate-50 border-slate-200 h-11 text-sm font-semibold">
                       <option value="">Všetky kategórie</option>
                       {['Materiál', 'Mzdy', 'PHM', 'Réžia', 'Iné'].map(c => <option key={c} value={c}>{c}</option>)}
                   </Select>
               </div>
 
-              <div className="flex justify-between items-center">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                      <LayoutList size={14} className="text-orange-500"/> Celkom nájdených {transactions.length} položiek
+              <div className="flex flex-wrap justify-between items-center gap-3 pt-1">
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                      <LayoutList size={15} className="text-orange-500"/> Nájdené: <span className="text-slate-950 tabular-nums">{transactions.length}</span> položiek
                   </div>
                   {(filterType !== 'all' || filterSiteId !== '' || filterCategory !== '' || searchQuery !== '') && (
-                      <button onClick={resetFilters} className="text-[10px] font-black text-orange-600 hover:text-orange-700 uppercase tracking-widest flex items-center gap-1.5 transition-all">
+                      <button onClick={resetFilters} className="text-sm font-semibold text-orange-700 hover:text-orange-800 flex items-center gap-1.5 transition-all">
                           <RotateCcw size={12}/> Resetovať filtre
                       </button>
                   )}
@@ -428,14 +430,65 @@ export const FinanceScreen = ({ profile }: any) => {
           </div>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card padding="p-0" className="lg:col-span-2 overflow-hidden border-slate-200 shadow-sm bg-white min-h-[400px] flex flex-col">
-              <div className="overflow-x-auto custom-scrollbar flex-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          <Card padding="p-0" className="lg:col-span-2 overflow-hidden border-slate-200 shadow-sm bg-white md:min-h-[400px] flex flex-col">
+              <div className="md:hidden">
+                {loading ? (
+                    <div className="p-16 text-center"><Loader2 className="animate-spin text-orange-600 mx-auto" size={34}/></div>
+                ) : transactions.length === 0 ? (
+                    <div className="p-12 text-center text-slate-400 italic font-medium uppercase text-[10px]">Neboli nájdené žiadne záznamy.</div>
+                ) : (
+                    <div className="divide-y divide-slate-100">
+                        {transactions.slice(0, visibleCount).map(t => {
+                            const cleanDescription = String(t.description || t.category || '').replace(/^Mzdy:\s*/i, '');
+                            const isZero = Math.abs(Number(t.amount || 0)) < 0.005;
+                            const amountPrefix = isZero ? '' : t.type === 'invoice' ? '+' : '-';
+                            const amountColor = isZero ? 'text-slate-500' : t.type === 'invoice' ? 'text-green-700' : 'text-red-700';
+
+                            return (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => setSelectedTransaction(t)}
+                                  className={`w-full text-left p-4 transition active:bg-slate-50 ${t.category === 'Mzdy' ? 'bg-blue-50/20' : 'bg-white'}`}
+                                >
+                                  <div className="grid grid-cols-[74px_minmax(0,1fr)_auto] gap-3 items-center">
+                                      <div className="text-sm font-semibold text-slate-600 tabular-nums leading-tight">
+                                          {formatDate(t.date)}
+                                      </div>
+                                      <div className="min-w-0">
+                                          <div className="font-semibold text-slate-900 text-sm leading-snug line-clamp-2">
+                                              {cleanDescription}
+                                          </div>
+                                          <div className={`text-xs font-semibold mt-1 flex items-center gap-1.5 ${t.category === 'Mzdy' ? 'text-blue-600' : t.category === 'PHM' ? 'text-red-600' : 'text-slate-500'}`}>
+                                              {t.category === 'Mzdy' && <Users size={11}/>}
+                                              {t.category === 'PHM' && <Fuel size={11}/>}
+                                              {t.category === 'Materiál' && <Package size={11}/>}
+                                              {t.category}
+                                          </div>
+                                      </div>
+                                      <div className="text-right">
+                                          <div className={`font-bold text-sm tabular-nums whitespace-nowrap ${amountColor}`}>
+                                              {amountPrefix}{formatMoney(isZero ? 0 : Number(t.amount || 0))}
+                                          </div>
+                                          <div className="mt-1 max-w-[104px] truncate rounded-lg bg-slate-50 border border-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                                              {t.sites?.name || 'Všeobecné'}
+                                          </div>
+                                      </div>
+                                  </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto custom-scrollbar flex-1">
                 <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-400 font-black border-b border-slate-100 uppercase text-[9px] tracking-widest sticky top-0 z-10">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 text-xs sticky top-0 z-10">
                         <tr>
-                            <th className="p-4 w-32">Dátum</th>
-                            <th className="p-4">Položka / Doklad</th>
+                            <th className="p-4 w-36">Dátum</th>
+                            <th className="p-4">Položka / doklad</th>
                             <th className="p-4 text-center">Stavba</th>
                             <th className="p-4 text-right">Suma s DPH</th>
                             <th className="p-4 w-10"></th>
@@ -449,10 +502,10 @@ export const FinanceScreen = ({ profile }: any) => {
                         ) : (
                             transactions.slice(0, visibleCount).map(t => (
                                 <tr key={t.id} onClick={() => setSelectedTransaction(t)} className={`hover:bg-slate-100 transition-colors group cursor-pointer ${t.category === 'Mzdy' ? 'bg-blue-50/10' : ''}`}>
-                                    <td className="p-4"><div className="font-mono font-bold text-slate-400 text-xs">{formatDate(t.date)}</div></td>
+                                    <td className="p-4"><div className="font-medium text-slate-600 text-sm whitespace-nowrap tabular-nums">{formatDate(t.date)}</div></td>
                                     <td className="p-4">
-                                        <div className="font-bold text-slate-800 text-sm leading-tight group-hover:text-orange-600 transition-colors">{t.description || t.category}</div>
-                                        <div className={`text-[9px] font-black uppercase tracking-widest mt-1 flex items-center gap-1 ${t.category === 'Mzdy' ? 'text-blue-500' : t.category === 'PHM' ? 'text-red-500' : 'text-slate-400'}`}>
+                                        <div className="font-semibold text-slate-900 text-sm leading-tight group-hover:text-orange-600 transition-colors">{t.description || t.category}</div>
+                                        <div className={`text-xs font-semibold mt-1 flex items-center gap-1.5 ${t.category === 'Mzdy' ? 'text-blue-600' : t.category === 'PHM' ? 'text-red-600' : 'text-slate-500'}`}>
                                             {t.category === 'Mzdy' && <Users size={10}/>}
                                             {t.category === 'PHM' && <Fuel size={10}/>}
                                             {t.category === 'Materiál' && <Package size={10}/>}
@@ -460,12 +513,12 @@ export const FinanceScreen = ({ profile }: any) => {
                                         </div>
                                     </td>
                                     <td className="p-4 text-center">
-                                        <div className="text-[10px] font-bold text-slate-600 truncate max-w-[120px] mx-auto bg-slate-50 py-1 px-2 rounded-lg border border-slate-100">
+                                        <div className="text-xs font-medium text-slate-600 truncate max-w-[140px] mx-auto bg-slate-50 py-1.5 px-3 rounded-lg border border-slate-100">
                                             {t.sites?.name || 'Všeobecné'}
                                         </div>
                                     </td>
-                                    <td className={`p-4 text-right font-black text-base tracking-tighter ${t.type === 'invoice' ? 'text-green-600' : 'text-red-600'}`}>
-                                        {t.type === 'invoice' ? '+' : '-'}{formatMoney(t.amount)}
+                                    <td className={`p-4 text-right font-bold text-base tabular-nums ${Math.abs(Number(t.amount || 0)) < 0.005 ? 'text-slate-500' : t.type === 'invoice' ? 'text-green-700' : 'text-red-700'}`}>
+                                        {Math.abs(Number(t.amount || 0)) < 0.005 ? '' : t.type === 'invoice' ? '+' : '-'}{formatMoney(Math.abs(Number(t.amount || 0)) < 0.005 ? 0 : Number(t.amount || 0))}
                                     </td>
                                     <td className="p-4 text-right">
                                         {['manual', 'fuel', 'material'].includes(t.itemType) && (
@@ -489,9 +542,9 @@ export const FinanceScreen = ({ profile }: any) => {
               )}
           </Card>
 
-          <Card className="border-slate-200 p-6 shadow-sm bg-white flex flex-col h-fit">
-              <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2 text-[11px] uppercase tracking-widest"><PieChart size={18} className="text-orange-500"/> Skladba nákladov</h3>
-              <div className="space-y-4">
+          <Card className="border-slate-200 p-4 md:p-6 shadow-sm bg-white flex flex-col h-fit">
+              <h3 className="font-black text-slate-800 mb-4 md:mb-6 flex items-center gap-2 text-[11px] uppercase tracking-widest"><PieChart size={18} className="text-orange-500"/> Skladba nákladov</h3>
+              <div className="space-y-3 md:space-y-4">
                   {categoriesSummary.map((cat, i) => (
                       <div key={i} className="group">
                           <div className="flex justify-between text-[11px] mb-1.5 font-bold">
@@ -508,7 +561,7 @@ export const FinanceScreen = ({ profile }: any) => {
                           </div>
                       </div>
                   ))}
-                  {categoriesSummary.length === 0 && <div className="text-center text-slate-300 font-bold uppercase text-[10px] italic py-12">Žiadne dáta.</div>}
+                  {categoriesSummary.length === 0 && <div className="text-center text-slate-300 font-bold uppercase text-[10px] italic py-8 md:py-12">Žiadne dáta.</div>}
               </div>
           </Card>
       </div>

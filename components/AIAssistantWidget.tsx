@@ -6,6 +6,62 @@ import { Bot, X, Send, User, Loader2, Sparkles } from 'lucide-react';
 // @ts-ignore - Inteligentný import čistého textu z Markdown súboru (Vite feature)
 import FULL_MANUAL from './ai_assistant_training_manual.md?raw';
 
+const CURRENT_APP_GUIDE = `
+AKTUÁLNE FUNGOVANIE APLIKÁCIE:
+
+Nástenka:
+- Zobrazuje dnešný prehľad: úlohy po termíne, dnešný plán, stav dochádzky a počet aktívnych zákaziek.
+- Pracovné skratky sú len doplnok.
+
+Zákazky:
+- Používaj termín zákazka, nie stavba ani projekt.
+- Detail zákazky má záložky: Prehľad, Dochádzka, Sadzby tímu, Príjmy & výdavky, PHM, Prístupy.
+- Prehľad ukazuje financie zákazky, dochádzku a náklady.
+- Príjmy sú hlavne uhradené faktúry alebo platby.
+- Náklady sú výdavky, materiál, PHM a mzdy z dochádzky.
+
+Denník práce:
+- Používaj názov Denník práce, nie stavebný denník.
+- Slúži ako pracovný prehľad zápisov k zákazke, nie ako právne podpisovaný stavebný denník.
+- Vie importovať práce z dochádzky daného dňa.
+- Fotky sa komprimujú, aby zbytočne nezaťažovali úložisko.
+
+Tím:
+- Zamestnancov vie admin pozvať emailom z aplikácie.
+- Pozvánka odchádza z noreply@moja-stavba.sk.
+- Zamestnanec sa registruje cez odkaz z pozvánky, nie cez ručné zadávanie ID firmy ako hlavný spôsob.
+- Pozvánky môžu mať stav pozvaný / nezaregistrovaný, kým používateľ nedokončí registráciu.
+- Admin nastavuje sadzby, rolu, viditeľnosť mzdy a zálohy.
+
+Dochádzka:
+- Dochádzka slúži na evidenciu odpracovaných hodín alebo fixnej úkolovej práce.
+- Pri výkaze PDF sa dá nastaviť podrobný alebo súhrnný export a voliteľná prestávka.
+
+Analytika:
+- Firemná analytika pri všetkých zákazkách má filter obdobia: Tento rok, Minulý rok, 12 mesiacov, Celé obdobie.
+- Jedna zákazka sa počíta od jej prvého reálneho záznamu.
+- Kumulatívny graf ukazuje postupný vývoj príjmov a nákladov.
+
+Nastavenia:
+- Logo, pečiatka a podpis sa používajú v PDF exportoch.
+- Logo alebo pečiatku je možné orezať pred uložením.
+
+Technická podpora:
+- Plávajúci widget technickej podpory posiela email na podporu.
+- Neplní databázu support požiadavkami z widgetu.
+`;
+
+const cleanAssistantText = (value = '') => String(value)
+    .replace(/\r/g, '')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
+    .replace(/^\s*[-*]\s+/gm, '- ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
 export const AIAssistantWidget = ({ profile, organization }: any) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<any[]>([
@@ -38,12 +94,20 @@ export const AIAssistantWidget = ({ profile, organization }: any) => {
             const systemInstruction = `
                 ${FULL_MANUAL}
 
+                ${CURRENT_APP_GUIDE}
+
                 --- AKTUÁLNY KONTEXT POUŽÍVATEĽA ---
                 MENO: ${profile.full_name}
                 ROLE: ${profile.role === 'admin' ? 'Administrátor (Majiteľ firmy)' : 'Zamestnanec (Pracovník)'}
                 FIRMA: ${organization.name}
                 SADZBA: ${profile.hourly_rate || 0} €/hod
                 WAGE_VISIBLE: ${profile.show_wage_in_profile ? 'Áno' : 'Nie'}
+
+                --- ŠTÝL ODPOVEDE ---
+                Odpovedaj po slovensky, stručne a prakticky.
+                Nepoužívaj markdown syntax: žiadne hviezdičky, žiadne mriežky, žiadne ###, žiadne tabuľky.
+                Nepíš dlhé manuálové bloky. Radšej odpovedz v krátkych vetách alebo jednoduchom zozname.
+                Ak si nie si istý aktuálnou funkciou, povedz to opatrne a odporuč kontaktovať technickú podporu.
             `;
 
             const response = await ai.models.generateContent({
@@ -56,10 +120,10 @@ export const AIAssistantWidget = ({ profile, organization }: any) => {
                 }
             });
 
-            setMessages(prev => [...prev, { role: 'ai', text: response.text || "Prepáč, stratil som spojenie s manuálom OS. Skús to znova." }]);
+            setMessages(prev => [...prev, { role: 'ai', text: cleanAssistantText(response.text || "Prepáč, stratil som spojenie s manuálom OS. Skús to znova.") }]);
         } catch (err) {
             console.error("AI Assistant Error:", err);
-            setMessages(prev => [...prev, { role: 'ai', text: '⚠️ Momentálne prepočítavam náročnejšie dáta kódovej základne, skús to o chvíľu.' }]);
+            setMessages(prev => [...prev, { role: 'ai', text: 'Momentálne sa mi nepodarilo odpovedať. Skús to prosím o chvíľu.' }]);
         } finally {
             setLoading(false);
         }
@@ -68,7 +132,12 @@ export const AIAssistantWidget = ({ profile, organization }: any) => {
     return (
         <div className="fixed inset-y-0 right-0 z-[125] pointer-events-none flex items-end justify-center mb-24 md:items-center md:mb-0">
             {isOpen && (
-                <div className="absolute bottom-16 right-4 w-72 md:w-80 bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-in zoom-in-95 slide-in-from-right-4 duration-300 pointer-events-auto flex flex-col h-[500px]">
+                <>
+                <div
+                    className="fixed inset-0 z-0 bg-slate-950/35 backdrop-blur-[1px] md:hidden pointer-events-auto animate-in fade-in duration-200"
+                    onClick={() => setIsOpen(false)}
+                />
+                <div className="fixed left-4 right-4 top-20 bottom-24 z-10 md:absolute md:left-auto md:right-4 md:top-auto md:bottom-16 md:w-80 bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 md:slide-in-from-right-4 duration-300 pointer-events-auto flex flex-col md:h-[500px]">
                     {/* Header - jemný dizajn ladiaci so SupportWidget */}
                     <div className="p-4 flex justify-between items-start border-b border-slate-50 bg-slate-50/50">
                         <div>
@@ -125,18 +194,19 @@ export const AIAssistantWidget = ({ profile, organization }: any) => {
                         </div>
                     </form>
                 </div>
+                </>
             )}
             
             {/* Trigger Button - ladí so SupportWidget */}
             <button 
                 onClick={() => setIsOpen(!isOpen)}
-                className={`fixed right-0 bottom-24 z-[110] h-12 w-10 flex items-center justify-start pl-2 rounded-l-xl bg-white border-y border-l border-slate-200 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all duration-500 pointer-events-auto hover:w-12 group ${isOpen ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}
+                className={`fixed right-0 bottom-24 z-[110] h-10 w-8 md:h-12 md:w-10 flex items-center justify-start pl-1.5 md:pl-2 rounded-l-lg md:rounded-l-xl bg-white border-y border-l border-slate-200 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all duration-500 pointer-events-auto hover:w-9 md:hover:w-12 group ${isOpen ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}
                 title="MojaStavba OS Expert"
             >
                 <div className="relative">
-                    <Bot size={20} className="text-orange-500 group-hover:scale-110 transition-transform" />
+                    <Bot size={18} className="text-orange-500 group-hover:scale-110 transition-transform md:w-5 md:h-5" />
                     {!isOpen && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-600 rounded-full border border-white animate-pulse"></span>
+                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 md:-top-1 md:-right-1 md:w-2 md:h-2 bg-orange-600 rounded-full border border-white animate-pulse"></span>
                     )}
                 </div>
             </button>

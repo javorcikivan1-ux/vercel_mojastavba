@@ -558,7 +558,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                 alt="MojaStavba Logo" 
                 className="w-7 h-7 md:w-9 md:h-9 object-contain shrink-0" 
               />
-              <span className="font-extrabold text-sm md:text-xl tracking-tight text-slate-900 truncate">Moja<span className="text-orange-600">Stavba</span></span>
+              <span className="brand-wordmark text-sm md:text-xl truncate">Moja<span className="brand-wordmark-accent">Stavba</span></span>
             </a>
 
             {/* DESKTOP NAVIGATION */}
@@ -803,7 +803,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                 <div className="md:col-span-1">
                     <div className="flex items-center gap-2 mb-6">
                       <img src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" alt="Logo" className="w-10 h-10 object-contain" />
-                      <span className="font-black text-xl tracking-tight text-white">Moja<span className="text-orange-500">Stavba</span></span>
+                      <span className="brand-wordmark brand-wordmark-light text-xl">Moja<span className="brand-wordmark-accent">Stavba</span></span>
                     </div>
                     <p className="text-slate-400 text-sm leading-relaxed">
                       Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 30 dní zadarmo a bez zadávania platobných údajov.
@@ -1102,15 +1102,15 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
         {view === 'onboarding' ? ( <OnboardingCarousel onFinish={() => setView('selection')} /> ) : (
             <>
                 <div className="text-center">
-                <div className="flex justify-center -mb-10">
+                <div className="flex justify-center mb-1.5">
                     <img 
-                      src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-2.png" 
+                      src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
                       alt="Logo MojaStavba" 
-                      className="w-40 h-40 object-contain" 
+                      className="w-14 h-14 object-contain" 
                     />
                 </div>
-                <h2 className="text-2xl font-bold mb-1">
-                    <span className="text-slate-900">Moja</span><span className="text-orange-600">Stavba</span>
+                <h2 className="brand-wordmark text-2xl mb-2">
+                    Moja<span className="brand-wordmark-accent">Stavba</span>
                 </h2>
                 <p className="text-slate-500 text-sm mb-6">
                     {view === 'login' && 'Prihlásenie do systému'}
@@ -1305,23 +1305,27 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                     )}
 
                     {view !== 'login' && view !== 'forgot-password' && (
-                        <div className="flex items-start gap-3 py-2">
+                        <label htmlFor="terms" className={`flex items-start gap-3 rounded-2xl border p-4 transition cursor-pointer ${agreedToTerms ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'}`}>
                             <input 
                                 type="checkbox" 
                                 id="terms" 
-                                className="mt-1 w-4 h-4 text-orange-600 rounded focus:ring-orange-500 border-slate-300"
+                                className="sr-only"
                                 checked={agreedToTerms}
                                 onChange={(e: any) => setAgreedToTerms(e.target.checked)}
                             />
-                            <label htmlFor="terms" className="text-xs text-slate-500 leading-tight">
-                                <div className="mb-2">
-                                    Potvrdzujem, že som sa oboznámil/a s <a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline font-bold">Zásadami spracúvania osobných údajov</a>
-                                </div>
-                                <div>
-                                    Potvrdzujem, že som sa oboznámil/a s <a href="/vseobecne-obchodne-podmienky.html" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline font-bold">podmienkami používania</a> a súhlasím s nimi
-                                </div>
-                            </label>
-                        </div>
+                            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 transition ${agreedToTerms ? 'border-orange-600 bg-orange-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
+                                <CheckCircle2 size={16} strokeWidth={3}/>
+                            </span>
+                            <span className="min-w-0 flex-1 text-[13px] font-medium leading-relaxed text-slate-700">
+                                Súhlasím s podmienkami používania a potvrdzujem, že som sa oboznámil/a so spracúvaním osobných údajov.
+                                <span className="mt-2 block text-xs font-semibold leading-snug text-slate-500">
+                                    Dokumenty:
+                                    <a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" rel="noopener noreferrer" className="ml-1 text-orange-600 hover:underline">zásady spracúvania osobných údajov</a>
+                                    <span className="mx-1 text-slate-300">•</span>
+                                    <a href="/vseobecne-obchodne-podmienky.html" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">podmienky používania</a>
+                                </span>
+                            </span>
+                        </label>
                     )}
 
                     <Button type="submit" fullWidth loading={loading} size="lg" disabled={(view !== 'login' && view !== 'forgot-password' && !agreedToTerms)}>

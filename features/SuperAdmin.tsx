@@ -67,31 +67,53 @@ export const SuperAdminScreen = () => {
                 .from('organizations')
                 .select('*')
                 .order('name', { ascending: true });
+
+            let orgList = orgs || [];
+            if (orgList.length > 0) {
+                const { data: admins } = await supabase
+                    .from('profiles')
+                    .select('organization_id, email, full_name, phone, created_at')
+                    .in('organization_id', orgList.map((org: any) => org.id))
+                    .eq('role', 'admin')
+                    .order('created_at', { ascending: true });
+
+                const adminByOrg = (admins || []).reduce((acc: Record<string, any>, admin: any) => {
+                    if (admin.organization_id && !acc[admin.organization_id]) {
+                        acc[admin.organization_id] = admin;
+                    }
+                    return acc;
+                }, {});
+
+                orgList = orgList.map((org: any) => ({
+                    ...org,
+                    admin_profile: adminByOrg[org.id] || null
+                }));
+            }
             
             const { data: reqs } = await supabase
                 .from('support_requests')
                 .select('*')
                 .order('created_at', { ascending: false });
 
-            if (orgs) setOrganizations(orgs);
+            setOrganizations(orgList);
             if (reqs) setRequests(reqs);
 
             const now = new Date();
             const soon = new Date();
             soon.setDate(soon.getDate() + 10);
 
-            const expiring = (orgs || []).filter(o => 
-                o.subscription_status === 'active' && 
+            const expiring = orgList.filter(o => 
+                o.subscription_status === 'trialing' && 
                 new Date(o.trial_ends_at) < soon &&
                 new Date(o.trial_ends_at).getFullYear() < 2090
             ).length;
 
             setStats({
-                totalOrgs: orgs?.length || 0,
-                activeOrgs: orgs?.filter(o => o.subscription_status === 'active').length || 0,
-                pendingOrders: reqs?.filter(r => r.status === 'new' && (r.message.includes('AKTIVÁCIU') || r.message.includes('BALÍK'))).length || 0,
+                totalOrgs: orgList.length,
+                activeOrgs: orgList.filter(o => o.subscription_status === 'active').length,
+                pendingOrders: orgList.filter(o => o.subscription_status === 'pending_payment').length,
                 expiringSoon: expiring,
-                unpaidOrgs: orgs?.filter(o => o.subscription_status === 'suspended_unpaid').length || 0
+                unpaidOrgs: orgList.filter(o => o.subscription_status === 'suspended_unpaid').length
             });
 
         } catch (e) {
@@ -105,79 +127,102 @@ export const SuperAdminScreen = () => {
         loadData();
     }, [loadData]);
 
-    const billingRequests = useMemo(() => {
-        return requests.filter(r => r.message.includes('AKTIVÁCIU') || r.message.includes('BALÍK'));
-    }, [requests]);
+    const pendingOrganizations = useMemo(() => {
+        return organizations
+            .filter(org => org.subscription_status === 'pending_payment')
+            .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+    }, [organizations]);
 
     const supportRequests = useMemo(() => {
         return requests.filter(r => !r.message.includes('AKTIVÁCIU') && !r.message.includes('BALÍK'));
     }, [requests]);
 
+    const getClientEmail = (org: any) => org.email || org.admin_profile?.email || '';
+    const getClientPhone = (org: any) => org.phone || org.admin_profile?.phone || '';
+    const getClientAdminName = (org: any) => org.admin_profile?.full_name || org.contact_name || '';
+    const getClientAddress = (org: any) => org.business_address || [org.street, org.zip, org.city].filter(Boolean).join(', ');
+    const getBillingDayLabel = (dateValue: string) => {
+        const date = new Date(dateValue);
+        if (Number.isNaN(date.getTime()) || date.getFullYear() > 2090) return 'nezadané';
+        return `${date.getDate()}. deň v mesiaci`;
+    };
+
+    const ClientInfo = ({ icon: Icon, label, value, href }: { icon: any; label: string; value?: string; href?: string }) => {
+        const content = value || 'Nezadané';
+        const className = 'flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-xs';
+        const inner = (
+            <>
+                <Icon size={14} className="shrink-0 text-slate-400" />
+                <span className="shrink-0 font-semibold text-slate-500">{label}</span>
+                <span className={`min-w-0 truncate font-bold ${value ? 'text-slate-900' : 'text-slate-400'}`}>{content}</span>
+            </>
+        );
+
+        return href && value ? (
+            <a href={href} className={`${className} hover:border-orange-200 hover:bg-orange-50/50 transition`}>
+                {inner}
+            </a>
+        ) : (
+            <div className={className}>{inner}</div>
+        );
+    };
+
     const filteredOrgs = useMemo(() => {
         let result = [...organizations];
         
         if (orgSearch) {
+            const query = orgSearch.toLowerCase();
             result = result.filter(o => 
-                o.name.toLowerCase().includes(orgSearch.toLowerCase()) || 
-                (o.ico && o.ico.includes(orgSearch))
+                o.name.toLowerCase().includes(query) || 
+                (o.ico && o.ico.includes(orgSearch)) ||
+                getClientEmail(o).toLowerCase().includes(query) ||
+                getClientAdminName(o).toLowerCase().includes(query)
             );
+        }
+
+        if (orgStatusFilter === 'hidden') {
+            result = result.filter(o => o.is_hidden_admin);
+        } else {
+            result = result.filter(o => !o.is_hidden_admin);
         }
 
         if (orgStatusFilter === 'expiring') {
             const soon = new Date();
             soon.setDate(soon.getDate() + 10);
             result = result.filter(o => 
-                o.subscription_status === 'active' && 
+                o.subscription_status === 'trialing' && 
                 new Date(o.trial_ends_at) < soon &&
                 new Date(o.trial_ends_at).getFullYear() < 2090
             );
-        } else if (orgStatusFilter !== 'all') {
+        } else if (orgStatusFilter !== 'all' && orgStatusFilter !== 'hidden') {
             result = result.filter(o => o.subscription_status === orgStatusFilter);
         }
 
         return result.sort((a, b) => {
-            const dateA = new Date(a.trial_ends_at).getTime();
-            const dateB = new Date(b.trial_ends_at).getTime();
-            return dateA - dateB;
+            const aPriority = a.subscription_status === 'pending_payment' ? 0 : 1;
+            const bPriority = b.subscription_status === 'pending_payment' ? 0 : 1;
+            if (aPriority !== bPriority) return aPriority - bPriority;
+
+            const dateA = new Date(a.updated_at || a.created_at).getTime();
+            const dateB = new Date(b.updated_at || b.created_at).getTime();
+            return dateB - dateA;
         });
     }, [organizations, orgSearch, orgStatusFilter]);
-
-    const handleApprovePayment = async (request: any) => {
-        setActionId(request.id);
-        try {
-            let plan = 'base';
-            if (request.message.includes('GOLD')) plan = 'standard';
-            if (request.message.includes('PLATINUM')) plan = 'pro';
-
-            const newExpiry = new Date();
-            newExpiry.setDate(newExpiry.getDate() + 31);
-
-            const { error: orgErr } = await supabase.from('organizations').update({
-                subscription_status: 'active',
-                subscription_plan: plan,
-                trial_ends_at: newExpiry.toISOString()
-            }).eq('id', request.organization_id);
-
-            if (orgErr) throw orgErr;
-
-            await supabase.from('support_requests').update({ status: 'resolved' }).eq('id', request.id);
-
-            loadData();
-        } catch (e: any) {
-            alert(e.message);
-        } finally {
-            setActionId(null);
-        }
-    };
 
     const handleManualUpdate = async () => {
         if (!licenseModal.org) return;
         setActionId(licenseModal.org.id);
         try {
+            const nextReview = new Date();
+            nextReview.setMonth(nextReview.getMonth() + 1);
+            const effectiveEndsAt = licenseForm.status === 'active'
+                ? (licenseForm.endsAt || nextReview.toISOString().split('T')[0])
+                : licenseForm.endsAt;
+
             const { error } = await supabase.from('organizations').update({
                 subscription_plan: licenseForm.plan,
                 subscription_status: licenseForm.status,
-                trial_ends_at: new Date(licenseForm.endsAt).toISOString()
+                trial_ends_at: new Date(effectiveEndsAt).toISOString()
             }).eq('id', licenseModal.org.id);
 
             if (error) throw error;
@@ -190,133 +235,228 @@ export const SuperAdminScreen = () => {
         }
     };
 
+    const getDatePlusDays = (days: number) => {
+        const date = new Date();
+        date.setDate(date.getDate() + days);
+        return date.toISOString();
+    };
+
+    const getDatePlusMonths = (months: number) => {
+        const date = new Date();
+        date.setMonth(date.getMonth() + months);
+        return date.toISOString();
+    };
+
+    const updateOrganizationLicense = async (org: any, updates: any) => {
+        setActionId(org.id);
+        try {
+            const { error } = await supabase
+                .from('organizations')
+                .update(updates)
+                .eq('id', org.id);
+
+            if (error) throw error;
+            setLicenseModal({ open: false, org: null });
+            loadData();
+        } catch (e: any) {
+            alert(e.message);
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const markOrderHandled = (org: any) => updateOrganizationLicense(org, {
+        subscription_status: 'trialing',
+        trial_ends_at: org.trial_ends_at || new Date().toISOString()
+    });
+
+    const activateMonthlyPlan = (org: any, planId = org.subscription_plan || 'base', nextBillingDate?: string) => updateOrganizationLicense(org, {
+        subscription_plan: planId,
+        subscription_status: 'active',
+        trial_ends_at: nextBillingDate ? new Date(nextBillingDate).toISOString() : getDatePlusMonths(1)
+    });
+
+    const suspendClient = (org: any) => updateOrganizationLicense(org, {
+        subscription_status: 'suspended_unpaid'
+    });
+
+    const renewTrial = (org: any, trialEndDate?: string) => updateOrganizationLicense(org, {
+        subscription_plan: 'free_trial',
+        subscription_status: 'trialing',
+        trial_ends_at: trialEndDate ? new Date(trialEndDate).toISOString() : getDatePlusDays(30)
+    });
+
+    const hideClient = (org: any) => updateOrganizationLicense(org, {
+        is_hidden_admin: true
+    });
+
+    const restoreClient = (org: any) => updateOrganizationLicense(org, {
+        is_hidden_admin: false
+    });
+
     const markRequestResolved = async (id: string) => {
         await supabase.from('support_requests').update({ status: 'resolved' }).eq('id', id);
         loadData();
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 pb-24 max-w-7xl mx-auto">
+        <div className="space-y-5 animate-in fade-in duration-500 pb-10 max-w-7xl mx-auto">
             {/* TOP BAR */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <ShieldAlert className="text-orange-600" size={32} />
-                        Ovládacie centrum systému
+                    <h2 className="app-section-title">
+                        <ShieldAlert className="text-orange-600" />
+                        Superadmin
                     </h2>
-                    <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.2em] mt-1">
-                        LORD'S BENISON ADMINISTRATIVE CORE
+                    <p className="app-section-subtitle">
+                        Správa klientov, objednávok a prístupov
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={loadData} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-orange-600 transition shadow-sm">
-                        <RefreshCw size={20} className={loading ? 'animate-spin' : ''}/>
+                    <button onClick={loadData} className="h-11 px-4 bg-white border border-slate-200 rounded-xl text-slate-700 hover:text-orange-700 hover:border-orange-200 transition shadow-sm flex items-center gap-2 text-sm font-semibold">
+                        <RefreshCw size={17} className={loading ? 'animate-spin' : ''}/>
+                        Obnoviť
                     </button>
                 </div>
             </div>
 
             {/* STATS TILES */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                <Card className="p-5 border-slate-100 shadow-sm">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Firmy celkom</div>
-                    <div className="text-3xl font-black text-slate-900 tracking-tighter">{stats.totalOrgs}</div>
+                <Card className="p-4 border-slate-200 shadow-sm">
+                    <div className="text-sm font-semibold text-slate-600 mb-1">Firmy celkom</div>
+                    <div className="text-2xl font-bold text-slate-900 tabular-nums">{stats.totalOrgs}</div>
                 </Card>
-                <Card className="p-5 border-green-100 bg-green-50/20 shadow-sm">
-                    <div className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">Aktívne licencie</div>
-                    <div className="text-3xl font-black text-green-700 tracking-tighter">{stats.activeOrgs}</div>
+                <Card className="p-4 border-green-100 bg-green-50/40 shadow-sm">
+                    <div className="text-sm font-semibold text-green-700 mb-1">Aktívne licencie</div>
+                    <div className="text-2xl font-bold text-green-800 tabular-nums">{stats.activeOrgs}</div>
                 </Card>
-                <Card className="p-5 border-orange-100 bg-orange-50 shadow-md ring-2 ring-orange-200">
-                    <div className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-1">Nové objednávky</div>
-                    <div className="text-3xl font-black text-orange-700 tracking-tighter">{stats.pendingOrders}</div>
+                <Card className="p-4 border-orange-100 bg-orange-50/70 shadow-sm">
+                    <div className="text-sm font-semibold text-orange-700 mb-1">Nové objednávky</div>
+                    <div className="text-2xl font-bold text-orange-800 tabular-nums">{stats.pendingOrders}</div>
                 </Card>
-                <Card className="p-5 border-amber-100 bg-amber-50 shadow-sm">
-                    <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Expirujú (10 dní)</div>
-                    <div className="text-3xl font-black text-amber-700 tracking-tighter">{stats.expiringSoon}</div>
+                <Card className="p-4 border-amber-100 bg-amber-50/60 shadow-sm">
+                    <div className="text-sm font-semibold text-amber-700 mb-1">Trial končí do 10 dní</div>
+                    <div className="text-2xl font-bold text-amber-800 tabular-nums">{stats.expiringSoon}</div>
                 </Card>
-                <Card className="p-5 border-red-100 bg-red-50/20 shadow-sm">
-                    <div className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-1">Neplatiči</div>
-                    <div className="text-3xl font-black text-red-700 tracking-tighter">{stats.unpaidOrgs}</div>
+                <Card className="p-4 border-red-100 bg-red-50/40 shadow-sm">
+                    <div className="text-sm font-semibold text-red-700 mb-1">Neplatiči</div>
+                    <div className="text-2xl font-bold text-red-800 tabular-nums">{stats.unpaidOrgs}</div>
                 </Card>
             </div>
 
             {/* NAVIGATION TABS */}
-            <div className="flex gap-2 p-1.5 bg-white rounded-[1.5rem] border border-slate-200 shadow-sm overflow-x-auto no-scrollbar">
+            <div className="flex gap-1.5 p-1.5 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto no-scrollbar">
                 {[
                     { id: 'billing', label: 'Nové Objednávky', icon: Receipt, color: 'text-orange-600' },
-                    { id: 'clients', label: 'Správa Klientov', icon: Building2, color: 'text-blue-600' },
-                    { id: 'support', label: 'Technický Support', icon: HelpCircle, color: 'text-slate-600' },
-                    { id: 'system', label: 'Infrastruktúra', icon: Server, color: 'text-purple-600' }
+                    { id: 'clients', label: 'Správa Klientov', icon: Building2, color: 'text-blue-600' }
                 ].map(tab => (
                     <button 
                         key={tab.id}
                         onClick={() => setView(tab.id as any)} 
-                        className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${view === tab.id ? `bg-slate-900 text-white shadow-xl` : 'text-slate-400 hover:bg-slate-50'}`}
+                        className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${view === tab.id ? `bg-orange-50 text-orange-700 border border-orange-100 shadow-sm` : 'text-slate-600 border border-transparent hover:bg-slate-50 hover:text-slate-900'}`}
                     >
-                        <tab.icon size={18} className={view === tab.id ? 'text-orange-400' : tab.color}/> {tab.label}
+                        <tab.icon size={17} className={view === tab.id ? 'text-orange-600' : tab.color}/> {tab.label}
                     </button>
                 ))}
             </div>
 
             {/* VIEW: BILLING & ORDERS */}
             {view === 'billing' && (
-                <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
                     <div className="grid grid-cols-1 gap-4">
-                        {billingRequests.filter(r => r.status === 'new').length === 0 ? (
-                            <Card className="py-20 text-center border-2 border-dashed border-slate-100 text-slate-400 font-bold uppercase tracking-widest text-xs">
-                                <CheckCircle2 size={48} className="mx-auto mb-4 opacity-10 text-green-500"/>
+                        {pendingOrganizations.length === 0 ? (
+                            <Card className="py-16 text-center border border-dashed border-slate-200 text-slate-500 font-semibold text-sm">
+                                <CheckCircle2 size={42} className="mx-auto mb-4 text-green-500/40"/>
                                 Žiadne čakajúce objednávky.
                             </Card>
                         ) : (
-                            billingRequests.filter(r => r.status === 'new').map(req => (
-                                <Card key={req.id} className="border-2 border-orange-100 bg-white p-6 shadow-xl relative overflow-hidden group">
-                                    <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform">
-                                        <Receipt size={120} className="text-orange-600"/>
-                                    </div>
-                                    <div className="flex flex-col md:flex-row justify-between gap-8 relative z-10">
+                            pendingOrganizations.map(org => {
+                                const plan = (PLAN_CONFIG as any)[org.subscription_plan] || PLAN_CONFIG.base;
+                                return (
+                                <Card key={org.id} className="border border-orange-100 bg-white p-5 shadow-sm relative overflow-hidden">
+                                    <div className="flex flex-col lg:flex-row justify-between gap-6">
                                         <div className="flex-1 space-y-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-orange-600 text-white p-3 rounded-2xl shadow-lg shadow-orange-100">
-                                                    <Zap size={24} fill="currentColor"/>
+                                            <div className="flex items-start gap-4">
+                                                <div className="bg-orange-50 text-orange-600 p-3 rounded-2xl border border-orange-100">
+                                                    <Receipt size={22}/>
                                                 </div>
-                                                <div>
-                                                    <h3 className="font-black text-xl text-slate-900 tracking-tight uppercase">{req.org_name}</h3>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Objednávka prijatá: {formatDate(req.created_at)}</p>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                        <h3 className="font-bold text-xl text-slate-900 tracking-tight">{org.name}</h3>
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${plan.bg} ${plan.color} ${plan.border}`}>
+                                                            <plan.icon size={13} fill="currentColor"/>
+                                                            {plan.name}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-slate-500 font-medium">Objednávka čaká na faktúru alebo ručné nastavenie licencie</p>
                                                 </div>
                                             </div>
                                             
-                                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 font-mono text-[11px] text-slate-600 leading-relaxed whitespace-pre-wrap shadow-inner">
-                                                {req.message}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                    <div className="text-xs text-slate-500 font-semibold mb-1">Fakturačný email</div>
+                                                    <a href={`mailto:${getClientEmail(org)}`} className="text-sm font-bold text-orange-700 break-all">{getClientEmail(org) || 'Nezadaný'}</a>
+                                                </div>
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                    <div className="text-xs text-slate-500 font-semibold mb-1">Telefón</div>
+                                                    {getClientPhone(org) ? (
+                                                        <a href={`tel:${getClientPhone(org)}`} className="text-sm font-bold text-slate-900 break-all">{getClientPhone(org)}</a>
+                                                    ) : (
+                                                        <div className="text-sm font-bold text-slate-400">Nezadaný</div>
+                                                    )}
+                                                </div>
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                    <div className="text-xs text-slate-500 font-semibold mb-1">IČO</div>
+                                                    <div className="text-sm font-bold text-slate-900">{org.ico || 'Nezadané'}</div>
+                                                </div>
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                    <div className="text-xs text-slate-500 font-semibold mb-1">DIČ</div>
+                                                    <div className="text-sm font-bold text-slate-900">{org.dic || 'Nezadané'}</div>
+                                                </div>
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                    <div className="text-xs text-slate-500 font-semibold mb-1">IČ DPH</div>
+                                                    <div className="text-sm font-bold text-slate-900">{org.ic_dph || 'Nezadané'}</div>
+                                                </div>
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                    <div className="text-xs text-slate-500 font-semibold mb-1">Objednané</div>
+                                                    <div className="text-sm font-bold text-slate-900">{formatDate(org.updated_at || org.created_at)}</div>
+                                                </div>
                                             </div>
 
-                                            <div className="flex flex-wrap gap-4">
-                                                <a href={`mailto:${req.user_email}`} className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:underline">
-                                                    <Mail size={14}/> {req.user_email}
-                                                </a>
-                                                <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                                                    <PhoneCall size={14}/> {req.user_phone || 'Nezadané'}
-                                                </div>
+                                            <div className="text-sm text-slate-600">
+                                                <span className="font-semibold text-slate-900">Adresa:</span> {getClientAddress(org) || 'Nezadaná'}
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col gap-3 justify-center min-w-[240px]">
+                                        <div className="flex flex-col gap-2 justify-center min-w-[260px]">
                                             <button 
-                                                onClick={() => handleApprovePayment(req)}
-                                                disabled={actionId === req.id}
-                                                className="h-14 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-green-100 transition-all flex items-center justify-center gap-2 active:scale-95"
+                                                onClick={() => openLicenseEditor(org)}
+                                                className="h-11 bg-slate-900 hover:bg-black text-white border border-slate-900 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-sm"
                                             >
-                                                {actionId === req.id ? <Loader2 size={18} className="animate-spin"/> : <Check size={18} strokeWidth={4}/>}
-                                                Platba prijatá - Aktivovať
+                                                <Pencil size={15}/> Otvoriť klienta
                                             </button>
                                             <button 
-                                                onClick={() => markRequestResolved(req.id)}
-                                                className="h-11 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all"
+                                                onClick={() => markOrderHandled(org)}
+                                                disabled={actionId === org.id}
+                                                className="h-10 bg-white hover:bg-green-50 text-green-700 border border-green-200 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                                             >
-                                                Označiť za vybavené (Bez aktivácie)
+                                                {actionId === org.id ? <Loader2 size={15} className="animate-spin"/> : <CheckCircle2 size={15}/>}
+                                                Označiť ako vybavené
                                             </button>
+                                            <button 
+                                                onClick={() => suspendClient(org)}
+                                                disabled={actionId === org.id}
+                                                className="h-10 bg-white hover:bg-red-50 text-red-700 border border-red-200 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                                            >
+                                                <Ban size={15}/> Odmietnuť / vypnúť
+                                            </button>
+                                            <p className="text-xs font-medium text-slate-500 leading-relaxed">
+                                                Objednávka sa po označení ako vybavená skryje z inboxu. Balík zapneš v správe klienta.
+                                            </p>
                                         </div>
                                     </div>
                                 </Card>
-                            ))
+                            )})
                         )}
                     </div>
                 </div>
@@ -324,15 +464,15 @@ export const SuperAdminScreen = () => {
 
             {/* VIEW: CLIENTS MANAGEMENT */}
             {view === 'clients' && (
-                <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-                    <Card className="p-4 border-slate-200 bg-white/50">
+                <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+                    <Card className="p-4 border-slate-200 bg-white shadow-sm">
                         <div className="flex flex-col md:flex-row gap-4">
                             <div className="flex-1 relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18}/>
                                 <input 
                                     type="text" 
-                                    placeholder="Hľadať podľa názvu alebo IČO..."
-                                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:ring-4 focus:ring-orange-500/10 transition-all"
+                                    placeholder="Hľadať podľa názvu, emailu, admina alebo IČO..."
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-200 transition-all"
                                     value={orgSearch}
                                     onChange={(e) => setOrgSearch(e.target.value)}
                                 />
@@ -340,15 +480,16 @@ export const SuperAdminScreen = () => {
                             <div className="flex gap-2 overflow-x-auto no-scrollbar">
                                 {[
                                     { id: 'all', label: 'Všetky' },
-                                    { id: 'expiring', label: 'Expirujúce ⚠️' },
+                                    { id: 'expiring', label: 'Končí trial' },
                                     { id: 'active', label: 'Aktívne' },
                                     { id: 'suspended_unpaid', label: 'Neplatiči' },
-                                    { id: 'trialing', label: 'Trial' }
+                                    { id: 'trialing', label: 'Trial' },
+                                    { id: 'hidden', label: 'Skryté' }
                                 ].map(f => (
                                     <button 
                                         key={f.id}
                                         onClick={() => setOrgStatusFilter(f.id)}
-                                        className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 whitespace-nowrap ${orgStatusFilter === f.id ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                                        className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all border whitespace-nowrap ${orgStatusFilter === f.id ? 'bg-orange-50 text-orange-700 border-orange-100 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-orange-100 hover:text-slate-900'}`}
                                     >
                                         {f.label}
                                     </button>
@@ -357,7 +498,12 @@ export const SuperAdminScreen = () => {
                         </div>
                     </Card>
 
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="flex items-center justify-between px-1 text-sm">
+                        <div className="font-bold text-slate-900">{filteredOrgs.length} klientov</div>
+                        <div className="text-xs font-semibold text-slate-500">Nové objednávky a najnovšie úpravy sú navrchu.</div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
                         {filteredOrgs.map(org => {
                             const plan = (PLAN_CONFIG as any)[org.subscription_plan] || PLAN_CONFIG.free_trial;
                             const expiryDate = new Date(org.trial_ends_at);
@@ -367,51 +513,85 @@ export const SuperAdminScreen = () => {
                             const isExpired = !isInfinite && diffDays < 0;
 
                             let statusColor = "text-green-600 bg-green-50 border-green-100";
-                            if (org.subscription_status === 'suspended_unpaid') statusColor = "text-white bg-red-600 border-red-700";
+                            if (org.subscription_status === 'suspended_unpaid') statusColor = "text-red-800 bg-red-50 border-red-200";
                             else if (isExpired) statusColor = "text-red-700 bg-red-50 border-red-200";
                             else if (diffDays <= 10 && !isInfinite) statusColor = "text-orange-700 bg-orange-50 border-orange-200 ring-2 ring-orange-200";
 
                             return (
-                                <Card key={org.id} className="p-4 border-slate-200 hover:border-blue-300 transition-all group bg-white shadow-sm overflow-hidden">
-                                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-                                        <div className="flex items-center gap-4 min-w-0 flex-1">
-                                            <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0 overflow-hidden shadow-inner">
-                                                {org.logo_url ? <img src={org.logo_url} className="w-full h-full object-cover" /> : <Building2 size={24} className="text-slate-300"/>}
+                                <Card key={org.id} className="p-3 border-slate-200 hover:border-orange-200 transition-all group bg-white shadow-sm overflow-hidden">
+                                    <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                                            <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0 overflow-hidden shadow-inner">
+                                                {org.logo_url ? <img src={org.logo_url} className="w-full h-full object-cover" /> : <Building2 size={20} className="text-slate-300"/>}
                                             </div>
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <h3 className="font-black text-lg text-slate-900 truncate">{org.name}</h3>
-                                                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase ${plan.bg} ${plan.color} ${plan.border}`}>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h3 className="font-bold text-base text-slate-900 truncate">{org.name}</h3>
+                                                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${plan.bg} ${plan.color} ${plan.border}`}>
                                                         <plan.icon size={10} fill="currentColor"/>
                                                         {plan.name}
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                <div className="hidden">
                                                     <span className="flex items-center gap-1"><Hash size={12}/> IČO: {org.ico || '---'}</span>
                                                     <span className="flex items-center gap-1"><Calendar size={12}/> Od: {formatDate(org.created_at)}</span>
+                                                </div>
+                                                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
+                                                    <span className="flex items-center gap-1"><Users size={13}/> Admin: {getClientAdminName(org) || 'Nezadaný'}</span>
+                                                    <span className="flex items-center gap-1"><Calendar size={13}/> Registrované: {formatDate(org.created_at)}</span>
+                                                </div>
+                                                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-2">
+                                                    <ClientInfo icon={Mail} label="Email" value={getClientEmail(org)} href={getClientEmail(org) ? `mailto:${getClientEmail(org)}` : undefined} />
+                                                    <ClientInfo icon={PhoneCall} label="Telefón" value={getClientPhone(org)} href={getClientPhone(org) ? `tel:${getClientPhone(org)}` : undefined} />
+                                                    <ClientInfo icon={Hash} label="IČO" value={org.ico} />
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col sm:flex-row items-center gap-6 w-full lg:w-auto">
-                                            <div className={`px-4 py-2 rounded-2xl border text-center min-w-[140px] shadow-sm ${statusColor}`}>
-                                                <div className="text-[8px] font-black uppercase tracking-[0.2em] mb-0.5 opacity-60">Platnosť do</div>
-                                                <div className="text-xs font-black">
-                                                    {isInfinite ? 'NAVŽDY' : formatDate(org.trial_ends_at)}
-                                                </div>
-                                                {!isInfinite && (
-                                                    <div className="text-[9px] font-bold mt-0.5">
-                                                        {isExpired ? 'EXPIROVANÉ' : `Zostáva ${diffDays} dní`}
-                                                    </div>
+                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+                                            <div className={`px-3 py-2 rounded-xl border text-center min-w-[145px] shadow-sm ${statusColor}`}>
+                                                {org.subscription_status === 'active' ? (
+                                                    <>
+                                                        <div className="text-xs font-semibold mb-0.5 opacity-70">Mesačný paušál</div>
+                                                        <div className="text-sm font-bold">{org.trial_ends_at ? formatDate(org.trial_ends_at) : 'Nezadané'}</div>
+                                                        <div className="text-xs font-semibold mt-0.5">faktúrovať: {getBillingDayLabel(org.trial_ends_at)}</div>
+                                                    </>
+                                                ) : org.subscription_status === 'suspended_unpaid' ? (
+                                                    <>
+                                                        <div className="text-xs font-semibold mb-0.5 opacity-80">Pozastavené od</div>
+                                                        <div className="text-sm font-bold">{formatDate(org.updated_at || org.trial_ends_at || org.created_at)}</div>
+                                                        <div className="text-xs font-semibold mt-0.5">prístup vypnutý</div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="text-xs font-semibold mb-0.5 opacity-70">Platnosť do</div>
+                                                        <div className="text-sm font-bold">
+                                                            {isInfinite ? 'NAVŽDY' : formatDate(org.trial_ends_at)}
+                                                        </div>
+                                                        {!isInfinite && (
+                                                            <div className="text-xs font-semibold mt-0.5">
+                                                                {isExpired ? 'EXPIROVANÉ' : `Zostáva ${diffDays} dní`}
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
 
                                             <div className="flex gap-2 w-full sm:w-auto">
                                                 <button 
                                                     onClick={() => openLicenseEditor(org)}
-                                                    className="flex-1 sm:flex-none h-11 px-5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all flex items-center justify-center gap-2"
+                                                    className="flex-1 sm:flex-none h-10 px-4 bg-slate-900 text-white rounded-xl text-sm font-semibold shadow-sm hover:bg-black transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <Pencil size={14}/> Upraviť Licenciu
+                                                </button>
+                                                <button
+                                                    onClick={() => org.is_hidden_admin ? restoreClient(org) : hideClient(org)}
+                                                    disabled={actionId === org.id}
+                                                    className="h-10 px-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:border-orange-200 hover:text-orange-700 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                                                    title={org.is_hidden_admin ? 'Vrátiť do zoznamu' : 'Skryť firmu zo zoznamu'}
+                                                >
+                                                    {actionId === org.id ? <Loader2 size={14} className="animate-spin"/> : org.is_hidden_admin ? <CheckCircle2 size={14}/> : <Ban size={14}/>}
+                                                    <span className="hidden sm:inline">{org.is_hidden_admin ? 'Obnoviť' : 'Skryť'}</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -530,56 +710,72 @@ export const SuperAdminScreen = () => {
 
             {/* MODAL: LICENSE EDITOR */}
             {licenseModal.open && (
-                <Modal title="Správa licencie a statusu" onClose={() => setLicenseModal({ open: false, org: null })} maxWidth="max-w-md">
+                <Modal title="Správa klienta" onClose={() => setLicenseModal({ open: false, org: null })} maxWidth="max-w-lg">
                     <div className="space-y-6">
-                        <div className="bg-slate-900 p-5 rounded-[2rem] text-center border-b-4 border-black/30 shadow-2xl">
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Konfigurácia pre</p>
-                            <h4 className="font-black text-xl text-white tracking-tight uppercase">{licenseModal.org.name}</h4>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Klient</p>
+                            <h4 className="mt-1 text-xl font-bold text-slate-950">{licenseModal.org.name}</h4>
+                            <p className="mt-1 text-sm font-medium text-slate-500">{getClientEmail(licenseModal.org) || 'Email nezadaný'}</p>
                         </div>
-                        
+
+                        <div className="grid grid-cols-1 gap-2">
+                            <button
+                                onClick={() => activateMonthlyPlan(licenseModal.org, licenseForm.plan === 'free_trial' ? 'base' : licenseForm.plan, licenseForm.endsAt)}
+                                disabled={actionId === licenseModal.org?.id}
+                                className="h-12 rounded-xl bg-green-600 text-white font-bold text-sm shadow-sm hover:bg-green-700 transition flex items-center justify-center gap-2 disabled:opacity-60"
+                            >
+                                {actionId === licenseModal.org?.id ? <Loader2 size={17} className="animate-spin"/> : <CheckCircle2 size={17}/>}
+                                Zapnúť mesačný balík
+                            </button>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <button
+                                    onClick={() => renewTrial(licenseModal.org, licenseForm.endsAt)}
+                                    disabled={actionId === licenseModal.org?.id}
+                                    className="h-11 rounded-xl bg-white border border-orange-200 text-orange-700 font-semibold text-sm hover:bg-orange-50 transition flex items-center justify-center gap-2 disabled:opacity-60"
+                                >
+                                    <Clock size={16}/> Obnoviť 30 dní trial
+                                </button>
+                                <button
+                                    onClick={() => suspendClient(licenseModal.org)}
+                                    disabled={actionId === licenseModal.org?.id}
+                                    className="h-11 rounded-xl bg-white border border-red-200 text-red-700 font-semibold text-sm hover:bg-red-50 transition flex items-center justify-center gap-2 disabled:opacity-60"
+                                >
+                                    <Ban size={16}/> Vypnúť prístup
+                                </button>
+                            </div>
+                            <p className="text-xs font-medium text-slate-500 leading-relaxed">
+                                Balík beží bez expirácie, kým ho ručne nevypneš. Dátum nižšie slúži ako najbližší deň fakturácie.
+                            </p>
+                        </div>
+                         
                         <div className="space-y-5">
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Vyberte balík (Limity)</label>
-                                <div className="grid grid-cols-1 gap-2">
-                                    {['base', 'standard', 'pro', 'free_trial'].map(planId => {
+                                <label className="block text-xs font-semibold text-slate-600 mb-2 ml-1">Balík</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {['base', 'standard', 'pro'].map(planId => {
                                         const p = (PLAN_CONFIG as any)[planId];
                                         const isSel = licenseForm.plan === planId;
                                         return (
                                             <button 
                                                 key={planId}
                                                 onClick={() => setLicenseForm({ ...licenseForm, plan: planId })}
-                                                className={`p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${isSel ? 'border-orange-500 bg-orange-50 shadow-lg scale-[1.02]' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
+                                                className={`h-11 rounded-xl border text-sm font-bold transition-all ${isSel ? 'border-orange-300 bg-orange-50 text-orange-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200'}`}
                                             >
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`p-2 rounded-xl bg-white border shadow-sm ${p.color}`}><p.icon size={20} fill="currentColor"/></div>
-                                                    <div className="text-left">
-                                                        <div className={`font-black text-sm uppercase tracking-tight ${p.color}`}>{p.name}</div>
-                                                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Aktivovať tento modul</div>
-                                                    </div>
-                                                </div>
-                                                {isSel && <CheckCircle2 size={24} className="text-orange-600"/>}
+                                                {p.name}
                                             </button>
                                         );
                                     })}
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-4 bg-slate-50 p-4 rounded-3xl border border-slate-200">
+                            <div className="grid grid-cols-1 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Status účtu</label>
-                                    <Select 
-                                        value={licenseForm.status} 
-                                        onChange={(e:any) => setLicenseForm({ ...licenseForm, status: e.target.value })}
-                                        className="!mb-0 h-12 text-sm font-bold shadow-sm"
-                                    >
-                                        <option value="active">Aktívny (Všetko povolené)</option>
-                                        <option value="pending_payment">Čaká na úhradu (Pripomienka)</option>
-                                        <option value="suspended_unpaid">Neplatič (BLOKOVANÝ PRÍSTUP)</option>
-                                        <option value="trialing">V skúšobnej dobe</option>
-                                    </Select>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Platnosť licencie do</label>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                                        Najbližšia fakturácia / koniec trialu
+                                    </label>
+                                    <p className="mb-2 text-xs font-semibold text-slate-500 leading-relaxed">
+                                        Pri mesačnom balíku je to najbližší deň fakturácie. Pri triali je to koniec skúšobnej doby.
+                                    </p>
                                     <div className="flex gap-2">
                                         <input 
                                             type="date"
@@ -587,28 +783,14 @@ export const SuperAdminScreen = () => {
                                             onChange={(e) => setLicenseForm({ ...licenseForm, endsAt: e.target.value })}
                                             className="flex-1 h-12 px-4 bg-white border border-slate-300 rounded-xl font-bold text-sm outline-none focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 transition-all shadow-sm"
                                         />
-                                        <button 
-                                            onClick={() => setLicenseForm({ ...licenseForm, endsAt: '2100-01-01' })}
-                                            className="px-4 h-12 bg-slate-800 text-white rounded-xl hover:bg-black transition-colors"
-                                            title="Nekonečná licencia"
-                                        >
-                                            <Infinity size={20}/>
-                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-2 pt-4 border-t border-slate-100">
-                            <Button 
-                                onClick={handleManualUpdate} 
-                                loading={actionId === licenseModal.org?.id}
-                                className="h-14 bg-orange-600 hover:bg-orange-700 border-none shadow-xl shadow-orange-100 font-black uppercase text-xs tracking-[0.2em]"
-                            >
-                                <Save size={20} className="mr-2"/> Uložiť zmeny
-                            </Button>
-                            <Button variant="secondary" onClick={() => setLicenseModal({ open: false, org: null })} className="h-12 border-none text-slate-400 hover:text-slate-600 uppercase font-black text-[10px] tracking-widest">
-                                Zrušiť úpravy
+                        <div className="pt-2">
+                            <Button variant="secondary" onClick={() => setLicenseModal({ open: false, org: null })} className="h-11 w-full border-slate-200 text-slate-600 font-semibold text-sm">
+                                Zavrieť
                             </Button>
                         </div>
                     </div>

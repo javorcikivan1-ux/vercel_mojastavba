@@ -113,17 +113,32 @@ const compressImage = (file: File): Promise<Blob> => {
             img.src = e.target?.result as string;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 1024;
-                const scale = Math.min(1, MAX_WIDTH / img.width);
+                const MAX_SIZE = 960;
+                const scale = Math.min(1, MAX_SIZE / Math.max(img.width, img.height));
                 canvas.width = img.width * scale;
                 canvas.height = img.height * scale;
                 const ctx = canvas.getContext('2d');
                 ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-                canvas.toBlob((blob) => blob ? resolve(blob) : reject(), 'image/jpeg', 0.7);
+                canvas.toBlob((blob) => blob ? resolve(blob) : reject(), 'image/jpeg', 0.55);
             };
         };
         reader.onerror = reject;
     });
+};
+
+const getDiaryPhotoStoragePath = (url: string) => {
+    const marker = '/storage/v1/object/public/diary-photos/';
+    const index = url.indexOf(marker);
+    if (index === -1) return null;
+    return decodeURIComponent(url.substring(index + marker.length));
+};
+
+const removeStoredPhoto = async (url?: string | null) => {
+    if (!url) return;
+    const storagePath = getDiaryPhotoStoragePath(url);
+    if (!storagePath) return;
+    const { error } = await supabase.storage.from('diary-photos').remove([storagePath]);
+    if (error) console.error(error);
 };
 
 export const ProjectPHM: React.FC<ProjectPHMProps> = ({ siteId, profile, organization, t: tProp }) => {
@@ -185,7 +200,7 @@ export const ProjectPHM: React.FC<ProjectPHMProps> = ({ siteId, profile, organiz
             const file = e.target.files[0];
             const blob = await compressImage(file);
             const path = `fuel-receipts/${profile.organization_id}/${Date.now()}.jpg`;
-            const { error } = await supabase.storage.from('diary-photos').upload(path, blob);
+            const { error } = await supabase.storage.from('diary-photos').upload(path, blob, { contentType: 'image/jpeg' });
             if (error) throw error;
             const { data: { publicUrl } } = supabase.storage.from('diary-photos').getPublicUrl(path);
             setForm(prev => ({ ...prev, receipt_url: publicUrl }));
@@ -246,6 +261,11 @@ export const ProjectPHM: React.FC<ProjectPHMProps> = ({ siteId, profile, organiz
 
             if (err) throw err;
 
+            const previousReceiptUrl = form.id ? logs.find(log => log.id === form.id)?.receipt_url : null;
+            if (previousReceiptUrl && previousReceiptUrl !== form.receipt_url) {
+                await removeStoredPhoto(previousReceiptUrl);
+            }
+
             setShowModal(false);
             setForm({ date: new Date().toISOString().split('T')[0], amount: '', km_count: '', km_rate: '0.50', vehicle: '', description: '', receipt_url: '' });
             loadData();
@@ -258,7 +278,9 @@ export const ProjectPHM: React.FC<ProjectPHMProps> = ({ siteId, profile, organiz
 
     const handleDelete = async () => {
         if (!confirmDelete) return;
+        const deletedLog = logs.find(log => log.id === confirmDelete);
         await supabase.from('fuel_logs').delete().eq('id', confirmDelete);
+        await removeStoredPhoto(deletedLog?.receipt_url);
         setConfirmDelete(null);
         loadData();
     };

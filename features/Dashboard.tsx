@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Modal, Card } from '../components/UI';
-import { Users, AlertCircle, Calendar, LayoutGrid, MapPin, User, Plus, BookOpen, CheckCircle2, Loader2, Clock, XCircle, ChevronRight, Search, Activity, Briefcase, History } from 'lucide-react';
+import { AlertCircle, Calendar, LayoutGrid, MapPin, User, Plus, FileText, CheckCircle2, Loader2, Clock, XCircle, ChevronRight, Search, Activity, Briefcase, History } from 'lucide-react';
 import { formatMoney } from '../lib/utils';
 
 const PRIORITY_FLAG = "#PRIORITY";
@@ -13,11 +13,12 @@ const isDateToday = (dateStr: string) => {
   return d.toDateString() === today.toDateString();
 };
 
-export const DashboardScreen = ({ profile, organization, onNavigate }: { profile: UserProfile, organization: any, onNavigate: (view: string) => void }) => {
+export const DashboardScreen = ({ profile, organization, onNavigate }: { profile: UserProfile, organization: any, onNavigate: (view: string, params?: any) => void }) => {
   const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
   const [upcomingTasks, setUpcomingTasks] = useState<any[]>([]);
   const [attendanceStatus, setAttendanceStatus] = useState<{logged: any[], missing: any[]}>({ logged: [], missing: [] });
   const [retroactiveLogs, setRetroactiveLogs] = useState<any[]>([]);
+  const [activeSitesCount, setActiveSitesCount] = useState(0);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attendanceSearch, setAttendanceSearch] = useState('');
@@ -34,16 +35,18 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
     const endOfToday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate(), 23, 59, 59, 999).toISOString();
     const endOfFuture = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate() + 4, 23, 59, 59, 999).toISOString();
 
-    const [overdue, upcoming, workers, logsToday, logsCreatedToday] = await Promise.all([
+    const [overdue, upcoming, workers, logsToday, logsCreatedToday, activeSites] = await Promise.all([
       supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').lt('start_date', startOfToday).order('start_date'),
       supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').gte('start_date', startOfToday).lte('start_date', endOfFuture).order('start_date'),
       supabase.from('profiles').select('id, full_name').eq('organization_id', profile.organization_id).eq('is_active', true).eq('role', 'employee'),
       supabase.from('attendance_logs').select('*, sites(name)').eq('organization_id', profile.organization_id).eq('date', todayStr).order('start_time', { ascending: true }),
-      supabase.from('attendance_logs').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).gte('created_at', startOfToday).lte('created_at', endOfToday)
+      supabase.from('attendance_logs').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).gte('created_at', startOfToday).lte('created_at', endOfToday),
+      supabase.from('sites').select('id', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['active', 'planning'])
     ]);
     
     if(overdue.data) setOverdueTasks(overdue.data);
     if(upcoming.data) setUpcomingTasks(upcoming.data);
+    setActiveSitesCount(activeSites.count || 0);
     
     if (workers.data) {
         const logsByUser = new Map();
@@ -95,13 +98,16 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
 
   const filteredLogged = attendanceStatus.logged.filter(w => w.full_name.toLowerCase().includes(attendanceSearch.toLowerCase()));
   const filteredMissing = attendanceStatus.missing.filter(w => w.full_name.toLowerCase().includes(attendanceSearch.toLowerCase()));
+  const todaysTasksCount = upcomingTasks.filter(task => isDateToday(task.start_date)).length;
+  const attendanceTotal = attendanceStatus.logged.length + attendanceStatus.missing.length;
+  const attendancePercent = Math.round((attendanceStatus.logged.length / (attendanceTotal || 1)) * 100);
 
   const hasAnyFixedToday = useMemo(() => {
       return attendanceStatus.logged.some(w => w.logs.some((l: any) => l.payment_type === 'fixed'));
   }, [attendanceStatus.logged]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-2 md:pb-12">
       <div className="flex justify-between items-end">
         <div>
            <h2 className="app-section-title">
@@ -112,47 +118,106 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <button onClick={() => onNavigate('projects')} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-orange-300 hover:shadow-md transition flex items-center gap-3 group text-left">
-              <div className="bg-orange-50 text-orange-600 p-2 rounded-lg group-hover:scale-110 transition"><Plus size={18}/></div>
-              <div><div className="text-xs font-bold text-slate-900">Nový Projekt</div><div className="text-[10px] text-slate-400">Vytvoriť zákazku</div></div>
-          </button>
-          <button onClick={() => onNavigate('calendar')} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md transition flex items-center gap-3 group text-left">
-              <div className="bg-blue-50 text-blue-600 p-2 rounded-lg group-hover:scale-110 transition"><Calendar size={18}/></div>
-              <div><div className="text-xs font-bold text-slate-900">Kalendár</div><div className="text-[10px] text-slate-400">Plán práce</div></div>
-          </button>
-          <button onClick={() => onNavigate('diary')} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-orange-300 hover:shadow-md transition flex items-center gap-3 group text-left">
-              <div className="bg-orange-50 text-orange-600 p-2 rounded-lg group-hover:scale-110 transition"><BookOpen size={18}/></div>
-              <div><div className="text-xs font-bold text-slate-900">Denník práce</div><div className="text-[10px] text-slate-400">Zápis dňa</div></div>
-          </button>
-          <button onClick={() => onNavigate('team')} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-purple-300 hover:shadow-md transition flex items-center gap-3 group text-left">
-              <div className="bg-purple-50 text-purple-600 p-2 rounded-lg group-hover:scale-110 transition"><Users size={18}/></div>
-              <div><div className="text-xs font-bold text-slate-900">Moji zamestnanci</div><div className="text-[10px] text-slate-400">Správa tímu</div></div>
-          </button>
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
+          <Card className="p-4 md:p-5 border-slate-200 shadow-sm bg-white">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                  <div>
+                      <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                          <Activity size={18} className="text-orange-600"/> Dnešný prehľad
+                      </h3>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-100 rounded-full px-3 py-1.5 w-fit">
+                      {new Date().toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </span>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <button onClick={() => onNavigate('calendar')} className="text-left rounded-2xl border border-red-100 bg-red-50/40 p-4 hover:border-red-200 hover:bg-red-50 transition">
+                      <div className="flex items-center justify-between mb-3">
+                          <AlertCircle size={18} className="text-red-600"/>
+                          <span className="text-2xl font-bold text-red-700 tabular-nums">{overdueTasks.length}</span>
+                      </div>
+                      <div className="text-sm font-semibold text-slate-900">Po termíne</div>
+                      <div className="text-xs text-slate-500 font-medium mt-0.5">úlohy na riešenie</div>
+                  </button>
+
+                  <button onClick={() => onNavigate('calendar')} className="text-left rounded-2xl border border-blue-100 bg-blue-50/40 p-4 hover:border-blue-200 hover:bg-blue-50 transition">
+                      <div className="flex items-center justify-between mb-3">
+                          <Calendar size={18} className="text-blue-600"/>
+                          <span className="text-2xl font-bold text-blue-700 tabular-nums">{todaysTasksCount}</span>
+                      </div>
+                      <div className="text-sm font-semibold text-slate-900">Dnes v pláne</div>
+                      <div className="text-xs text-slate-500 font-medium mt-0.5">naplánované práce</div>
+                  </button>
+
+                  <button onClick={() => setShowAttendanceModal(true)} className="text-left rounded-2xl border border-orange-100 bg-orange-50/40 p-4 hover:border-orange-200 hover:bg-orange-50 transition">
+                      <div className="flex items-center justify-between mb-3">
+                          <Clock size={18} className="text-orange-600"/>
+                          <span className="text-2xl font-bold text-orange-700 tabular-nums">{attendancePercent}%</span>
+                      </div>
+                      <div className="text-sm font-semibold text-slate-900">Dochádzka</div>
+                      <div className="text-xs text-slate-500 font-medium mt-0.5">{attendanceStatus.logged.length} z {attendanceTotal} zapísaných</div>
+                  </button>
+
+                  <button onClick={() => onNavigate('projects')} className="text-left rounded-2xl border border-slate-200 bg-slate-50/70 p-4 hover:border-orange-200 hover:bg-white transition">
+                      <div className="flex items-center justify-between mb-3">
+                          <Briefcase size={18} className="text-slate-600"/>
+                          <span className="text-2xl font-bold text-slate-900 tabular-nums">{activeSitesCount}</span>
+                      </div>
+                      <div className="text-sm font-semibold text-slate-900">Aktívne zákazky</div>
+                      <div className="text-xs text-slate-500 font-medium mt-0.5 whitespace-nowrap">Realizácia & príprava</div>
+                  </button>
+              </div>
+          </Card>
+
+          <Card className="p-4 md:p-5 border-slate-200 shadow-sm bg-white">
+              <h3 className="text-base font-semibold text-slate-900 mb-3">Pracovné skratky</h3>
+              <div className="space-y-2">
+                  <button onClick={() => onNavigate('projects', { action: 'new-project' })} className="w-full flex items-center justify-between rounded-xl border border-slate-100 bg-white px-3 py-2.5 text-left hover:border-orange-200 hover:bg-orange-50/40 transition">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Plus size={16} className="text-orange-600"/> Nová zákazka</span>
+                      <ChevronRight size={15} className="text-slate-300"/>
+                  </button>
+                  <button onClick={() => onNavigate('calendar', { action: 'new-task' })} className="w-full flex items-center justify-between rounded-xl border border-slate-100 bg-white px-3 py-2.5 text-left hover:border-orange-200 hover:bg-orange-50/40 transition">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Calendar size={16} className="text-orange-600"/> Nová úloha</span>
+                      <ChevronRight size={15} className="text-slate-300"/>
+                  </button>
+                  <button onClick={() => onNavigate('projects', { action: 'new-lead' })} className="w-full flex items-center justify-between rounded-xl border border-slate-100 bg-white px-3 py-2.5 text-left hover:border-orange-200 hover:bg-orange-50/40 transition">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800"><FileText size={16} className="text-orange-600"/> Cenová ponuka</span>
+                      <ChevronRight size={15} className="text-slate-300"/>
+                  </button>
+              </div>
+          </Card>
       </div>
 
       {/* ALERT PRE SPÄTNÉ ZÁPISY */}
       {retroactiveLogs.length > 0 && (
-          <div className="bg-white border-2 border-orange-200 p-4 rounded-2xl shadow-md animate-in slide-in-from-top-4">
-              <div className="flex items-center gap-3 mb-3">
-                  <div className="bg-orange-500 text-white p-2 rounded-lg shadow-sm">
-                      <History size={20}/>
+          <div className="bg-orange-50/80 border border-orange-200 p-4 rounded-2xl shadow-sm animate-in slide-in-from-top-4">
+              <div className="flex items-start gap-3 mb-3">
+                  <div className="bg-orange-500 text-white p-2 rounded-xl shadow-sm shrink-0">
+                      <History size={18}/>
                   </div>
-                  <div>
-                      <h3 className="font-black text-orange-900 text-sm uppercase tracking-tight">Upozornenie na spätný zápis</h3>
-                      <p className="text-[10px] text-orange-700 font-bold uppercase tracking-widest">Dnes boli dopísané hodiny za iné dni</p>
+                  <div className="min-w-0">
+                      <h3 className="font-bold text-orange-950 text-sm leading-snug">Spätný zápis dochádzky</h3>
+                      <p className="text-xs text-orange-700 font-semibold leading-snug mt-0.5">Dnes boli dopísané hodiny za iné dni.</p>
                   </div>
               </div>
               <div className="space-y-2">
                   {retroactiveLogs.map(l => (
-                      <div key={l.id} className="flex justify-between items-center p-3 bg-orange-50 rounded-xl border border-orange-100">
-                          <div className="flex items-center gap-2">
-                              <User size={14} className="text-orange-400"/>
-                              <span className="text-xs font-bold text-slate-800">{l.profiles?.full_name}</span>
-                              <span className="text-[10px] text-orange-600 font-black uppercase ml-2 bg-white px-2 py-0.5 rounded border border-orange-100">Za deň {new Date(l.date).toLocaleDateString('sk-SK')}</span>
-                          </div>
-                          <div className="text-right">
-                              <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Zapísané o {new Date(l.created_at).toLocaleTimeString('sk-SK', {hour:'2-digit', minute:'2-digit'})}</div>
+                      <div key={l.id} className="rounded-xl border border-orange-100 bg-white/70 px-3 py-2.5">
+                          <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 text-sm font-bold text-slate-900 leading-tight">
+                                      <User size={13} className="text-orange-500 shrink-0"/>
+                                      <span className="truncate">{l.profiles?.full_name}</span>
+                                  </div>
+                                  <div className="mt-1 text-xs font-semibold text-orange-700">
+                                      Za deň {new Date(l.date).toLocaleDateString('sk-SK')}
+                                  </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Zapísané</div>
+                                  <div className="text-xs font-bold text-slate-700">{new Date(l.created_at).toLocaleTimeString('sk-SK', {hour:'2-digit', minute:'2-digit'})}</div>
+                              </div>
                           </div>
                       </div>
                   ))}

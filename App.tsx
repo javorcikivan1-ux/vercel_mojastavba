@@ -120,36 +120,36 @@ const OfflineOverlay = () => (
 );
 
 const UnpaidLockScreen = ({ onLogout }: { onLogout: () => void }) => (
-    <div className="fixed inset-0 z-[9999] bg-slate-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-[3rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] p-8 md:p-16 max-w-2xl w-full text-center border border-red-100 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-red-500"></div>
-            <div className="w-24 h-24 bg-red-50 text-red-600 rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-inner">
-                <Lock size={48} />
+    <div className="fixed inset-0 z-[9999] bg-slate-100 flex items-center justify-center p-4 md:p-6">
+        <div className="bg-white rounded-3xl shadow-[0_24px_70px_-28px_rgba(15,23,42,0.35)] p-6 md:p-10 max-w-xl w-full text-center border border-slate-200 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-orange-500 via-red-500 to-orange-400"></div>
+            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-red-100">
+                <Lock size={30} />
             </div>
-            <h2 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-6">Prístup bol pozastavený</h2>
-            <div className="space-y-4 text-slate-600 font-medium leading-relaxed max-w-lg mx-auto">
+            <h2 className="text-2xl md:text-3xl font-bold text-slate-950 leading-tight mb-4">Prístup bol pozastavený</h2>
+            <div className="space-y-3 text-slate-600 font-medium leading-relaxed max-w-md mx-auto">
                 <p>Evidujeme neuhradenú faktúru za používanie systému <strong>MojaStavba</strong>.</p>
-                <p>Prístup k vašim projektom a dátam bude obnovený okamžite po pripísaní platby na náš účet.</p>
+                <p>Po pripísaní platby vám prístup k projektom a dátam obnovíme.</p>
             </div>
             
-            <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <a href="tel:0948225713" className="flex items-center justify-center gap-3 p-5 bg-slate-900 text-white rounded-2xl hover:bg-black transition-all shadow-xl shadow-slate-200 group">
-                    <Phone size={20} className="group-hover:animate-bounce" />
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <a href="tel:0948225713" className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl hover:border-orange-200 hover:bg-orange-50/60 transition-all">
+                    <Phone size={18} className="text-orange-600 shrink-0" />
                     <div className="text-left">
-                        <div className="text-[10px] font-black uppercase opacity-50">Zavolať nám</div>
-                        <div className="font-bold">0948 225 713</div>
+                        <div className="text-xs font-semibold text-slate-500">Zavolať nám</div>
+                        <div className="font-bold text-slate-950">0948 225 713</div>
                     </div>
                 </a>
-                <a href="mailto:sluzby@lordsbenison.eu" className="flex items-center justify-center gap-3 p-5 bg-white border-2 border-slate-100 text-slate-800 rounded-2xl hover:border-orange-500 transition-all group">
-                    <Mail size={20} className="text-orange-500" />
+                <a href="mailto:sluzby@lordsbenison.eu" className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl hover:border-orange-200 hover:bg-orange-50/60 transition-all">
+                    <Mail size={18} className="text-orange-600 shrink-0" />
                     <div className="text-left">
-                        <div className="text-[10px] font-black uppercase text-slate-400">Napísať email</div>
-                        <div className="font-bold">sluzby@lordsbenison.eu</div>
+                        <div className="text-xs font-semibold text-slate-500">Napísať email</div>
+                        <div className="font-bold text-slate-950 break-all">sluzby@lordsbenison.eu</div>
                     </div>
                 </a>
             </div>
 
-            <button onClick={onLogout} className="mt-10 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-red-600 transition flex items-center justify-center gap-2 mx-auto">
+            <button onClick={onLogout} className="mt-8 text-xs font-semibold text-slate-500 hover:text-red-600 transition flex items-center justify-center gap-2 mx-auto">
                 <LogOut size={14}/> Odhlásiť sa z účtu
             </button>
         </div>
@@ -172,11 +172,13 @@ export const App = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false); 
   const [initialSettingsTab, setInitialSettingsTab] = useState('general');
+  const [navigationAction, setNavigationAction] = useState<any>(null);
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
   const [initialLoginView, setInitialLoginView] = useState('login');
   const [workerTab, setWorkerTab] = useState('dashboard');
   const isApplyingBrowserHistory = useRef(false);
   const lastAppRouteHash = useRef('');
+  const mainContentRef = useRef<HTMLElement | null>(null);
   
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying' | 'installing'>('idle');
@@ -373,6 +375,13 @@ export const App = () => {
   }, [activeScreen, selectedSiteId, selectedDiarySiteId, view, profile]);
 
   useEffect(() => {
+    requestAnimationFrame(() => {
+      mainContentRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    });
+  }, [activeScreen, selectedSiteId, selectedDiarySiteId]);
+
+  useEffect(() => {
     if (view !== 'app' || !profile) return;
 
     const handlePopState = () => {
@@ -490,6 +499,7 @@ export const App = () => {
       if (screen === 'settings' && params?.tab) {
           setInitialSettingsTab(params.tab);
       }
+      setNavigationAction(params?.action ? { screen, action: params.action, payload: params.payload || null, nonce: Date.now() } : null);
       setActiveScreen(screen);
       setSelectedSiteId(null);
       setSelectedDiarySiteId(null);
@@ -711,7 +721,7 @@ export const App = () => {
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                     title={isSidebarCollapsed && !disabled ? label : ''}
-                    className={`w-full flex items-center gap-3 rounded-xl transition-all font-bold relative shrink-0
+                    className={`w-full min-h-[44px] flex items-center gap-3 rounded-xl transition-all font-bold relative shrink-0
                         ${activeScreen === id
                             ? (isSubItem ? 'bg-orange-100/50 text-orange-800' : 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100')
                             : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
@@ -763,14 +773,14 @@ export const App = () => {
                        className="w-11 h-11 object-contain shrink-0" 
                      />
                      {!isSidebarCollapsed && (
-                         <div className="min-w-0 transition-opacity duration-300">
-                           <div className="font-extrabold text-xl tracking-tight text-slate-800">
-                             Moja<span className="text-orange-600">Stavba</span>
-                           </div>
-                           <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">
-                             {organization.name}
-                           </div>
-                         </div>
+                          <div className="min-w-0 transition-opacity duration-300 flex flex-col gap-1">
+                            <div className="brand-wordmark text-xl leading-none">
+                              Moja<span className="brand-wordmark-accent">Stavba</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">
+                              {organization.name}
+                            </div>
+                          </div>
                      )}
                  </div>
 
@@ -818,7 +828,7 @@ export const App = () => {
                     <div>
                         <button
                             onClick={() => setIsFinanceOpen(!isFinanceOpen)}
-                            className={`w-full flex items-center gap-3 rounded-xl transition-all font-bold text-sm
+                            className={`w-full min-h-[44px] flex items-center gap-3 rounded-xl transition-all font-bold text-sm
                                 ${['finance', 'analytics', 'advances'].includes(activeScreen)
                                     ? 'bg-orange-50 text-orange-700 shadow-sm border border-orange-100'
                                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
@@ -845,7 +855,7 @@ export const App = () => {
                         )}
                     </div>
 
-                    <div className="pt-2">
+                    <div>
                         <AdminNavItem id="settings" label="Nastavenia" icon={Settings} />
                         {!isSuperAdmin && profile?.role === 'admin' && <AdminNavItem id="subscription" label="Predplatné" icon={CreditCard} />}
                     </div>
@@ -888,7 +898,7 @@ export const App = () => {
                  </button>
              </aside>
 
-             <main className="flex-1 overflow-y-auto scroll-container relative flex flex-col w-full pb-24 md:mb-0">
+             <main ref={mainContentRef} className="flex-1 overflow-y-auto scroll-container relative flex flex-col w-full pb-20 md:pb-8 md:mb-0">
                  <div className="md:hidden bg-white border-b border-slate-200 p-3 px-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
                      <div className="font-bold text-slate-900 flex items-center gap-2">
                         <img 
@@ -896,7 +906,7 @@ export const App = () => {
                           alt="Logo" 
                           className="w-7 h-7 object-contain" 
                         />
-                        <span className="text-lg tracking-tight">Moja<span className="text-orange-600">Stavba</span></span>
+                        <span className="brand-wordmark text-lg">Moja<span className="brand-wordmark-accent">Stavba</span></span>
                      </div>
 
                      <div className="flex items-center gap-3">
@@ -935,6 +945,7 @@ export const App = () => {
                               { id: 'advances', label: 'Zálohy', icon: Banknote },
                               { id: 'calendar', label: 'Kalendár', icon: Calendar },
                               { id: 'team', label: 'Tím', icon: Users },
+                              { id: 'subscription', label: 'Predplatné', icon: CreditCard },
                               { id: 'settings', label: 'Nastavenia', icon: Settings },
                           ].map(item => (
                               <div key={item.id} className="relative">
@@ -963,10 +974,10 @@ export const App = () => {
                       </div>
                  </div>
 
-                 <div className="p-4 md:p-8 max-w-7xl mx-auto w-full mb-20 md:mb-0">
+                 <div className="p-4 md:p-8 max-w-7xl mx-auto w-full mb-3 md:mb-0">
                       {activeScreen === 'superadmin' && <SuperAdminScreen />}
                       {activeScreen === 'dashboard' && <DashboardScreen profile={profile} organization={organization} onNavigate={handleNavigate} />}
-                      {activeScreen === 'projects' && <ProjectsScreen profile={profile} organization={organization} onSelect={setSelectedSiteId} selectedSiteId={selectedSiteId} />}
+                      {activeScreen === 'projects' && <ProjectsScreen profile={profile} organization={organization} onSelect={setSelectedSiteId} selectedSiteId={selectedSiteId} initialAction={navigationAction?.screen === 'projects' ? navigationAction : null} onInitialActionHandled={() => setNavigationAction(null)} />}
                       {activeScreen === 'diary' && (
                         <DiaryScreen
                           profile={profile}
@@ -979,7 +990,7 @@ export const App = () => {
                       {activeScreen === 'advances' && <AdvancesScreen profile={profile} />}
                       {activeScreen === 'finance' && (hasAnalytics ? <FinanceScreen profile={profile} /> : <UpgradeGate plan="GOLD" />)}
                       {activeScreen === 'analytics' && (hasAnalytics ? <AnalyticsScreen profile={profile} /> : <UpgradeGate plan="GOLD" />)}
-                      {activeScreen === 'calendar' && <CalendarScreen profile={profile} onNavigate={handleNavigate} />}
+                      {activeScreen === 'calendar' && <CalendarScreen profile={profile} onNavigate={handleNavigate} initialAction={navigationAction?.screen === 'calendar' ? navigationAction : null} onInitialActionHandled={() => setNavigationAction(null)} />}
                       {activeScreen === 'team' && <TeamScreen profile={profile} />}
                       {activeScreen === 'settings' && <SettingsScreen profile={profile} organization={organization} onUpdateOrg={setOrganization} onUpdateProfile={handleProfileUpdate} initialTab={initialSettingsTab} />}
                       {activeScreen === 'subscription' && <SubscriptionScreen profile={profile} organization={organization} onSuccess={() => { fetchProfile(profile.id); setActiveScreen('dashboard'); }} onLogout={handleLogout} />}
