@@ -175,6 +175,10 @@ export const SuperAdminScreen = () => {
             result = result.filter(o => 
                 o.name.toLowerCase().includes(query) || 
                 (o.ico && o.ico.includes(orgSearch)) ||
+                (o.dic && o.dic.includes(orgSearch)) ||
+                (o.ic_dph && o.ic_dph.toLowerCase().includes(query)) ||
+                getClientPhone(o).toLowerCase().includes(query) ||
+                getClientAddress(o).toLowerCase().includes(query) ||
                 getClientEmail(o).toLowerCase().includes(query) ||
                 getClientAdminName(o).toLowerCase().includes(query)
             );
@@ -512,8 +516,10 @@ export const SuperAdminScreen = () => {
                             const isInfinite = expiryDate.getFullYear() > 2090;
                             const isExpired = !isInfinite && diffDays < 0;
 
-                            let statusColor = "text-green-600 bg-green-50 border-green-100";
-                            if (org.subscription_status === 'suspended_unpaid') statusColor = "text-red-800 bg-red-50 border-red-200";
+                            let statusColor = "text-green-700 bg-green-50 border-green-100";
+                            if (org.subscription_status === 'active') statusColor = "text-cyan-800 bg-cyan-50 border-cyan-100";
+                            else if (org.subscription_status === 'trialing') statusColor = "text-orange-800 bg-orange-50 border-orange-200";
+                            else if (org.subscription_status === 'suspended_unpaid') statusColor = "text-red-800 bg-red-50 border-red-200";
                             else if (isExpired) statusColor = "text-red-700 bg-red-50 border-red-200";
                             else if (diffDays <= 10 && !isInfinite) statusColor = "text-orange-700 bg-orange-50 border-orange-200 ring-2 ring-orange-200";
 
@@ -544,6 +550,9 @@ export const SuperAdminScreen = () => {
                                                     <ClientInfo icon={Mail} label="Email" value={getClientEmail(org)} href={getClientEmail(org) ? `mailto:${getClientEmail(org)}` : undefined} />
                                                     <ClientInfo icon={PhoneCall} label="Telefón" value={getClientPhone(org)} href={getClientPhone(org) ? `tel:${getClientPhone(org)}` : undefined} />
                                                     <ClientInfo icon={Hash} label="IČO" value={org.ico} />
+                                                    <ClientInfo icon={FileText} label="DIČ" value={org.dic} />
+                                                    <ClientInfo icon={Receipt} label="IČ DPH" value={org.ic_dph} />
+                                                    <ClientInfo icon={MapPin} label="Adresa" value={getClientAddress(org)} />
                                                 </div>
                                             </div>
                                         </div>
@@ -561,6 +570,14 @@ export const SuperAdminScreen = () => {
                                                         <div className="text-xs font-semibold mb-0.5 opacity-80">Pozastavené od</div>
                                                         <div className="text-sm font-bold">{formatDate(org.updated_at || org.trial_ends_at || org.created_at)}</div>
                                                         <div className="text-xs font-semibold mt-0.5">prístup vypnutý</div>
+                                                    </>
+                                                ) : org.subscription_status === 'trialing' ? (
+                                                    <>
+                                                        <div className="text-xs font-semibold mb-0.5 opacity-80">Skúšobná doba</div>
+                                                        <div className="text-sm font-bold">{formatDate(org.trial_ends_at)}</div>
+                                                        <div className="text-xs font-semibold mt-0.5">
+                                                            {isExpired ? 'EXPIROVANÉ' : `platný ešte ${diffDays} dní`}
+                                                        </div>
                                                     </>
                                                 ) : (
                                                     <>
@@ -729,7 +746,7 @@ export const SuperAdminScreen = () => {
                             </button>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <button
-                                    onClick={() => renewTrial(licenseModal.org, licenseForm.endsAt)}
+                                    onClick={() => renewTrial(licenseModal.org)}
                                     disabled={actionId === licenseModal.org?.id}
                                     className="h-11 rounded-xl bg-white border border-orange-200 text-orange-700 font-semibold text-sm hover:bg-orange-50 transition flex items-center justify-center gap-2 disabled:opacity-60"
                                 >

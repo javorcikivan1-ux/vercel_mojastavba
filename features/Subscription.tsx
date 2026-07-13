@@ -30,7 +30,7 @@ export const PLANS = [
     accent: 'text-slate-400',
     bg: 'bg-slate-50',
     features: [
-      { text: '3 Aktívne stavby', included: true },
+      { text: '3 aktívne zákazky', included: true },
       { text: '5 Zamestnancov', included: true },
       { text: 'Dochádzka', included: true },
       { text: 'Denník práce', included: true },
@@ -54,7 +54,7 @@ export const PLANS = [
     bg: 'bg-amber-50',
     recommended: true,
     features: [
-      { text: '10 Aktívnych stavieb', included: true },
+      { text: '10 aktívnych zákaziek', included: true },
       { text: '20 Zamestnancov', included: true },
       { text: 'Dochádzka', included: true },
       { text: 'Denník práce', included: true },

@@ -5,6 +5,14 @@ type PrintExportOptions = {
   settleDelayMs?: number;
 };
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
 const waitForImages = async (doc: Document) => {
   const images = Array.from(doc.images);
 
@@ -131,6 +139,7 @@ export const exportElementToPdf = async (
 ) => {
   const iframe = document.createElement('iframe');
   const title = (options.title || options.filename || 'MojaStavba PDF').replace(/\.pdf$/i, '');
+  const originalDocumentTitle = document.title;
 
   iframe.style.position = 'fixed';
   iframe.style.right = '0';
@@ -152,7 +161,7 @@ export const exportElementToPdf = async (
   }
 
   printDoc.open();
-  printDoc.write('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
+  printDoc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body></body></html>`);
   printDoc.close();
   printDoc.title = title;
 
@@ -177,6 +186,7 @@ export const exportElementToPdf = async (
       if (finished) return;
       finished = true;
       setTimeout(() => {
+        document.title = originalDocumentTitle;
         if (iframe.parentNode) {
           iframe.parentNode.removeChild(iframe);
         }
@@ -185,6 +195,7 @@ export const exportElementToPdf = async (
     };
 
     printWindow.onafterprint = cleanup;
+    document.title = title;
     printWindow.focus();
     printWindow.print();
 

@@ -1,6 +1,6 @@
 
 {
-  "description": "Profesionálny systém pre stavebný manažment, dochádzku a digitálny stavebný denník MojaStavba.",
+  "description": "Profesionálny systém MojaStavba pre správu zákaziek, dochádzku, náklady a firemné podklady.",
   "requestFramePermissions": [
     "camera"
   ]

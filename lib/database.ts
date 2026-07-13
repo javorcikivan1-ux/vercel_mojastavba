@@ -258,7 +258,17 @@ CREATE TABLE public.quote_items (
     unit TEXT DEFAULT 'ks',
     unit_price NUMERIC DEFAULT 0,
     total_price NUMERIC DEFAULT 0,
-    vat_rate NUMERIC DEFAULT 20
+    vat_rate NUMERIC DEFAULT 23
+);
+
+CREATE TABLE public.quote_item_library (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    normalized_key TEXT NOT NULL,
+    description TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (organization_id, normalized_key)
 );
 
 -- 5. INDEXY PRE MAXIMÁLNY VÝKON
@@ -270,6 +280,7 @@ CREATE INDEX idx_attendance_date ON public.attendance_logs(date);
 CREATE INDEX idx_diary_site ON public.diary_records(site_id);
 CREATE INDEX idx_materials_site ON public.materials(site_id);
 CREATE INDEX idx_site_perms_user ON public.site_permissions(user_id);
+CREATE INDEX idx_quote_item_library_org ON public.quote_item_library(organization_id, updated_at DESC);
 
 -- 6. POHĽAD PRE FINANCIE (security_invoker zabezpečí rešpektovanie RLS)
 CREATE OR REPLACE VIEW public.v_site_financials 
@@ -308,6 +319,7 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quote_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quote_item_library ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_worker_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_permissions ENABLE ROW LEVEL SECURITY;
 
@@ -412,6 +424,10 @@ USING (
     EXISTS (SELECT 1 FROM public.quotes q WHERE q.id = quote_id AND q.organization_id = public.get_my_org())
     OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com'
 );
+
+CREATE POLICY "quote_item_library_secure" ON public.quote_item_library FOR ALL TO authenticated 
+USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com')
+WITH CHECK (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');
 
 CREATE POLICY "tasks_secure" ON public.tasks FOR ALL TO authenticated 
 USING (organization_id = public.get_my_org() OR auth.jwt() ->> 'email' = 'javorcik.ivan1@gmail.com');

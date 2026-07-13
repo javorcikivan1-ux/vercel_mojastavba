@@ -7,12 +7,9 @@ import {
   Bell, Image as ImageIcon, Shield, Users, LogOut, Clock, 
   RefreshCw, FileText, Tags, Trash2, Plus, Palette, Check, 
   Camera, Loader2, FileSignature, AlertTriangle, MapPin, CreditCard,
-  Maximize2, ZoomIn, RotateCw
 } from 'lucide-react';
 import { UpdatesScreen } from './Updates';
 import { Capacitor } from '@capacitor/core';
-// @ts-ignore
-import Cropper from 'react-easy-crop';
 
 // Pastel palette for task categories
 const PASTEL_COLORS = [
@@ -38,7 +35,7 @@ const getCroppedImg = (
             const canvas = document.createElement('canvas');
             const mimeType = options.mimeType || 'image/jpeg';
             const targetWidth = options.outputWidth || 512;
-            const targetHeight = options.outputHeight || targetWidth;
+            const targetHeight = options.outputHeight || Math.max(1, Math.round(targetWidth * (pixelCrop.height / pixelCrop.width)));
             canvas.width = targetWidth;
             canvas.height = targetHeight;
             const ctx = canvas.getContext('2d');
@@ -101,6 +98,8 @@ const compressStamp = (file: File): Promise<Blob> => {
 
 const CropPreview = ({ imageSrc, pixelCrop, className, mimeType = 'image/png' }: { imageSrc: string; pixelCrop: any; className?: string; mimeType?: string }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewWidth = 900;
+  const previewHeight = Math.max(1, Math.round(previewWidth * ((pixelCrop?.height || 420) / (pixelCrop?.width || 900))));
 
   useEffect(() => {
       if (!imageSrc || !pixelCrop || !canvasRef.current) return;
@@ -128,9 +127,127 @@ const CropPreview = ({ imageSrc, pixelCrop, className, mimeType = 'image/png' }:
               canvas.height
           );
       };
-  }, [imageSrc, pixelCrop, mimeType]);
+  }, [imageSrc, pixelCrop, mimeType, previewHeight]);
 
-  return <canvas ref={canvasRef} width={900} height={420} className={className} />;
+  return <canvas ref={canvasRef} width={previewWidth} height={previewHeight} className={className} />;
+};
+
+type CropBox = { left: number; top: number; right: number; bottom: number };
+type CropEdge = 'left' | 'right' | 'top' | 'bottom';
+
+const clampCropValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const EdgeCropper = ({
+    imageSrc,
+    imageSize,
+    cropBox,
+    onCropBoxChange,
+    onCropPixelsChange
+}: {
+    imageSrc: string;
+    imageSize: { width: number; height: number } | null;
+    cropBox: CropBox;
+    onCropBoxChange: (box: CropBox) => void;
+    onCropPixelsChange: (pixelCrop: any) => void;
+}) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const imageRef = useRef<HTMLImageElement>(null);
+    const [imageRect, setImageRect] = useState({ left: 0, top: 0, width: 0, height: 0 });
+    const MIN_SIZE = 5;
+
+    const updateImageRect = useCallback(() => {
+        const container = containerRef.current;
+        const image = imageRef.current;
+        if (!container || !image) return;
+        const containerBox = container.getBoundingClientRect();
+        const imageBox = image.getBoundingClientRect();
+        setImageRect({
+            left: imageBox.left - containerBox.left,
+            top: imageBox.top - containerBox.top,
+            width: imageBox.width,
+            height: imageBox.height
+        });
+    }, []);
+
+    useEffect(() => {
+        updateImageRect();
+        window.addEventListener('resize', updateImageRect);
+        return () => window.removeEventListener('resize', updateImageRect);
+    }, [updateImageRect, imageSrc]);
+
+    useEffect(() => {
+        if (!imageSize) return;
+        onCropPixelsChange({
+            x: Math.round((cropBox.left / 100) * imageSize.width),
+            y: Math.round((cropBox.top / 100) * imageSize.height),
+            width: Math.round(((cropBox.right - cropBox.left) / 100) * imageSize.width),
+            height: Math.round(((cropBox.bottom - cropBox.top) / 100) * imageSize.height)
+        });
+    }, [cropBox, imageSize, onCropPixelsChange]);
+
+    const startDrag = (edge: CropEdge) => (event: React.PointerEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        const rect = imageRect;
+        const move = (moveEvent: PointerEvent) => {
+            if (!rect.width || !rect.height) return;
+            const xPct = clampCropValue(((moveEvent.clientX - (containerRef.current?.getBoundingClientRect().left || 0) - rect.left) / rect.width) * 100, 0, 100);
+            const yPct = clampCropValue(((moveEvent.clientY - (containerRef.current?.getBoundingClientRect().top || 0) - rect.top) / rect.height) * 100, 0, 100);
+            onCropBoxChange({
+                left: edge === 'left' ? clampCropValue(xPct, 0, cropBox.right - MIN_SIZE) : cropBox.left,
+                right: edge === 'right' ? clampCropValue(xPct, cropBox.left + MIN_SIZE, 100) : cropBox.right,
+                top: edge === 'top' ? clampCropValue(yPct, 0, cropBox.bottom - MIN_SIZE) : cropBox.top,
+                bottom: edge === 'bottom' ? clampCropValue(yPct, cropBox.top + MIN_SIZE, 100) : cropBox.bottom
+            });
+        };
+        const stop = () => {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', stop);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', stop);
+    };
+
+    const cropStyle = {
+        left: imageRect.left + (cropBox.left / 100) * imageRect.width,
+        top: imageRect.top + (cropBox.top / 100) * imageRect.height,
+        width: ((cropBox.right - cropBox.left) / 100) * imageRect.width,
+        height: ((cropBox.bottom - cropBox.top) / 100) * imageRect.height
+    };
+
+    const outside = {
+        left: imageRect.left,
+        top: imageRect.top,
+        width: imageRect.width,
+        height: imageRect.height
+    };
+
+    return (
+        <div ref={containerRef} className="relative h-64 md:h-96 w-full bg-slate-50 rounded-2xl overflow-hidden border-4 border-slate-100 shadow-inner select-none">
+            <img
+                ref={imageRef}
+                src={imageSrc}
+                alt="Orezávaný obrázok"
+                draggable={false}
+                onLoad={updateImageRect}
+                className="absolute inset-0 m-auto max-w-full max-h-full object-contain pointer-events-none"
+            />
+            <div className="absolute bg-slate-950/55 pointer-events-none" style={{ left: outside.left, top: outside.top, width: outside.width, height: cropStyle.top - outside.top }} />
+            <div className="absolute bg-slate-950/55 pointer-events-none" style={{ left: outside.left, top: cropStyle.top + cropStyle.height, width: outside.width, height: outside.top + outside.height - (cropStyle.top + cropStyle.height) }} />
+            <div className="absolute bg-slate-950/55 pointer-events-none" style={{ left: outside.left, top: cropStyle.top, width: cropStyle.left - outside.left, height: cropStyle.height }} />
+            <div className="absolute bg-slate-950/55 pointer-events-none" style={{ left: cropStyle.left + cropStyle.width, top: cropStyle.top, width: outside.left + outside.width - (cropStyle.left + cropStyle.width), height: cropStyle.height }} />
+
+            <div className="absolute border-2 border-orange-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)] pointer-events-none" style={cropStyle}>
+                <div className="absolute left-1/3 top-0 h-full w-px bg-white/45" />
+                <div className="absolute left-2/3 top-0 h-full w-px bg-white/45" />
+                <div className="absolute left-0 top-1/3 h-px w-full bg-white/45" />
+                <div className="absolute left-0 top-2/3 h-px w-full bg-white/45" />
+            </div>
+            <button type="button" aria-label="Orezať zľava" onPointerDown={startDrag('left')} className="absolute z-10 -translate-x-1/2 cursor-ew-resize rounded-full bg-orange-600 shadow-lg ring-4 ring-white/90 w-6 h-16" style={{ left: cropStyle.left, top: cropStyle.top + cropStyle.height / 2 - 32 }} />
+            <button type="button" aria-label="Orezať sprava" onPointerDown={startDrag('right')} className="absolute z-10 -translate-x-1/2 cursor-ew-resize rounded-full bg-orange-600 shadow-lg ring-4 ring-white/90 w-6 h-16" style={{ left: cropStyle.left + cropStyle.width, top: cropStyle.top + cropStyle.height / 2 - 32 }} />
+            <button type="button" aria-label="Orezať zhora" onPointerDown={startDrag('top')} className="absolute z-10 -translate-x-1/2 cursor-ns-resize rounded-full bg-orange-600 shadow-lg ring-4 ring-white/90 h-6 w-20" style={{ left: cropStyle.left + cropStyle.width / 2, top: cropStyle.top + 10 }} />
+            <button type="button" aria-label="Orezať zdola" onPointerDown={startDrag('bottom')} className="absolute z-10 -translate-x-1/2 cursor-ns-resize rounded-full bg-orange-600 shadow-lg ring-4 ring-white/90 h-6 w-20" style={{ left: cropStyle.left + cropStyle.width / 2, top: cropStyle.top + cropStyle.height - 34 }} />
+        </div>
+    );
 };
 
 export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdateProfile, initialTab = 'general' }: any) => {
@@ -140,9 +257,9 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   // Cropper states
   const [croppingImage, setCroppingImage] = useState<string | null>(null);
   const [cropTarget, setCropTarget] = useState<'logo' | 'stamp'>('logo');
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [cropImageSize, setCropImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [cropBox, setCropBox] = useState<CropBox>({ left: 0, top: 0, right: 100, bottom: 100 });
   
   const [uploading, setUploading] = useState(false);
   const [uploadingStamp, setUploadingStamp] = useState(false);
@@ -210,18 +327,17 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
       }
   }, [organization]);
 
-  const onCropComplete = useCallback((_croppedArea: any, pixelCrop: any) => {
-      setCroppedAreaPixels(pixelCrop);
-  }, []);
-
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           const reader = new FileReader();
           reader.readAsDataURL(e.target.files[0]);
           reader.onload = () => {
+              const image = new Image();
+              image.src = reader.result as string;
+              image.onload = () => setCropImageSize({ width: image.naturalWidth, height: image.naturalHeight });
               setCropTarget('logo');
-              setCrop({ x: 0, y: 0 });
-              setZoom(1);
+              setCropBox({ left: 0, top: 0, right: 100, bottom: 100 });
+              setCroppedAreaPixels(null);
               setCroppingImage(reader.result as string);
           };
       }
@@ -235,14 +351,14 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
     try {
         const blob = await getCroppedImg(croppingImage, croppedAreaPixels, isStamp
             ? { mimeType: 'image/png', outputWidth: 900, outputHeight: 420 }
-            : { mimeType: 'image/jpeg', outputWidth: 512, outputHeight: 512 }
+            : { mimeType: 'image/png', outputWidth: 900 }
         );
-        const fileName = `${profile.organization_id}/${isStamp ? 'stamp' : 'logo'}-${Date.now()}.${isStamp ? 'png' : 'jpg'}`;
+        const fileName = `${profile.organization_id}/${isStamp ? 'stamp' : 'logo'}-${Date.now()}.png`;
         const filePath = `${isStamp ? 'stamps' : 'logos'}/${fileName}`;
         
         const { error: uploadError } = await supabase.storage
             .from('diary-photos')
-            .upload(filePath, blob, { contentType: isStamp ? 'image/png' : 'image/jpeg', upsert: true });
+            .upload(filePath, blob, { contentType: 'image/png', upsert: true });
 
         if (uploadError) throw uploadError;
 
@@ -269,9 +385,12 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
           const reader = new FileReader();
           reader.readAsDataURL(e.target.files[0]);
           reader.onload = () => {
+              const image = new Image();
+              image.src = reader.result as string;
+              image.onload = () => setCropImageSize({ width: image.naturalWidth, height: image.naturalHeight });
               setCropTarget('stamp');
-              setCrop({ x: 0, y: 0 });
-              setZoom(0.45);
+              setCropBox({ left: 0, top: 0, right: 100, bottom: 100 });
+              setCroppedAreaPixels(null);
               setCroppingImage(reader.result as string);
           };
       }
@@ -379,7 +498,6 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   );
 
   const isCustomColor = !PASTEL_COLORS.some(c => c.hex === newCatColor);
-
   return (
     <div className="space-y-6">
         <div className="mb-2">
@@ -405,25 +523,25 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10 pb-8 border-b border-slate-100">
                                 <div className="flex flex-col items-center gap-4">
                                     <div className="relative group">
-                                        <div onClick={() => fileInputRef.current?.click()} tabIndex={-1} className="w-32 h-32 rounded-full border-4 border-white shadow-2xl overflow-hidden bg-slate-100 flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform select-none caret-transparent outline-none focus:outline-none">
-                                            {uploading ? <Loader2 className="animate-spin text-orange-600" size={32}/> : orgData.logo_url ? <img src={orgData.logo_url} alt="Logo" draggable={false} className="w-full h-full object-cover pointer-events-none select-none" /> : <Building2 size={48} className="text-slate-300" />}
+                                        <div onClick={() => fileInputRef.current?.click()} tabIndex={-1} className="w-44 h-28 rounded-2xl border-4 border-white shadow-2xl overflow-hidden bg-slate-100 flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform select-none caret-transparent outline-none focus:outline-none">
+                                            {uploading ? <Loader2 className="animate-spin text-orange-600" size={32}/> : orgData.logo_url ? <img src={orgData.logo_url} alt="Logo" draggable={false} className="w-full h-full object-contain p-3 pointer-events-none select-none" /> : <Building2 size={48} className="text-slate-300" />}
                                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera className="text-white" size={24}/></div>
                                         </div>
                                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
                                         <div className="absolute -bottom-2 -right-2 bg-orange-600 text-white p-2 rounded-full shadow-lg border-2 border-white"><ImageIcon size={16}/></div>
                                     </div>
-                                    <div className="text-center"><h3 className="font-black text-slate-900">Logo Firmy</h3><p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-0.5">Avatar aplikácie</p></div>
+                                    <div className="text-center"><h3 className="font-black text-slate-900">Logo Firmy</h3></div>
                                 </div>
                                 <div className="flex flex-col items-center gap-4">
                                     <div className="relative group">
-                                        <div onClick={() => stampInputRef.current?.click()} tabIndex={-1} className="w-32 h-32 rounded-2xl border-4 border-white shadow-2xl overflow-hidden bg-slate-100 flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform select-none caret-transparent outline-none focus:outline-none">
+                                        <div onClick={() => stampInputRef.current?.click()} tabIndex={-1} className="w-44 h-28 rounded-2xl border-4 border-white shadow-2xl overflow-hidden bg-slate-100 flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform select-none caret-transparent outline-none focus:outline-none">
                                             {uploadingStamp ? <Loader2 className="animate-spin text-orange-600" size={32}/> : orgData.stamp_url ? <img src={orgData.stamp_url} alt="Stamp" draggable={false} className="w-full h-full object-contain p-2 pointer-events-none select-none" /> : <FileSignature size={48} className="text-slate-300" />}
                                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera className="text-white" size={24}/></div>
                                         </div>
                                         <input type="file" ref={stampInputRef} className="hidden" accept="image/*" onChange={handleStampUpload} />
                                         <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2 rounded-full shadow-lg border-2 border-white"><FileSignature size={16}/></div>
                                     </div>
-                                    <div className="text-center"><h3 className="font-black text-slate-900">Pečiatka a Podpis</h3><p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-0.5">Pre PDF exporty</p></div>
+                                    <div className="text-center"><h3 className="font-black text-slate-900">Pečiatka a Podpis</h3></div>
                                 </div>
                             </div>
 
@@ -525,52 +643,21 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
         {croppingImage && (
             <Modal title={cropTarget === 'stamp' ? 'Orezanie pečiatky' : 'Orezanie loga'} onClose={() => setCroppingImage(null)} maxWidth="max-w-4xl">
                 <div className="space-y-6">
-                    <p className="text-sm text-slate-500 text-center font-medium">
-                        {cropTarget === 'stamp'
-                            ? 'Potiahnite pečiatku alebo podpis a nastavte výrez tak, aby v PDF nepôsobili odrezané ani príliš malé.'
-                            : 'Potiahnite logo a pomocou jazdca nižšie nastavte ideálny výrez.'}
-                    </p>
-
-                    <div className="relative h-64 md:h-96 w-full bg-slate-900 rounded-2xl overflow-hidden border-4 border-slate-100 shadow-inner">
-                        <Cropper
-                            image={croppingImage}
-                            crop={crop}
-                            zoom={zoom}
-                            minZoom={cropTarget === 'stamp' ? 0.2 : 0.7}
-                            maxZoom={4}
-                            objectFit="contain"
-                            restrictPosition={false}
-                            aspect={cropTarget === 'stamp' ? 15 / 7 : 1}
-                            onCropChange={setCrop}
-                            onCropComplete={onCropComplete}
-                            onZoomChange={setZoom}
-                        />
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-4">
-                            <ZoomIn size={18} className="text-slate-400" />
-                            <input
-                                type="range"
-                                value={zoom}
-                                min={cropTarget === 'stamp' ? 0.2 : 0.7}
-                                max={4}
-                                step={0.1}
-                                aria-labelledby="Zoom"
-                                onChange={(e) => setZoom(Number(e.target.value))}
-                                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
-                            />
-                            <Maximize2 size={18} className="text-slate-400" />
-                        </div>
-                    </div>
+                    <EdgeCropper
+                        imageSrc={croppingImage}
+                        imageSize={cropImageSize}
+                        cropBox={cropBox}
+                        onCropBoxChange={setCropBox}
+                        onCropPixelsChange={setCroppedAreaPixels}
+                    />
 
                     {cropTarget === 'logo' ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-3xl border border-slate-200 border-dashed">
                             <div className="text-center space-y-3">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Náhľad v menu (Bublina)</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Náhľad v aplikácii</p>
                                 <div className="flex justify-center">
-                                    <div className="w-20 h-20 rounded-full border-4 border-white shadow-xl overflow-hidden bg-white">
-                                        <CropPreview imageSrc={croppingImage} pixelCrop={croppedAreaPixels} mimeType="image/jpeg" className="w-full h-full object-cover pointer-events-none" />
+                                    <div className="w-36 h-20 rounded-xl border-4 border-white shadow-xl overflow-hidden bg-white flex items-center justify-center">
+                                        <CropPreview imageSrc={croppingImage} pixelCrop={croppedAreaPixels} mimeType="image/png" className="w-full h-full object-contain pointer-events-none" />
                                     </div>
                                 </div>
                             </div>
@@ -579,7 +666,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Náhľad v PDF (Dokument)</p>
                                 <div className="flex justify-center">
                                     <div className="w-32 h-20 rounded-xl border-4 border-white shadow-xl overflow-hidden bg-white flex items-center justify-center">
-                                        <CropPreview imageSrc={croppingImage} pixelCrop={croppedAreaPixels} mimeType="image/jpeg" className="w-full h-full object-cover pointer-events-none" />
+                                        <CropPreview imageSrc={croppingImage} pixelCrop={croppedAreaPixels} mimeType="image/png" className="w-full h-full object-contain pointer-events-none" />
                                     </div>
                                 </div>
                             </div>

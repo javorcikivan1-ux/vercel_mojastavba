@@ -21,8 +21,8 @@ Zákazky:
 - Náklady sú výdavky, materiál, PHM a mzdy z dochádzky.
 
 Denník práce:
-- Používaj názov Denník práce, nie stavebný denník.
-- Slúži ako pracovný prehľad zápisov k zákazke, nie ako právne podpisovaný stavebný denník.
+- Používaj názov Denník práce.
+- Slúži ako pracovný prehľad zápisov k zákazke, nie ako právne podpisovaný úradný dokument.
 - Vie importovať práce z dochádzky daného dňa.
 - Fotky sa komprimujú, aby zbytočne nezaťažovali úložisko.
 

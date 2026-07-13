@@ -1,13 +1,13 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import { LegalModal, Modal } from '../components/UI';
 import { 
   ArrowLeft, Mail, Phone, Clock, 
   X, ArrowRight, ShieldCheck, Zap, Target, Sparkles, 
   BookOpen, BarChart3, Cloud, Image as ImageIcon, TrendingUp, 
-  ChevronRight, ChevronLeft, Maximize2, MousePointer2, LayoutGrid,
+  ChevronRight, ChevronLeft, Maximize2, LayoutGrid,
   Trophy, Star, Crown, CheckCircle2, Building2, Users, Wallet, Calendar,
-  FileCheck, Shield, MapPin, User, HardHat, Info, PieChart
+  FileCheck, Shield, MapPin, User, HardHat, Info, PieChart, MoreVertical
 } from 'lucide-react';
 import { PLANS } from './Subscription';
 
@@ -167,40 +167,25 @@ const PricingModal = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-export const AboutApp = () => {
+export const AboutApp = ({ onStart, onLogin, onBack }: { onStart: () => void; onLogin: () => void; onBack: () => void }) => {
   const [showLegal, setShowLegal] = useState<'vop' | 'gdpr' | null>(null);
   const [showPricing, setShowPricing] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
-  
-  const timerRef = useRef<any>(null);
-
-  const startTimer = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setCurrentIdx(prev => (prev + 1) % REASONS.length);
-    }, 3000);
-  }, []);
-
-  useEffect(() => {
-    if (!isPaused && !showLightbox && !showPricing) startTimer();
-    else if (timerRef.current) clearInterval(timerRef.current);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [isPaused, showLightbox, showPricing, startTimer]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const active = REASONS[currentIdx];
+  const menuBtnStyle = "inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-600 hover:text-orange-700 rounded-full hover:bg-orange-50 transition-all whitespace-nowrap active:scale-95";
+  const menuIconStyle = "text-slate-400 group-hover:text-orange-600 transition-colors";
 
   const handlePrev = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     setCurrentIdx(p => (p - 1 + REASONS.length) % REASONS.length);
-    startTimer();
   };
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     setCurrentIdx(p => (p + 1) % REASONS.length);
-    startTimer();
   };
 
   return (
@@ -251,109 +236,155 @@ export const AboutApp = () => {
       {/* --- HEADER --- */}
       <header className="relative z-[100] shrink-0">
         <nav className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0">
-          <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 h-14 sm:h-16 md:h-20 flex items-center justify-between gap-2">
-            <a href="/" className="flex items-center gap-1 sm:gap-1.5 md:gap-2.5 min-w-0 shrink group transition">
+          <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between gap-2">
+            <button onClick={onBack} className="flex items-center gap-1.5 md:gap-2.5 min-w-0 shrink hover:opacity-80 transition">
               <img 
                 src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
-                alt="Logo" 
-                className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-9 lg:h-9 object-contain shrink-0 group-hover:scale-110 transition-transform duration-500" 
+                alt="MojaStavba Logo" 
+                className="w-7 h-7 md:w-9 md:h-9 object-contain shrink-0" 
               />
-              <span className="brand-wordmark text-xs sm:text-sm md:text-base lg:text-xl truncate">Moja<span className="brand-wordmark-accent">Stavba</span></span>
-            </a>
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-               <button onClick={() => setShowPricing(true)} className="px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-[9px] sm:text-[10px] md:text-xs font-bold text-slate-800 hover:text-orange-600 rounded-lg sm:rounded-xl border border-slate-200 hover:border-orange-200 bg-white shadow-sm transition-all whitespace-nowrap active:scale-95">Cenník</button>
-               <button onClick={() => window.location.href = '/'} className="px-2 sm:px-3 md:px-4 lg:px-5 py-1.5 sm:py-2 md:py-2.5 text-[9px] sm:text-[10px] md:text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg sm:rounded-xl shadow-lg shadow-orange-200 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap flex items-center gap-1 sm:gap-2">
-                 <ArrowLeft size={12} className="sm:hidden"/>
-                 <ArrowLeft size={14} className="hidden sm:block"/>
-                 <span className="hidden sm:inline">Späť na úvod</span>
-                 <span className="sm:hidden">Späť</span>
-               </button>
+              <span className="brand-wordmark text-sm md:text-xl truncate">Moja<span className="brand-wordmark-accent">Stavba</span></span>
+            </button>
+
+            <div className="hidden md:flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <button onClick={onBack} className={`${menuBtnStyle} group`}>
+                  O aplikácii
+                </button>
+                <span className="h-5 w-px bg-slate-200" aria-hidden="true" />
+                <button onClick={() => setShowPricing(true)} className={`${menuBtnStyle} group`}>
+                  Cenník
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onStart}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold leading-none text-white bg-orange-600 hover:bg-orange-700 rounded-full shadow-lg shadow-orange-100 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
+                >
+                  <ArrowRight size={16} strokeWidth={2.5} className="shrink-0"/>
+                  Vyskúšať zadarmo
+                </button>
+                <button onClick={onLogin} className={`${menuBtnStyle} group`}>
+                  <User size={16} className={menuIconStyle}/>
+                  Prihlásiť sa
+                </button>
+              </div>
+            </div>
+
+            <div className="flex md:hidden items-center gap-2 shrink-0">
+              <button
+                onClick={onStart}
+                className="inline-flex items-center justify-center px-3 py-2 text-[10px] font-bold leading-none text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-md shadow-orange-100 active:scale-95 whitespace-nowrap"
+              >
+                Vyskúšať zadarmo
+              </button>
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 text-slate-500 hover:text-orange-600 hover:bg-slate-50 rounded-lg transition-colors"
+              >
+                {isMobileMenuOpen ? <X size={24}/> : <MoreVertical size={24}/>}
+              </button>
             </div>
           </div>
+
+          {isMobileMenuOpen && (
+            <div className="md:hidden absolute top-full left-0 right-0 bg-white border-b border-slate-200 shadow-2xl animate-in slide-in-from-top-2 duration-200">
+              <div className="p-4 space-y-2">
+                <button
+                  onClick={() => { onBack(); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
+                >
+                  <span className="flex items-center gap-3"><Info size={18} className="text-orange-500"/>O aplikácii</span>
+                  <ChevronRight size={18} className="text-slate-300"/>
+                </button>
+                <button
+                  onClick={() => { setShowPricing(true); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
+                >
+                  <span className="flex items-center gap-3"><Crown size={18} className="text-orange-500"/>Cenník</span>
+                  <ChevronRight size={18} className="text-slate-300"/>
+                </button>
+                <button
+                  onClick={() => { onLogin(); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
+                >
+                  <span className="flex items-center gap-3"><User size={18} className="text-orange-500"/>Prihlásiť sa</span>
+                  <ChevronRight size={18} className="text-slate-300"/>
+                </button>
+              </div>
+            </div>
+          )}
         </nav>
       </header>
 
       <main className="flex-1 flex flex-col overflow-y-auto no-scrollbar scroll-smooth">
         
         {/* --- HERO SHOWCASE --- */}
-        <section className="min-h-[calc(100vh-80px)] flex items-center justify-center pt-12 sm:pt-16 pb-16 sm:pb-20 px-4 sm:px-6 relative overflow-hidden">
-            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-5xl aspect-square bg-gradient-to-br ${active.color} opacity-[0.04] blur-[150px] rounded-full transition-all duration-1500 pointer-events-none`}></div>
+        <section className="flex items-start lg:items-center justify-center pt-8 sm:pt-10 lg:pt-8 pb-10 sm:pb-12 px-4 sm:px-6 relative overflow-visible">
+            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-6xl aspect-square bg-gradient-to-br ${active.color} opacity-[0.04] blur-[150px] rounded-full transition-all duration-1500 pointer-events-none`}></div>
 
             {/* Layout Container */}
-            <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center relative">
+            <div className="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-8 items-center relative">
                 
-                {/* LEFT: BRANDED TEXT & MECHANICAL NUMBER */}
-                <div className="lg:col-span-4 relative z-10 flex flex-col justify-center order-1 lg:order-1">
-                    
-                    {/* Fixed Odometer - Dot at baseline */}
-                    <div className="relative h-16 sm:h-20 md:h-24 lg:h-28 lg:h-32 mb-0 sm:mb-2 overflow-hidden flex items-start">
-                        <div 
-                          className="flex flex-col transition-transform duration-[1200ms] cubic-bezier(0.16, 1, 0.3, 1)"
-                          style={{ transform: `translateY(-${currentIdx * (100 / REASONS.length)}%)`, height: `${REASONS.length * 100}%` }}
-                        >
-                            {REASONS.map((r, i) => (
-                                <div key={i} className="flex items-baseline" style={{ height: `${100 / REASONS.length}%` }}>
-                                    <span className="text-[40px] sm:text-[50px] md:text-[60px] lg:text-[80px] lg:text-[110px] font-black leading-none text-slate-900 opacity-60 select-none tracking-tighter pr-3 sm:pr-4 md:pr-6 lg:pr-8">
-                                        {r.id}.
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
+                {/* LEFT: TEXT & MANUAL NAV */}
+                <div className="lg:col-span-4 xl:col-span-3 relative z-10 flex flex-col justify-center order-1 lg:order-1">
                     <div key={`content-${active.id}`} className="space-y-0 sm:space-y-1 md:space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-1000">
-                        {/* Decorative Line */}
-                        <div className="w-24 sm:w-32 md:w-40 lg:w-48 h-1 bg-gradient-to-r from-orange-600 via-orange-600/40 to-transparent rounded-full -mt-4 sm:-mt-1 md:mt-0 mb-2 sm:mb-3 md:mb-4 lg:mb-6 shadow-lg shadow-orange-100/20"></div>
-
-                        <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl lg:text-5xl font-black text-slate-900 tracking-tighter leading-[0.95] uppercase">
+                        <h2 className="text-3xl sm:text-4xl lg:text-[2.7rem] font-black text-slate-900 tracking-tight leading-[1.02]">
                             {active.brandTitle} <br/>
                             <span className="text-orange-600">{active.brandHighlight}</span>
                         </h2>
-                        <p className="text-xs sm:text-sm md:text-base text-slate-500 font-medium leading-relaxed max-w-xs sm:max-w-sm pt-1 sm:pt-2">
+                        <p className="text-sm text-slate-600 font-medium leading-relaxed max-w-md pt-3">
                             {active.desc}
                         </p>
                     </div>
 
-                    <div className="flex gap-1 sm:gap-1.5 lg:gap-2 mt-4 sm:mt-6 lg:mt-8 lg:mt-12">
-                        {REASONS.map((_, i) => (
-                            <button 
-                                key={i}
-                                onClick={() => { setCurrentIdx(i); startTimer(); }}
-                                className={`h-1 rounded-full transition-all duration-700 ${i === currentIdx ? 'w-6 sm:w-8 lg:w-10 lg:w-12 bg-slate-900' : 'w-1.5 sm:w-2 lg:w-2.5 lg:w-3 bg-slate-200 hover:bg-slate-300'}`}
-                            />
+                    <div className="mt-5 flex flex-wrap items-center gap-2">
+                        <button onClick={handlePrev} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-orange-200 hover:text-orange-600 active:scale-95">
+                            <ChevronLeft size={18}/>
+                        </button>
+                        <button onClick={handleNext} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-orange-200 hover:text-orange-600 active:scale-95">
+                            <ChevronRight size={18}/>
+                        </button>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-1 gap-1.5">
+                        {REASONS.map((reason, i) => (
+                            <button
+                                key={reason.id}
+                                onClick={() => setCurrentIdx(i)}
+                                className={`group flex items-center justify-between rounded-xl border px-3 py-2 text-left transition-all ${
+                                    i === currentIdx
+                                        ? 'border-orange-200 bg-orange-50 text-orange-700 shadow-sm'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-orange-100 hover:bg-orange-50/50'
+                                }`}
+                            >
+                                <span className="text-[12px] font-bold leading-tight">{reason.title}</span>
+                                <span className={`text-xs font-black ${i === currentIdx ? 'text-orange-500' : 'text-slate-300 group-hover:text-orange-300'}`}>{String(i + 1).padStart(2, '0')}</span>
+                            </button>
                         ))}
                     </div>
                 </div>
 
-                {/* RIGHT: THE IMAGE (GLASSMORPHISM) - Posunutý doprava */}
-                <div className="lg:col-span-8 flex items-center gap-1 sm:gap-2 md:gap-4 group order-2 lg:order-2 lg:translate-x-12 transition-all">
+                {/* RIGHT: THE IMAGE */}
+                <div className="lg:col-span-8 xl:col-span-9 flex items-center gap-2 md:gap-4 group order-2 lg:order-2 transition-all">
                     
-                    <button onClick={handlePrev} className="hidden sm:flex p-1.5 sm:p-2 bg-white/40 backdrop-blur-xl border border-white/20 rounded-xl text-slate-400 hover:text-orange-600 transition-all hover:scale-105 active:scale-95 shadow-lg shrink-0">
-                        <ChevronLeft size={16} className="sm:hidden" />
-                        <ChevronLeft size={20} className="hidden sm:block" />
-                    </button>
-
                     <div 
-                        onMouseEnter={() => setIsPaused(true)}
-                        onMouseLeave={() => setIsPaused(false)}
                         onClick={() => setShowLightbox(true)}
                         key={`mockup-${active.id}`}
-                        className="relative flex-1 cursor-pointer bg-white/20 backdrop-blur-md rounded-[2rem] sm:rounded-[2.5rem] p-1 sm:p-1.5 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.15)] border border-white/30 animate-in zoom-in-95 fade-in duration-[1500ms] overflow-hidden aspect-[16/10] sm:aspect-[16/10]"
+                        className="relative flex-1 cursor-pointer bg-white rounded-[2rem] sm:rounded-[2.5rem] p-2 shadow-[0_35px_90px_-25px_rgba(15,23,42,0.35)] border border-orange-100 animate-in zoom-in-95 fade-in duration-700 overflow-hidden aspect-[16/10] max-h-[560px]"
                     >
                         <div className="absolute inset-0 bg-orange-600/5 opacity-0 group-hover:opacity-100 transition-all z-30 flex items-center justify-center pointer-events-none">
-                            <div className="bg-white/90 backdrop-blur-xl p-2 sm:p-3 md:p-4 rounded-full shadow-2xl scale-40 sm:scale-50 group-hover:scale-90 sm:group-hover:scale-100 transition-all duration-700 text-orange-600">
-                                <Maximize2 size={16} className="sm:hidden" />
-                                <Maximize2 size={20} className="hidden sm:block md:hidden" />
-                                <Maximize2 size={24} className="hidden md:block" />
+                            <div className="bg-white/95 backdrop-blur-xl px-4 py-3 rounded-full shadow-2xl scale-90 group-hover:scale-100 transition-all duration-300 text-orange-600 inline-flex items-center gap-2 font-bold text-sm">
+                                <Maximize2 size={18} />
+                                Zväčšiť náhľad
                             </div>
                         </div>
 
-                        <div className="w-full h-full rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] bg-white overflow-hidden relative shadow-inner flex items-center justify-center">
-                            {/* Synced Preview Image - Using object-contain to prevent side cropping */}
+                        <div className="w-full h-full rounded-[1.5rem] sm:rounded-[2rem] bg-white overflow-hidden relative shadow-inner flex items-start justify-center">
                             <img 
                                 src={active.detailImg} 
                                 loading="lazy"
-                                className="w-full h-full object-contain animate-in fade-in duration-1000 group-hover:scale-[1.02] sm:group-hover:scale-[1.03] transition-transform duration-[2000ms]" 
+                                className="w-full min-h-full object-cover object-top animate-in fade-in duration-500 group-hover:scale-[1.01] transition-transform duration-700" 
                                 alt={active.title}
                                 onError={(e) => {
                                     // Fallback to placeholder if image fails to load
@@ -363,79 +394,76 @@ export const AboutApp = () => {
                             />
                         </div>
                     </div>
-
-                    <button onClick={handleNext} className="hidden sm:flex p-1.5 sm:p-2 bg-white/40 backdrop-blur-xl border border-white/20 rounded-xl text-slate-400 hover:text-orange-600 transition-all hover:scale-105 active:scale-95 shadow-lg shrink-0">
-                        <ChevronRight size={16} className="sm:hidden" />
-                        <ChevronRight size={20} className="hidden sm:block" />
-                    </button>
                 </div>
             </div>
         </section>
 
         {/* --- FOOTER --- */}
-        <footer className="bg-slate-900 text-white py-8 sm:py-12 md:py-16 px-4 sm:px-6 shrink-0">
-            <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-12">
-                <div className="sm:col-span-1">
-                    <div className="flex items-center gap-2 mb-4 sm:mb-6">
+        <footer className="bg-slate-900 text-white py-14 px-6 shrink-0">
+            <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-12 items-start">
+                <div className="md:col-span-1 space-y-5">
+                    <div className="flex items-center gap-2 h-6">
                       <img 
                         src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
                         loading="lazy"
                         alt="Logo" 
-                        className="w-8 h-8 sm:w-10 sm:h-10 object-contain" 
+                        className="w-10 h-10 object-contain" 
                       />
-                      <span className="brand-wordmark brand-wordmark-light text-lg sm:text-xl">Moja<span className="brand-wordmark-accent">Stavba</span></span>
+                      <span className="brand-wordmark brand-wordmark-light text-xl">Moja<span className="brand-wordmark-accent">Stavba</span></span>
                     </div>
-                    <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
-                      Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 30 dní zadarmo a bez zadávania platobných údajov.
-                    </p>
+                    <div className="space-y-3 text-sm leading-relaxed max-w-xs pt-1.5">
+                      <p className="text-slate-300">
+                        Moderný nástroj pre zefektívnenie podnikania. Zjednodušujeme procesy, šetríme čas a pomáhame vám rásť.
+                      </p>
+                      <p className="font-semibold text-orange-100">
+                        Teraz si nás môžete vyskúšať na 30 dní zadarmo a bez zadávania platobných údajov.
+                      </p>
+                    </div>
                 </div>
 
                 <div>
-                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-4 sm:mb-6">Dôležité informácie</h4>
-                    <ul className="space-y-2 sm:space-y-3">
-                        <li><button onClick={() => window.location.href = '/'} className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">O aplikácii</button></li>
-                        <li><button onClick={() => setShowPricing(true)} className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">Cenník a predplatné</button></li>
-                        <li><a href="/vseobecne-obchodne-podmienky.html" target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">Obchodné podmienky (VOP)</a></li>
-                        <li><a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-slate-300 hover:text-orange-400 transition font-medium">Ochrana údajov (GDPR)</a></li>
+                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6 h-6 flex items-center">Dôležité informácie</h4>
+                    <ul className="space-y-3">
+                        <li><button onClick={() => window.location.href = '/'} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">O aplikácii</button></li>
+                        <li><button onClick={() => setShowPricing(true)} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">Cenník a predplatné</button></li>
+                        <li><a href="/vseobecne-obchodne-podmienky.html" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">Obchodné podmienky (VOP)</a></li>
+                        <li><a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">Ochrana údajov (GDPR)</a></li>
                     </ul>
                 </div>
 
                 <div>
-                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-4 sm:mb-6">Technická podpora</h4>
-                    <ul className="space-y-3 sm:space-y-4">
+                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6 h-6 flex items-center">Technická podpora</h4>
+                    <ul className="space-y-4">
                         <li className="flex items-start gap-3">
-                            <Mail size={16} className="text-slate-500 mt-0.5 sm:hidden"/>
-                            <Mail size={18} className="text-slate-500 mt-0.5 hidden sm:block"/>
+                            <Mail size={18} className="text-slate-400 mt-0.5"/>
                             <div>
-                                <div className="text-[9px] sm:text-[10px] font-black text-slate-600 uppercase">E-mail</div>
-                                <a href="mailto:sluzby@lordsbenison.eu" className="text-xs sm:text-sm text-slate-300 hover:text-white transition">sluzby@lordsbenison.eu</a>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">E-mail</div>
+                                <a href="mailto:sluzby@lordsbenison.eu" className="text-sm text-slate-200 hover:text-white transition">sluzby@lordsbenison.eu</a>
                             </div>
                         </li>
                         <li className="flex items-start gap-3">
-                            <Phone size={16} className="text-slate-500 mt-0.5 sm:hidden"/>
-                            <Phone size={18} className="text-slate-500 mt-0.5 hidden sm:block"/>
+                            <Phone size={18} className="text-slate-400 mt-0.5"/>
                             <div>
-                                <div className="text-[9px] sm:text-[10px] font-black text-slate-600 uppercase">Telefón</div>
-                                <a href="tel:+421948225713" className="text-xs sm:text-sm text-slate-300 hover:text-white transition">+421 948 225 713</a>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Telefón</div>
+                                <a href="tel:+421948225713" className="text-sm text-slate-200 hover:text-white transition">+421 948 225 713</a>
                             </div>
                         </li>
                         <li className="flex items-start gap-3">
-                            <Clock size={16} className="text-slate-500 mt-0.5 sm:hidden"/>
-                            <Clock size={18} className="text-slate-500 mt-0.5 hidden sm:block"/>
+                            <Clock size={18} className="text-slate-400 mt-0.5"/>
                             <div>
-                                <div className="text-[9px] sm:text-[10px] font-black text-slate-600 uppercase">Pracovná doba</div>
-                                <div className="text-xs sm:text-sm text-slate-300">Po - Pi (08:00 - 16:30)</div>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pracovná doba</div>
+                                <div className="text-sm text-slate-200">Po - Pi (08:00 - 16:30)</div>
                             </div>
                         </li>
                     </ul>
                 </div>
 
                 <div>
-                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-4 sm:mb-6">Prevádzkovateľ</h4>
-                    <address className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-slate-400 not-italic">
+                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6 h-6 flex items-center">Prevádzkovateľ</h4>
+                    <address className="space-y-3 text-sm text-slate-300 not-italic">
                         <p className="font-bold text-white">LORD'S BENISON s.r.o.</p>
                         <p>M. Nandrássyho 654/10<br/>050 01 Revúca</p>
-                        <div className="pt-2 text-[10px] sm:text-xs border-t border-slate-800 space-y-1">
+                        <div className="pt-2 text-xs border-t border-slate-700/70 space-y-1 text-slate-400">
                             <p>IČO: 52404901</p>
                             <p>DIČ: 2121022992</p>
                             <p>IČ DPH: SK2121022992</p>
@@ -443,12 +471,12 @@ export const AboutApp = () => {
                     </address>
                 </div>
             </div>
-            <div className="max-w-6xl mx-auto mt-8 sm:mt-12 md:mt-16 pt-6 sm:pt-8 border-t border-white/5 text-center flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+            <div className="max-w-6xl mx-auto mt-14 pt-7 border-t border-slate-700/70 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+                <div className="text-sm font-medium text-slate-400">
                     © 2026 Vyvinuté spoločnosťou LORD'S BENISON s.r.o. | Všetky práva vyhradené
                 </div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-                    Pozri aj naše weby <a href="https://www.lordsbenison.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.lordsbenison.sk</a> a <a href="https://www.edugdpr.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.edugdpr.sk</a>
+                <div className="text-sm font-medium text-slate-400">
+                    Pozri aj naše weby <a href="https://www.lordsbenison.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.lordsbenison.sk</a> & <a href="https://www.edugdpr.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.edugdpr.sk</a>
                 </div>
             </div>
         </footer>

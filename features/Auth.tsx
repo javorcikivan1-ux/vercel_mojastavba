@@ -6,7 +6,7 @@ import { translateAuthError } from '../lib/utils';
 import { 
   Building2, Smartphone, TrendingUp, Users, ArrowRight, ChevronRight, ChevronLeft,
   Monitor, Briefcase, CheckCircle2, AlertCircle, ArrowLeft, Download, X, HelpCircle, Apple, ShieldCheck, Info,
-  FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin, User, Eye, EyeOff, Zap, Trophy, Star, Crown, Menu, MoreVertical
+  FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin, User, Eye, EyeOff, Zap, Trophy, Star, Crown, Menu, MoreVertical, Pause, Play
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { PLANS } from './Subscription';
@@ -325,6 +325,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
@@ -361,25 +362,25 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           title: "ELEKTRONICKÁ",
           subtitle: "DOCHÁDZKA",
           category: "ZÁPIS HODÍN",
-          description: "Vaši zamestnanci si zapisujú odpracované hodiny priamo na stavbe cez mobil. Zabudnite na papierové hárky alebo prepisovanie dochádzky do neprehľadného  Excelu.",
+          description: "Zamestnanci si zapisujú odpracované hodiny priamo z mobilu. Vy vidíte čas, zákazku, činnosť aj mzdové náklady bez papierových hárkov a prepisovania do Excelu.",
           icon: <FileCheck size={32} />,
           gradient: ["#ff6b35", "#ff8c42"]
         },
         {
           type: "wave",
-          title: "DIGITÁLNY",
-          subtitle: "STAVEBNÝ DENNÍK",
-          category: "DOKUMENTOVANIE ZÁKAZKY",
-          description: "Zaznamenávajte priebeh prác, počasie a fotodokumentáciu každý deň na pár klikov v mobile. Denník automaticky načíta zápisy práce zamestnancov a ďalšie dôležité údaje  .",
+          title: "PREHĽAD",
+          subtitle: "PRÁC",
+          category: "AUTOMATIZOVANÉ PODKLADY",
+          description: "Denný prehľad prác na zákazke viete použiť ako interný podklad pre stavebný denník, históriu realizácie alebo export pre ďalšie spracovanie.",
           icon: <BookOpen size={32} />,
           gradient: ["#ff8c42", "#ffa947"]
         },
         {
           type: "wave",
-          title: "KONTROLA",
-          subtitle: "NÁKLADOV A ZISKU",
-          category: "FINANCIE A ŠTATISTIKY",
-          description: "Sledujte ziskovosť každej zákazky, spravujte príjmy výdavky, mzdy a PHM. MojaStavba ponúka komplexnú analytiku Vašej práce vrátane grafov a umelej inteligencie.",
+          title: "FINANCIE",
+          subtitle: "ZÁKAZIEK",
+          category: "PRÍJMY, NÁKLADY A ZISK",
+          description: "Sledujte príjmy, výdavky, materiál, mzdy a PHM pri každej zákazke. Rýchlo vidíte priebežný zisk, nákladové položky aj to, kde vám unikajú peniaze.",
           icon: <TrendingUp size={32} />,
           gradient: ["#ffa947", "#ffc34d"]
         }
@@ -390,39 +391,39 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
         {
           type: "text",
           title: "SPRÁVA",
-          subtitle: "ZAMESTNANCOVY",
+          subtitle: "TÍMU",
           category: "PERSONÁL",
-          description: "Pošlite zamestnancom registračné pozvánky, priraďte im role, hodinovú sadzbu alebo definujte ich celkovú cenu práce a sledujte ich výkon a rozsah prác na Vašich zákazkách.",
+          description: "Pozvite zamestnancov do firmy, nastavte im roly, sadzby a viditeľnosť miezd. Každý pracuje len s tým, čo potrebuje, a vy máte tím pod kontrolou.",
           icon: <Users size={32} />,
           gradient: ["#ff8c42", "#ffa947"]
         },
         {
           type: "text",
-          title: "HARMONOGRAM",
+          title: "KALENDÁR",
           subtitle: "A ÚLOHY",
           category: "PLÁNOVANIE A KALENDÁR",
-          description: "Plánujte prácu dopredu pomocou integrovaného kalendára úloh a priraďte úlohy zamestnancom ktoré sa zobrazia v ich účte. Sledujte zápisy dochádzok či vývoj dôležitých udalostí.",
+          description: "Plánujte práce dopredu, priraďujte úlohy zamestnancom a sledujte, čo je hotové. Kalendár pomáha udržať zákazky, termíny aj ľudí v jednom prehľade.",
           icon: <LayoutGrid size={32} />,
           gradient: ["#ffa947", "#ffc34d"]
         },
 
         {
           type: "text",
-          title: "DOSTUPNÉ V",
-          subtitle: "MOBILOCH A PC",
-          category: "DOSTUPNOSŤ APLIKÁCIE",
-          description: "MojaStavba je dostupná ako mobilná aplikácia (android) a .exe aplikácia pre PC. Na vývoji pre MAC stále prácujeme, avšak úplný prístup je možný aj cez responzívny web moja-stavba.sk",
-          icon: <LayoutGrid size={32} />,
+          title: "CENOVÉ",
+          subtitle: "PONUKY",
+          category: "OBCHOD A ROZPOČTY",
+          description: "Vytvárajte profesionálne cenové ponuky s položkami, zľavou, DPH a pečiatkou firmy. Opakované texty položiek si viete ukladať a používať znova.",
+          icon: <Briefcase size={32} />,
           gradient: ["#ffa947", "#ffc34d"]
         },
 
         {
           type: "text",
-          title: "MAXIMÁLNA",
-          subtitle: "BEZPEČNOSŤ DÁT",
-          category: "ZABEZPEČENIE",
-          description: "Všetky dáta aplikácie MojaStavba sú šifrované a bezpečne uložené na serveroch v EÚ. K citlivým finančným informáciám a ďalším údajom z aplikácie máte prístup len vy.",
-          icon: <Shield size={32} />,
+          title: "PDF",
+          subtitle: "VÝSTUPY",
+          category: "PODKLADY PRE FIRMU",
+          description: "Exportujte cenové ponuky, výkazy dochádzky, prehľady prác a projektové podklady v jednotnom firemnom dizajne s logom, pečiatkou a podpisom.",
+          icon: <FileCheck size={32} />,
           gradient: ["#ffc34d", "#ffda77"]
         }
       ]
@@ -467,18 +468,18 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
   // Efekt pre animované prechody - LEN PRE WEB
   useEffect(() => {
-    if (!isWebOnly) return;
+    if (!isWebOnly || isCarouselPaused) return;
     
     const interval = setInterval(() => {
       setCurrentTextIndex((prev) => (prev + 1) % textVariants.length);
     }, 6000); // Dlhšie - 6 sekúnd
 
     return () => clearInterval(interval);
-  }, [isWebOnly]);
+  }, [isWebOnly, isCarouselPaused]);
 
   // Efekt pre 3D karusel - LEN PRE WEB
   useEffect(() => {
-    if (!isWebOnly) return;
+    if (!isWebOnly || isCarouselPaused) return;
     
     const interval = setInterval(() => {
       setCurrentSlideIndex((prev) => {
@@ -492,7 +493,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
     }, 6000); // Spomalené na 6 sekúnd
 
     return () => clearInterval(interval);
-  }, [isWebOnly]);
+  }, [isWebOnly, isCarouselPaused, allCards.length]);
 
   // 3D karusel handlers
   const goToCard = (index: number) => {
@@ -545,7 +546,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
     }
   };
 
-  const menuBtnStyle = "px-3 md:px-4 py-2 text-[10px] md:text-xs font-bold text-slate-800 hover:text-orange-600 rounded-lg md:rounded-xl border border-slate-200 hover:border-orange-200 bg-white shadow-sm transition-all whitespace-nowrap active:scale-95";
+  const menuBtnStyle = "inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-600 hover:text-orange-700 rounded-full hover:bg-orange-50 transition-all whitespace-nowrap active:scale-95";
+  const menuIconStyle = "text-slate-400 group-hover:text-orange-600 transition-colors";
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col">
@@ -562,42 +564,45 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
             </a>
 
             {/* DESKTOP NAVIGATION */}
-            <div className="hidden md:flex items-center gap-3 shrink-0">
-               {isWebOnly && (
+            <div className="hidden md:flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5">
                  <button 
                   onClick={() => window.open('/o-aplikacii', '_blank')}
-                  className={menuBtnStyle}
+                  className={`${menuBtnStyle} group`}
                  >
                    O aplikácii
                  </button>
-               )}
-               {isWebOnly && (
+                 <span className="h-5 w-px bg-slate-200" aria-hidden="true" />
                  <button 
                   onClick={() => setShowPricingModal(true)} 
-                  className={menuBtnStyle}
+                  className={`${menuBtnStyle} group`}
                  >
                    Cenník
                  </button>
-               )}
-               <button 
-                  onClick={onLogin} 
-                  className={menuBtnStyle}
-               >
-                  Prihlásiť sa
-               </button>
+              </div>
+              <div className="flex items-center gap-2">
                <button 
                   onClick={onTryFree} 
-                  className="px-3 md:px-5 py-2 md:py-2.5 text-[10px] md:text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg md:rounded-xl shadow-lg shadow-orange-200 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold leading-none text-white bg-orange-600 hover:bg-orange-700 rounded-full shadow-lg shadow-orange-100 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
                >
+                  <ArrowRight size={16} strokeWidth={2.5} className="shrink-0"/>
                   Vyskúšať zadarmo
                </button>
+               <button 
+                  onClick={onLogin} 
+                  className={`${menuBtnStyle} group`}
+               >
+                  <User size={16} className={menuIconStyle}/>
+                  Prihlásiť sa
+               </button>
+              </div>
             </div>
 
             {/* MOBILE NAVIGATION AREA */}
             <div className="flex md:hidden items-center gap-2 shrink-0">
                <button 
                   onClick={onTryFree} 
-                  className="px-3 py-2 text-[10px] font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-md shadow-orange-100 active:scale-95 whitespace-nowrap"
+                  className="inline-flex items-center justify-center px-3 py-2 text-[10px] font-bold leading-none text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-md shadow-orange-100 active:scale-95 whitespace-nowrap"
                >
                   Vyskúšať zadarmo
                </button>
@@ -616,23 +621,23 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                <div className="p-4 space-y-2">
                  <button 
                     onClick={() => { window.open('/o-aplikacii', '_blank'); setIsMobileMenuOpen(false); }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50 font-bold text-slate-700"
+                    className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
                  >
-                   <span>O aplikácii</span>
+                   <span className="flex items-center gap-3"><Info size={18} className="text-orange-500"/>O aplikácii</span>
                    <ChevronRight size={18} className="text-slate-300"/>
                  </button>
                  <button 
                     onClick={() => { setShowPricingModal(true); setIsMobileMenuOpen(false); }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50 font-bold text-slate-700"
+                    className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
                  >
-                   <span>Cenník</span>
+                   <span className="flex items-center gap-3"><Crown size={18} className="text-orange-500"/>Cenník</span>
                    <ChevronRight size={18} className="text-slate-300"/>
                  </button>
                  <button 
                     onClick={() => { onLogin(); setIsMobileMenuOpen(false); }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50 font-bold text-slate-700"
+                    className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
                  >
-                   <span>Prihlásiť sa</span>
+                   <span className="flex items-center gap-3"><User size={18} className="text-orange-500"/>Prihlásiť sa</span>
                    <ChevronRight size={18} className="text-slate-300"/>
                  </button>
                </div>
@@ -643,7 +648,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
       <main className="flex-1 flex flex-col bg-white">
         <section className="flex-1 flex flex-col items-center justify-center px-6 pt-12 pb-12 md:pt-24 md:pb-20 bg-gradient-to-br from-orange-50/30 via-orange-25/20 to-amber-25/10 text-center min-h-[calc(100vh-80px)]">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             {/* TLAČIDLO SŤAHOVANIA - ZOBRAZENÉ LEN NA WEBE */}
             {isWebOnly && (
               <div className="mb-8 animate-in fade-in duration-700">
@@ -659,23 +664,23 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
             )}
 
             {/* HLAVNÝ SEO NADPIS H1 - dôležitý pre vyhľadávače */}
-            <h1 className="text-3xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
+            <h1 className="text-3xl md:text-6xl xl:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-[1.08]">
                 {isWebOnly ? (
-                  <div className="relative">
+                  <div className="relative min-h-[6.5rem] md:min-h-[8.25rem] xl:min-h-[10rem] flex items-center justify-center">
                     <div className={`transition-all duration-1000 ease-in-out ${
                       currentTextIndex === 0 
                         ? 'opacity-100 transform scale-100 rotate-0 translate-y-0' 
                         : 'opacity-0 transform scale-50 rotate-12 translate-y-4'
                     }`}>
-                      <span className="block">Komplexný systém pre</span>
-                      <span className="text-orange-600 block">stavebný manažment</span>
+                      <span className="block">Stavebný manažment</span>
+                      <span className="text-orange-600 block">pre moderné firmy</span>
                     </div>
                     <div className={`absolute inset-0 transition-all duration-1000 ease-in-out ${
                       currentTextIndex === 1 
                         ? 'opacity-100 transform scale-100 rotate-0 translate-y-0' 
                         : 'opacity-0 transform scale-50 -rotate-12 translate-y-4'
-                    }`}>
-                      <span className="block">Vaša stavebná firma v</span>
+                    } flex flex-col items-center justify-center`}>
+                      <span className="block md:whitespace-nowrap">Vaša stavebná firma v</span>
                       <span className="text-orange-600 block">jednej aplikácii</span>
                     </div>
                   </div>
@@ -685,7 +690,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
             </h1>
 
             <p className="text-base md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed px-2">
-              Kompletná správa zákaziek, dochádzky a analytiky v jednej aplikácii.<br/>
+              Kompletná správa zákaziek, dochádzky a financií v jednej aplikácii.<br/>
               <span className="font-semibold text-slate-800">Vyskúšajte na 30 dní bez zadávania platobných údajov.</span>
             </p>
 
@@ -780,6 +785,15 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                                     />
                                 ))}
                             </div>
+
+                            <button
+                                onClick={() => setIsCarouselPaused((paused) => !paused)}
+                                className="inline-flex items-center gap-2 rounded-full border border-orange-100 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700 transition hover:border-orange-200 hover:bg-orange-100 active:scale-95"
+                                aria-label={isCarouselPaused ? 'Spustiť automatické posúvanie' : 'Pozastaviť automatické posúvanie'}
+                            >
+                                {isCarouselPaused ? <Play size={14} /> : <Pause size={14} />}
+                                <span>{isCarouselPaused ? 'Pustiť' : 'Pauza'}</span>
+                            </button>
                             
                             {/* Šípka vpravo - grafická */}
                             <button 
@@ -798,29 +812,34 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
       </main>
 
       {isWebOnly && (
-        <footer className="bg-slate-900 text-white py-16 px-6">
-            <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
-                <div className="md:col-span-1">
-                    <div className="flex items-center gap-2 mb-6">
+        <footer className="bg-slate-900 text-white py-14 px-6">
+            <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-12 items-start">
+                <div className="md:col-span-1 space-y-5">
+                    <div className="flex items-center gap-2 h-6">
                       <img src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" alt="Logo" className="w-10 h-10 object-contain" />
                       <span className="brand-wordmark brand-wordmark-light text-xl">Moja<span className="brand-wordmark-accent">Stavba</span></span>
                     </div>
-                    <p className="text-slate-400 text-sm leading-relaxed">
-                      Moderný nástroj pre digitalizáciu stavebníctva. Zjednodušujeme procesy, šetríme váš čas a pomáhame vám rásť. Teraz si nás môžete vyskúšať na 30 dní zadarmo a bez zadávania platobných údajov.
-                    </p>
+                    <div className="space-y-3 text-sm leading-relaxed max-w-xs pt-1.5">
+                      <p className="text-slate-300">
+                        Moderný nástroj pre zefektívnenie podnikania. Zjednodušujeme procesy, šetríme čas a pomáhame vám rásť.
+                      </p>
+                      <p className="font-semibold text-orange-100">
+                        Teraz si nás môžete vyskúšať na 30 dní zadarmo a bez zadávania platobných údajov.
+                      </p>
+                    </div>
                 </div>
 
                 <div>
-                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Dôležité informácie</h4>
+                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6 h-6 flex items-center">Dôležité informácie</h4>
                     <ul className="space-y-3">
-                        <li><button onClick={() => window.open('/o-aplikacii', '_blank')} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">O aplikácii</button></li>
-                        <li><button onClick={() => setShowPricingModal(true)} className="text-sm text-slate-300 hover:text-orange-400 transition font-medium">Cenník a predplatné</button></li>
+                        <li><button onClick={() => window.open('/o-aplikacii', '_blank')} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">O aplikácii</button></li>
+                        <li><button onClick={() => setShowPricingModal(true)} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">Cenník a predplatné</button></li>
                         <li>
                           <a 
                             href="/vseobecne-obchodne-podmienky.html" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-sm text-slate-300 hover:text-orange-400 transition font-medium"
+                            className="text-sm text-slate-200 hover:text-orange-300 transition font-medium"
                           >
                             Obchodné podmienky (VOP)
                           </a>
@@ -830,7 +849,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                             href="/zasady-ochrany-osobnych-udajov-gdpr.html" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-sm text-slate-300 hover:text-orange-400 transition font-medium"
+                            className="text-sm text-slate-200 hover:text-orange-300 transition font-medium"
                           >
                             Ochrana údajov (GDPR)
                           </a>
@@ -839,40 +858,40 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                 </div>
 
                 <div>
-                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Technická podpora</h4>
+                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6 h-6 flex items-center">Technická podpora</h4>
                     <ul className="space-y-4">
                         <li className="flex items-start gap-3">
-                            <Mail size={18} className="text-slate-500 mt-0.5"/>
+                            <Mail size={18} className="text-slate-400 mt-0.5"/>
                             <div>
-                                <div className="text-[10px] font-black text-slate-600 uppercase">E-mail</div>
-                                <a href="mailto:sluzby@lordsbenison.eu" className="text-sm text-slate-300 hover:text-white transition">sluzby@lordsbenison.eu</a>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">E-mail</div>
+                                <a href="mailto:sluzby@lordsbenison.eu" className="text-sm text-slate-200 hover:text-white transition">sluzby@lordsbenison.eu</a>
                             </div>
                         </li>
                         <li className="flex items-start gap-3">
-                            <Phone size={18} className="text-slate-500 mt-0.5"/>
+                            <Phone size={18} className="text-slate-400 mt-0.5"/>
                             <div>
-                                <div className="text-[10px] font-black text-slate-600 uppercase">Telefón</div>
-                                <a href="tel:+421948225713" className="text-sm text-slate-300 hover:text-white transition">+421 948 225 713</a>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Telefón</div>
+                                <a href="tel:+421948225713" className="text-sm text-slate-200 hover:text-white transition">+421 948 225 713</a>
                             </div>
                         </li>
                         <li className="flex items-start gap-3">
-                            <Clock size={18} className="text-slate-500 mt-0.5"/>
+                            <Clock size={18} className="text-slate-400 mt-0.5"/>
                             <div>
-                                <div className="text-[10px] font-black text-slate-600 uppercase">Pracovná doba</div>
-                                <div className="text-sm text-slate-300">Po - Pi (08:00 - 16:30)</div>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pracovná doba</div>
+                                <div className="text-sm text-slate-200">Po - Pi (08:00 - 16:30)</div>
                             </div>
                         </li>
                     </ul>
                 </div>
 
                 <div>
-                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6">Prevádzkovateľ</h4>
-                    <address className="space-y-3 text-sm text-slate-400 not-italic">
+                    <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6 h-6 flex items-center">Prevádzkovateľ</h4>
+                    <address className="space-y-3 text-sm text-slate-300 not-italic">
                         <p className="font-bold text-white">LORD'S BENISON s.r.o.</p>
                         <p className="flex items-start">
                           <span>M. Nandrássyho 654/10<br/>050 01 Revúca</span>
                         </p>
-                        <div className="pt-2 text-xs border-t border-slate-800 space-y-1">
+                        <div className="pt-2 text-xs border-t border-slate-700/70 space-y-1 text-slate-400">
                             <p>IČO: 52404901</p>
                             <p>DIČ: 2121022992</p>
                             <p>IČ DPH: SK2121022992</p>
@@ -880,12 +899,12 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                     </address>
                 </div>
             </div>
-            <div className="max-w-6xl mx-auto mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+            <div className="max-w-6xl mx-auto mt-14 pt-7 border-t border-slate-700/70 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+                <div className="text-sm font-medium text-slate-400">
                     © 2026 Vyvinuté spoločnosťou LORD'S BENISON s.r.o. | Všetky práva vyhradené
                 </div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-                    Pozri aj naše weby <a href="https://www.lordsbenison.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.lordsbenison.sk</a> a <a href="https://www.edugdpr.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.edugdpr.sk</a>
+                <div className="text-sm font-medium text-slate-400">
+                    Pozri aj naše weby <a href="https://www.lordsbenison.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.lordsbenison.sk</a> & <a href="https://www.edugdpr.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.edugdpr.sk</a>
                 </div>
             </div>
         </footer>

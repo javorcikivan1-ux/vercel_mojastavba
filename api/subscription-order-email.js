@@ -113,11 +113,23 @@ export default async function handler(req, res) {
                   <p style="margin:0;color:#64748b;font-size:14px;">Používateľ si objednal balík ${safe.planName}.</p>
                 </div>
                 <div style="padding:30px 34px;">
-                  <div style="display:block;background:#0f172a;border-radius:16px;padding:22px 24px;margin-bottom:24px;color:#ffffff;">
-                    <div style="font-size:12px;font-weight:800;color:#fdba74;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Balík</div>
-                    <div style="font-size:28px;font-weight:900;line-height:1;">${safe.planName}</div>
-                    <div style="font-size:14px;color:#cbd5e1;margin-top:8px;">${formatCurrency(net)} bez DPH / mesiac</div>
-                    <div style="font-size:22px;font-weight:900;color:#ffffff;margin-top:10px;">${formatCurrency(total)} s DPH</div>
+                  <div style="display:block;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;padding:22px 24px;margin-bottom:24px;color:#0f172a;">
+                    <div style="font-size:12px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Objednaný balík</div>
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                      <div>
+                        <div style="font-size:26px;font-weight:900;line-height:1;color:#0f172a;">${safe.planName}</div>
+                        <div style="font-size:14px;color:#64748b;margin-top:8px;">mesačné predplatné MojaStavba</div>
+                      </div>
+                      <div style="text-align:right;">
+                        <div style="font-size:13px;color:#64748b;font-weight:700;">bez DPH</div>
+                        <div style="font-size:18px;color:#0f172a;font-weight:900;margin-top:2px;">${formatCurrency(net)}</div>
+                      </div>
+                    </div>
+                    <div style="height:1px;background:#fed7aa;margin:18px 0;"></div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+                      <div style="font-size:14px;color:#64748b;font-weight:700;">Celkom s DPH</div>
+                      <div style="font-size:24px;font-weight:900;color:#ea580c;">${formatCurrency(total)}</div>
+                    </div>
                   </div>
 
                   <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">

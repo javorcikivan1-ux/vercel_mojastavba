@@ -121,30 +121,30 @@ const OfflineOverlay = () => (
 
 const UnpaidLockScreen = ({ onLogout }: { onLogout: () => void }) => (
     <div className="fixed inset-0 z-[9999] bg-slate-100 flex items-center justify-center p-4 md:p-6">
-        <div className="bg-white rounded-3xl shadow-[0_24px_70px_-28px_rgba(15,23,42,0.35)] p-6 md:p-10 max-w-xl w-full text-center border border-slate-200 relative overflow-hidden">
+        <div className="bg-white rounded-3xl shadow-[0_24px_70px_-28px_rgba(15,23,42,0.35)] p-6 md:p-10 max-w-xl md:max-w-3xl w-full text-center border border-slate-200 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-orange-500 via-red-500 to-orange-400"></div>
             <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-red-100">
                 <Lock size={30} />
             </div>
             <h2 className="text-2xl md:text-3xl font-bold text-slate-950 leading-tight mb-4">Prístup bol pozastavený</h2>
-            <div className="space-y-3 text-slate-600 font-medium leading-relaxed max-w-md mx-auto">
+            <div className="space-y-3 text-slate-600 font-medium leading-relaxed max-w-md md:max-w-lg mx-auto">
                 <p>Evidujeme neuhradenú faktúru za používanie systému <strong>MojaStavba</strong>.</p>
                 <p>Po pripísaní platby vám prístup k projektom a dátam obnovíme.</p>
             </div>
             
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <a href="tel:0948225713" className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl hover:border-orange-200 hover:bg-orange-50/60 transition-all">
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[0.9fr_1.15fr] gap-3 md:gap-4">
+                <a href="tel:0948225713" className="flex items-center gap-3 p-4 md:p-5 bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl hover:border-orange-200 hover:bg-orange-50/60 transition-all">
                     <Phone size={18} className="text-orange-600 shrink-0" />
                     <div className="text-left">
                         <div className="text-xs font-semibold text-slate-500">Zavolať nám</div>
                         <div className="font-bold text-slate-950">0948 225 713</div>
                     </div>
                 </a>
-                <a href="mailto:sluzby@lordsbenison.eu" className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl hover:border-orange-200 hover:bg-orange-50/60 transition-all">
+                <a href="mailto:sluzby@lordsbenison.eu" className="flex items-center gap-3 p-4 md:p-5 bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl hover:border-orange-200 hover:bg-orange-50/60 transition-all">
                     <Mail size={18} className="text-orange-600 shrink-0" />
                     <div className="text-left">
                         <div className="text-xs font-semibold text-slate-500">Napísať email</div>
-                        <div className="font-bold text-slate-950 break-all">sluzby@lordsbenison.eu</div>
+                        <div className="font-bold text-slate-950 break-all md:break-normal md:whitespace-nowrap">sluzby@lordsbenison.eu</div>
                     </div>
                 </a>
             </div>
@@ -531,7 +531,13 @@ export const App = () => {
 
   if (loading && !profile) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-orange-600" size={40}/></div>;
 
-  if (view === 'about') return <AboutApp />;
+  if (view === 'about') return (
+    <AboutApp
+      onStart={() => { setInitialLoginView('onboarding'); setView('login'); }}
+      onLogin={() => { setInitialLoginView('login'); setView('login'); }}
+      onBack={() => setView('landing')}
+    />
+  );
 
   if (view === 'landing') return (
     <>

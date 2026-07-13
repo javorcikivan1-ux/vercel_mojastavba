@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, CustomLogo } from '../components/UI';
 // Added BookOpen to lucide-react imports to fix line 162 error
@@ -23,11 +24,45 @@ declare global {
 }
 
 const PAGE_SIZE = 12;
+const DEFAULT_VAT_RATE = 23;
 const UNIT_OPTIONS = ['ks', 'm', 'm2', 'm3', 'kg', 't', 'l', 'bal', 'paleta', 'hod', 'súbor', 'km'];
 
 const roundFin = (num: number): number => {
     return Math.round((num + Number.EPSILON) * 100) / 100;
 };
+
+const normalizeQuoteLibraryKey = (description: string) =>
+    description.trim().toLowerCase().replace(/\s+/g, ' ');
+
+const parseQuoteMeta = (notes?: string) => {
+    const fallback = { has_vat: true, vat_rate: DEFAULT_VAT_RATE, discount_type: 'none', discount_value: 0 };
+    if (!notes) return fallback;
+    try {
+        const parsed = JSON.parse(notes);
+        if (parsed && parsed.type === 'QUOTE_META') {
+            return {
+                has_vat: parsed.has_vat ?? fallback.has_vat,
+                vat_rate: parsed.vat_rate ?? fallback.vat_rate,
+                discount_type: parsed.discount_type || fallback.discount_type,
+                discount_value: Number(parsed.discount_value || 0)
+            };
+        }
+    } catch (e) {
+        // Older quotes stored plain markers like VAT_PER_ITEM.
+    }
+    return {
+        ...fallback,
+        has_vat: notes.includes('VAT_PER_ITEM') ? true : fallback.has_vat
+    };
+};
+
+const buildQuoteMeta = (header: any) => JSON.stringify({
+    type: 'QUOTE_META',
+    has_vat: !!header.has_vat,
+    vat_rate: Number(header.vat_rate || DEFAULT_VAT_RATE),
+    discount_type: header.discount_type || 'none',
+    discount_value: Number(header.discount_value || 0)
+});
 
 const EmptyState = ({ message }: { message: string }) => (
     <div className="col-span-full py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white shadow-sm w-full">
@@ -40,7 +75,7 @@ const parseNotesData = (rawNotes: string = '') => {
     let breakdown: any[] = [];
     let cleanNotes = rawNotes || '';
     let hasVat = false;
-    let vatRate = 20;
+    let vatRate = DEFAULT_VAT_RATE;
     let isIndividualVat = false;
 
     const startTag = '[JSON_BREAKDOWN:';
@@ -57,7 +92,7 @@ const parseNotesData = (rawNotes: string = '') => {
                 } else {
                     breakdown = parsed.items || [];
                     hasVat = parsed.hasVat || false;
-                    vatRate = parsed.vatRate ?? 20;
+                    vatRate = parsed.vatRate ?? DEFAULT_VAT_RATE;
                     isIndividualVat = parsed.isIndividualVat || false;
                 }
                 const before = cleanNotes.substring(0, startIndex);
@@ -241,7 +276,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
   
   const [showModal, setShowModal] = useState(false);
   const [editingSite, setEditingSite] = useState<any>(null);
-  const [formData, setFormData] = useState<any>({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 20, isIndividualVat: false });
+  const [formData, setFormData] = useState<any>({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: DEFAULT_VAT_RATE, isIndividualVat: false });
   const [budgetBreakdown, setBudgetBreakdown] = useState<{id: string, label: string, amount: number, vatRate?: number}[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
   
@@ -251,7 +286,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
   const openCreateSiteModal = (tab: 'leads' | 'active') => {
       setActiveTab(tab);
       setEditingSite(null);
-      setFormData({ name: '', address: '', client_name: '', budget: 0, status: tab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: 20, isIndividualVat: false });
+      setFormData({ name: '', address: '', client_name: '', budget: 0, status: tab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: DEFAULT_VAT_RATE, isIndividualVat: false });
       setBudgetBreakdown([]);
       setShowBreakdown(false);
       setShowModal(true);
@@ -1200,7 +1235,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                         quantity: row.qty,
                                         unit: row.unit,
                                         unit_price: roundFin(price),
-                                        vat_rate: 20
+                                        vat_rate: DEFAULT_VAT_RATE
                                     };
                                 });
                                 window.quoteItemsFromCalc = quoteItems;
@@ -1371,7 +1406,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                     supabase.from('sites').update({ status: 'active', lead_stage: null }).eq('id', siteId).then(() => onConvertToProject());
                 }}
                 title="Začať realizáciu?"
-                message="Stavba bude presunutá do zoznamu Aktívnych stavieb. Uistite sa, že máte hotovú cenovú ponuku."
+                message="Zákazka bude presunutá do realizácie. Uistite sa, že máte hotovú cenovú ponuku."
                 confirmText="Začať Realizáciu"
                 type="primary"
             />
@@ -1379,15 +1414,38 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     );
 };
 
-const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSiteId }: any) => {
+const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSiteId, initialQuote, initialItems = [] }: any) => {
+    const initialMeta = parseQuoteMeta(initialQuote?.notes);
     const [header, setHeader] = useState({ 
-        client_name: '', client_address: '', site_id: initialSiteId || '', 
-        issue_date: new Date().toISOString().split('T')[0], valid_until: '', 
-        has_vat: true, vat_rate: 20 
+        client_name: initialQuote?.client_name || '',
+        client_address: initialQuote?.client_address || '',
+        site_id: initialQuote?.site_id || initialSiteId || '',
+        issue_date: initialQuote?.issue_date || new Date().toISOString().split('T')[0],
+        valid_until: initialQuote?.valid_until || '',
+        has_vat: initialMeta.has_vat,
+        vat_rate: initialMeta.vat_rate,
+        discount_type: initialMeta.discount_type,
+        discount_value: initialMeta.discount_value
     });
-    const [items, setTableItems] = useState([{ description: '', quantity: 1, unit: 'ks', unit_price: 0, vat_rate: 20 }]);
+    const [items, setTableItems] = useState(
+        initialItems.length
+            ? initialItems.map((i: any) => ({
+                description: i.description || '',
+                quantity: Number(i.quantity || 1),
+                unit: i.unit || 'ks',
+                unit_price: Number(i.unit_price || 0),
+                vat_rate: Number(i.vat_rate ?? initialMeta.vat_rate)
+            }))
+            : [{ description: '', quantity: 1, unit: 'ks', unit_price: 0, vat_rate: initialMeta.vat_rate }]
+    );
     const [saving, setSaving] = useState(false);
-    const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [savedItems, setSavedItems] = useState<any[]>([]);
+    const [focusedDescriptionIndex, setFocusedDescriptionIndex] = useState<number | null>(null);
+    const [descriptionMenuRect, setDescriptionMenuRect] = useState<{ top: number; left: number; width: number } | null>(null);
+    const descriptionMenuRef = useRef<HTMLDivElement | null>(null);
+    const descriptionMenuInteractionRef = useRef(false);
+    const [editingSuggestionId, setEditingSuggestionId] = useState<string | null>(null);
+    const [editingSuggestionText, setEditingSuggestionText] = useState('');
     const [hasImportedFromCalc, setHasImportedFromCalc] = useState(false);
 
     useEffect(() => {
@@ -1398,21 +1456,41 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
         }
     }, []);
 
+    const loadSavedItems = async () => {
+        const { data, error } = await supabase
+            .from('quote_item_library')
+            .select('id, description')
+            .eq('organization_id', profile.organization_id)
+            .order('updated_at', { ascending: false })
+            .limit(300);
+
+        if (error) {
+            return;
+        }
+
+        setSavedItems(data || []);
+    };
+
     useEffect(() => {
-        const fetchSuggestions = async () => {
-            const { data } = await supabase
-                .from('quote_items')
-                .select('description, quotes!inner(organization_id)')
-                .eq('quotes.organization_id', profile.organization_id)
-                .limit(500);
-            
-            if (data) {
-                const unique = Array.from(new Set(data.map(i => i.description))).filter(Boolean);
-                setSuggestions(unique as string[]);
-            }
-        };
-        fetchSuggestions();
+        loadSavedItems();
     }, [profile.organization_id]);
+
+    useEffect(() => {
+        if (focusedDescriptionIndex === null) return;
+        const closeMenu = (event?: Event) => {
+            if (event?.target instanceof Node && descriptionMenuRef.current?.contains(event.target)) return;
+            if (event?.target instanceof Element && event.target.closest('[data-quote-description-input="true"]')) return;
+            closeDescriptionMenu();
+        };
+        window.addEventListener('scroll', closeMenu, true);
+        window.addEventListener('resize', closeMenu);
+        document.addEventListener('pointerdown', closeMenu, true);
+        return () => {
+            window.removeEventListener('scroll', closeMenu, true);
+            window.removeEventListener('resize', closeMenu);
+            document.removeEventListener('pointerdown', closeMenu, true);
+        };
+    }, [focusedDescriptionIndex]);
 
     useEffect(() => {
         if(header.site_id) {
@@ -1422,7 +1500,23 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
     }, [header.site_id]);
 
     const addItem = () => setTableItems([...items, { description: '', quantity: 1, unit: 'ks', unit_price: 0, vat_rate: header.vat_rate }]);
-    const removeItem = (idx: number) => setTableItems(items.filter((_, i) => i !== idx));
+    const removeItem = (idx: number) => setTableItems(items.filter((_: any, i: number) => i !== idx));
+    const openDescriptionMenu = (idx: number, element: HTMLInputElement) => {
+        const rect = element.getBoundingClientRect();
+        setFocusedDescriptionIndex(idx);
+        setDescriptionMenuRect({
+            top: rect.bottom + window.scrollY + 4,
+            left: rect.left + window.scrollX,
+            width: rect.width
+        });
+    };
+    const closeDescriptionMenu = () => {
+        descriptionMenuInteractionRef.current = false;
+        setFocusedDescriptionIndex(null);
+        setDescriptionMenuRect(null);
+        setEditingSuggestionId(null);
+        setEditingSuggestionText('');
+    };
     const updateItem = (idx: number, field: string, val: any) => {
         const newItems = [...items];
         let finalVal = val;
@@ -1431,18 +1525,102 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
         newItems[idx][field] = finalVal;
         setTableItems(newItems);
     };
+    const updateDefaultVatRate = (value: any) => {
+        const cleanRate = Math.max(0, parseFloat(value) || 0);
+        setHeader({ ...header, vat_rate: cleanRate });
+    };
+    const applyDefaultVatToItems = () => {
+        setTableItems(items.map((item: any) => ({ ...item, vat_rate: header.vat_rate })));
+    };
 
-    const subtotal = roundFin(items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0));
-    const totalVat = roundFin(items.reduce((sum, item) => {
+    const subtotal = roundFin(items.reduce((sum: number, item: any) => sum + (item.quantity * item.unit_price), 0));
+    const discountAmount = roundFin(
+        header.discount_type === 'percent'
+            ? Math.min(subtotal, subtotal * (Math.max(0, Number(header.discount_value || 0)) / 100))
+            : header.discount_type === 'fixed'
+                ? Math.min(subtotal, Math.max(0, Number(header.discount_value || 0)))
+                : 0
+    );
+    const subtotalAfterDiscount = roundFin(Math.max(0, subtotal - discountAmount));
+    const totalVat = roundFin(items.reduce((sum: number, item: any) => {
         const itemSubtotal = item.quantity * item.unit_price;
-        return sum + (header.has_vat ? roundFin(itemSubtotal * (item.vat_rate / 100)) : 0);
+        const share = subtotal > 0 ? itemSubtotal / subtotal : 0;
+        const discountedItemSubtotal = roundFin(itemSubtotal - (discountAmount * share));
+        return sum + (header.has_vat ? roundFin(discountedItemSubtotal * (item.vat_rate / 100)) : 0);
     }, 0));
-    const total = roundFin(subtotal + totalVat);
+    const total = roundFin(subtotalAfterDiscount + totalVat);
+    const getDescriptionOptions = (value: string) => {
+        const query = String(value || '').trim().toLowerCase();
+        const savedOptions = savedItems
+            .map((item: any) => ({
+                id: item.id,
+                description: String(item.description || '').trim(),
+                saved: true
+            }))
+            .filter(option => option.description);
+
+        return savedOptions
+            .filter(option => !query || option.description.toLowerCase().includes(query))
+            .slice(0, 10);
+    };
+    const updateSavedSuggestion = async (id: string) => {
+        const description = editingSuggestionText.trim();
+        if (!description) return;
+        const { error } = await supabase
+            .from('quote_item_library')
+            .update({
+                description,
+                normalized_key: normalizeQuoteLibraryKey(description),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id);
+
+        if (error) {
+            window.alert('Názov položky sa nepodarilo upraviť: ' + error.message);
+            return;
+        }
+
+        setEditingSuggestionId(null);
+        setEditingSuggestionText('');
+        await loadSavedItems();
+    };
+    const deleteSavedSuggestion = async (id: string) => {
+        const { error } = await supabase.from('quote_item_library').delete().eq('id', id);
+        if (error) {
+            window.alert('Názov položky sa nepodarilo vymazať: ' + error.message);
+            return;
+        }
+        setSavedItems(savedItems.filter((item: any) => item.id !== id));
+    };
+    const saveQuoteItemNames = async () => {
+        const uniqueNames: string[] = Array.from(new Set<string>(
+            items
+                .map((item: any) => String(item.description || '').trim())
+                .filter(Boolean)
+        )).slice(0, 300);
+
+        if (uniqueNames.length === 0) return;
+
+        const now = new Date().toISOString();
+        const payload = uniqueNames.map(description => ({
+            organization_id: profile.organization_id,
+            normalized_key: normalizeQuoteLibraryKey(description),
+            description,
+            updated_at: now
+        }));
+
+        const { error } = await supabase
+            .from('quote_item_library')
+            .upsert(payload, { onConflict: 'organization_id,normalized_key' });
+
+        if (!error) await loadSavedItems();
+        else console.warn('Quote item library save skipped:', error.message);
+    };
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            const { data: quote, error: qErr } = await supabase.from('quotes').insert([{
+            const quotePayload = {
                 organization_id: profile.organization_id,
                 site_id: header.site_id || null,
                 client_name: header.client_name,
@@ -1450,22 +1628,41 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                 total_amount: total,
                 issue_date: header.issue_date,
                 valid_until: header.valid_until || null,
-                quote_number: `CP-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000)}`,
-                notes: header.has_vat ? "VAT_PER_ITEM" : "" 
-            }]).select().single();
+                quote_number: initialQuote?.quote_number || `CP-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000)}`,
+                notes: buildQuoteMeta(header)
+            };
+
+            let quote = initialQuote;
+            let qErr = null;
+            if (initialQuote?.id) {
+                const result = await supabase.from('quotes').update(quotePayload).eq('id', initialQuote.id).select().single();
+                quote = result.data;
+                qErr = result.error;
+                if (!qErr) {
+                    const { error: delErr } = await supabase.from('quote_items').delete().eq('quote_id', initialQuote.id);
+                    if (delErr) throw delErr;
+                }
+            } else {
+                const result = await supabase.from('quotes').insert([quotePayload]).select().single();
+                quote = result.data;
+                qErr = result.error;
+            }
 
             if (qErr) throw qErr;
 
-            const itemsPayload = items.map(i => {
+            const itemsPayload = items.map((i: any) => {
                 const itemSubtotal = roundFin(i.quantity * i.unit_price);
-                const itemVat = header.has_vat ? roundFin(itemSubtotal * (i.vat_rate / 100)) : 0;
+                const share = subtotal > 0 ? itemSubtotal / subtotal : 0;
+                const itemDiscount = roundFin(discountAmount * share);
+                const discountedItemSubtotal = roundFin(itemSubtotal - itemDiscount);
+                const itemVat = header.has_vat ? roundFin(discountedItemSubtotal * (i.vat_rate / 100)) : 0;
                 return {
                     quote_id: quote.id,
                     description: i.description,
                     quantity: i.quantity,
                     unit: i.unit,
                     unit_price: i.unit_price,
-                    total_price: roundFin(itemSubtotal + itemVat),
+                    total_price: roundFin(discountedItemSubtotal + itemVat),
                     vat_rate: header.has_vat ? i.vat_rate : 0
                 };
             });
@@ -1473,6 +1670,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
             const { error: iErr } = await supabase.from('quote_items').insert(itemsPayload);
             if (iErr) throw iErr;
 
+            await saveQuoteItemNames();
             onSave();
         } catch (e: any) {
             window.alert("Chyba: " + e.message);
@@ -1484,9 +1682,6 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
     return (
         <Modal title="Tvorba Cenovej Ponuky" onClose={onClose} maxWidth="max-w-6xl">
             <div className="space-y-6">
-                <datalist id="quote-desc-suggestions">
-                    {suggestions.map((s, idx) => <option key={idx} value={s} />)}
-                </datalist>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
                     <div className="space-y-4">
                         <Select label="Projekt / Dopyt" value={header.site_id} onChange={(e: any) => setHeader({...header, site_id: e.target.value})}>
@@ -1501,7 +1696,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                             <Input label="Dátum vystavenia" type="date" value={header.issue_date} onChange={(e: any) => setHeader({...header, issue_date: e.target.value})} />
                             <Input label="Platnosť do" type="date" value={header.valid_until} onChange={(e: any) => setHeader({...header, valid_until: e.target.value})} />
                         </div>
-                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-4">
                             <div className="flex items-center gap-2">
                                 <input type="checkbox" id="vat" className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" checked={header.has_vat} onChange={(e) => setHeader({...header, has_vat: e.target.checked})} />
                                 <label htmlFor="vat" className="font-bold text-sm text-slate-700">Započítať DPH</label>
@@ -1510,6 +1705,66 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                                 <div className="text-[9px] uppercase font-black text-slate-400">Celková suma {header.has_vat ? 's DPH' : 'bez DPH'}</div>
                                 <div className="text-2xl font-black text-orange-600 tracking-tighter">{formatMoney(total)}</div>
                             </div>
+                        </div>
+                        {header.has_vat && (
+                            <div className="bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Predvolená DPH</span>
+                                    <div className="relative w-20">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            className="w-full h-9 rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-7 text-sm font-bold text-slate-900 outline-none focus:border-orange-300 focus:ring-4 focus:ring-orange-500/10"
+                                            value={header.vat_rate}
+                                            onFocus={e => e.target.select()}
+                                            onChange={e => updateDefaultVatRate(e.target.value)}
+                                        />
+                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">%</span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={applyDefaultVatToItems}
+                                    className="h-9 px-3 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 text-[11px] font-black uppercase tracking-wide hover:bg-orange-100 transition whitespace-nowrap"
+                                >
+                                    Použiť
+                                </button>
+                            </div>
+                        )}
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px] gap-2">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Zľava</label>
+                                    <select
+                                        className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-800 outline-none focus:border-orange-300 focus:ring-4 focus:ring-orange-500/10"
+                                        value={header.discount_type}
+                                        onChange={(e) => setHeader({ ...header, discount_type: e.target.value })}
+                                    >
+                                        <option value="none">Bez zľavy</option>
+                                        <option value="percent">Percentuálna (%)</option>
+                                        <option value="fixed">Pevná suma (€)</option>
+                                    </select>
+                                </div>
+                                {header.discount_type !== 'none' && (
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Hodnota</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-orange-300 focus:ring-4 focus:ring-orange-500/10"
+                                            value={header.discount_value}
+                                            onFocus={e => e.target.select()}
+                                            onChange={e => setHeader({ ...header, discount_value: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            {discountAmount > 0 && (
+                                <div className="flex items-center justify-between rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-sm">
+                                    <span className="font-semibold text-red-700">Zľava v sume</span>
+                                    <span className="font-black tabular-nums text-red-700">-{formatMoney(discountAmount)}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1524,44 +1779,160 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                             Položky boli automaticky prenesené z kalkulácie
                         </div>
                     )}
-                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                        <div className="w-full overflow-x-auto custom-scrollbar">
-                           <table className="w-full text-sm text-left min-w-[1000px]">
-                            <thead className="bg-slate-100 text-slate-500 font-bold border-b border-slate-200 uppercase text-[10px] tracking-widest">
+                    <div className="border border-slate-200 rounded-xl overflow-visible shadow-sm bg-white">
+                        <div className="w-full overflow-x-auto overflow-y-visible custom-scrollbar">
+                           <table className="w-full text-sm text-left min-w-[980px]">
+                            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 text-[11px]">
                                 <tr>
-                                    <th className="p-3 pl-4 min-w-[250px]">Popis</th>
-                                    <th className="p-3 w-16 text-center">Mn.</th>
-                                    <th className="p-3 w-24 text-center">Jedn.</th>
-                                    <th className="p-3 w-28 text-right">Cena bez DPH</th>
-                                    {header.has_vat && <th className="p-3 w-16 text-center">DPH %</th>}
-                                    {header.has_vat && <th className="p-3 w-24 text-right">Suma DPH</th>}
-                                    <th className="p-3 w-32 text-right">Spolu {header.has_vat ? 's DPH' : ''}</th>
+                                    <th className="p-3 pl-4 min-w-[270px] uppercase tracking-wide">Popis</th>
+                                    <th className="p-3 w-16 text-center uppercase tracking-wide">Mn.</th>
+                                    <th className="p-3 w-24 text-center uppercase tracking-wide">Jedn.</th>
+                                    <th className="p-3 w-28 text-right whitespace-nowrap uppercase tracking-wide">Cena</th>
+                                    {header.has_vat && <th className="p-3 w-24 text-center whitespace-nowrap uppercase tracking-wide">DPH</th>}
+                                    {header.has_vat && <th className="p-3 w-28 text-right whitespace-nowrap uppercase tracking-wide">DPH suma</th>}
+                                    <th className="p-3 w-32 text-right whitespace-nowrap uppercase tracking-wide">Celkom</th>
                                     <th className="p-3 w-10"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {items.map((item, i) => {
+                                {items.map((item: any, i: number) => {
                                     const itemSub = roundFin(Number(item.quantity) * Number(item.unit_price));
                                     const itemVat = header.has_vat ? roundFin(itemSub * (item.vat_rate / 100)) : 0;
                                     const itemTotal = roundFin(itemSub + itemVat);
                                     return (
                                         <tr key={i} className="group hover:bg-slate-50 transition">
-                                            <td className="p-2 pl-4"><input list="quote-desc-suggestions" className="w-full bg-transparent outline-none font-bold text-slate-700 min-h-[40px]" placeholder="Názov položky..." value={item.description} onChange={e => updateItem(i, 'description', e.target.value)} /></td>
-                                            <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-center font-mono" value={item.quantity === 0 ? '' : item.quantity} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
+                                            <td className="p-2 pl-4">
+                                                <div className="relative">
+                                                    <input
+                                                        data-quote-description-input="true"
+                                                        className="w-full bg-transparent outline-none font-bold text-slate-700 min-h-[40px]"
+                                                        placeholder="Názov položky..."
+                                                        value={item.description}
+                                                        onFocus={e => openDescriptionMenu(i, e.currentTarget)}
+                                                        onClick={e => openDescriptionMenu(i, e.currentTarget)}
+                                                        onBlur={() => window.setTimeout(() => {
+                                                            if (descriptionMenuInteractionRef.current) {
+                                                                descriptionMenuInteractionRef.current = false;
+                                                                return;
+                                                            }
+                                                            closeDescriptionMenu();
+                                                        }, 120)}
+                                                        onChange={e => {
+                                                            updateItem(i, 'description', e.target.value);
+                                                            openDescriptionMenu(i, e.currentTarget);
+                                                        }}
+                                                    />
+                                                    {focusedDescriptionIndex === i && descriptionMenuRect && getDescriptionOptions(item.description).length > 0 && createPortal(
+                                                        <div
+                                                            ref={descriptionMenuRef}
+                                                            onMouseDownCapture={() => {
+                                                                descriptionMenuInteractionRef.current = true;
+                                                            }}
+                                                            className="fixed z-[99999] max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 custom-scrollbar"
+                                                            style={{
+                                                                top: descriptionMenuRect.top,
+                                                                left: descriptionMenuRect.left,
+                                                                width: descriptionMenuRect.width
+                                                            }}
+                                                        >
+                                                            {getDescriptionOptions(item.description).map(option => (
+                                                                <div key={option.id} className="group flex items-center gap-2 border-b border-slate-100 last:border-b-0 hover:bg-orange-50 transition">
+                                                                    {editingSuggestionId === option.id ? (
+                                                                        <input
+                                                                            autoFocus
+                                                                            value={editingSuggestionText}
+                                                                            onChange={event => setEditingSuggestionText(event.target.value)}
+                                                                            onMouseDown={event => event.stopPropagation()}
+                                                                            onKeyDown={event => {
+                                                                                if (event.key === 'Enter') updateSavedSuggestion(option.id);
+                                                                                if (event.key === 'Escape') {
+                                                                                    setEditingSuggestionId(null);
+                                                                                    setEditingSuggestionText('');
+                                                                                }
+                                                                            }}
+                                                                            className="min-w-0 flex-1 px-3 py-2.5 text-sm font-semibold text-slate-800 bg-white outline-none"
+                                                                        />
+                                                                    ) : (
+                                                                        <button
+                                                                            type="button"
+                                                                            onMouseDown={(event) => {
+                                                                                event.preventDefault();
+                                                                                updateItem(i, 'description', option.description);
+                                                                                closeDescriptionMenu();
+                                                                            }}
+                                                                            className="min-w-0 flex-1 px-3 py-2.5 text-left text-sm font-semibold text-slate-700 group-hover:text-orange-700 transition truncate"
+                                                                        >
+                                                                            {option.description}
+                                                                        </button>
+                                                                    )}
+                                                                    {option.saved && (
+                                                                        <div className="flex items-center gap-1 pr-2">
+                                                                            {editingSuggestionId === option.id ? (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    title="Uložiť názov"
+                                                                                    onMouseDown={(event) => {
+                                                                                        event.preventDefault();
+                                                                                        updateSavedSuggestion(option.id);
+                                                                                    }}
+                                                                                    className="p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition"
+                                                                                >
+                                                                                    <Check size={14}/>
+                                                                                </button>
+                                                                            ) : (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    title="Upraviť názov"
+                                                                                    onMouseDown={(event) => {
+                                                                                        event.preventDefault();
+                                                                                        setEditingSuggestionId(option.id);
+                                                                                        setEditingSuggestionText(option.description);
+                                                                                    }}
+                                                                                    className="p-1.5 rounded-lg text-slate-300 hover:text-orange-600 hover:bg-white transition"
+                                                                                >
+                                                                                    <Pencil size={14}/>
+                                                                                </button>
+                                                                            )}
+                                                                            <button
+                                                                                type="button"
+                                                                                title="Vymazať názov"
+                                                                                onMouseDown={(event) => {
+                                                                                    event.preventDefault();
+                                                                                    deleteSavedSuggestion(option.id);
+                                                                                }}
+                                                                                className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-white transition"
+                                                                            >
+                                                                                <Trash2 size={14}/>
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>,
+                                                        document.body
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-center font-semibold tabular-nums text-slate-800" value={item.quantity === 0 ? '' : item.quantity} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
                                             <td className="p-2">
                                                 <select className="w-full bg-transparent outline-none text-center text-slate-500 font-medium" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
                                                     {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                                                 </select>
                                             </td>
-                                            <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none font-mono text-right" value={item.unit_price === 0 ? '' : item.unit_price} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'unit_price', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
+                                            <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-semibold tabular-nums text-slate-800" value={item.unit_price === 0 ? '' : item.unit_price} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'unit_price', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
                                             {header.has_vat && (
-                                                <td className="p-2"><input type="number" min="0" className="w-full bg-transparent outline-none text-center font-bold text-orange-600" value={item.vat_rate} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'vat_rate', Math.max(0, parseFloat(e.target.value) || 0))} /></td>
+                                                <td className="p-2">
+                                                    <div className="relative">
+                                                        <input type="number" min="0" className="w-full h-9 rounded-lg bg-orange-50/60 border border-orange-100 outline-none text-center pr-6 font-bold tabular-nums text-orange-700 focus:border-orange-300 focus:bg-white" value={item.vat_rate} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'vat_rate', Math.max(0, parseFloat(e.target.value) || 0))} />
+                                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-orange-400">%</span>
+                                                    </div>
+                                                </td>
                                             )}
                                             {header.has_vat && (
-                                                <td className="p-2 text-right text-slate-400 font-mono">{formatMoney(itemVat)}</td>
+                                                <td className="p-2 text-right text-slate-500 font-semibold tabular-nums">{formatMoney(itemVat)}</td>
                                             )}
-                                            <td className="p-2 text-right font-black text-slate-800 bg-slate-50/30">{formatMoney(itemTotal)}</td>
-                                            <td className="p-2 text-right"><button onClick={() => removeItem(i)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></td>
+                                            <td className="p-2 text-right font-black text-slate-900 bg-slate-50/30 tabular-nums">{formatMoney(itemTotal)}</td>
+                                            <td className="p-2 text-right"><button type="button" onClick={() => removeItem(i)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></td>
                                         </tr>
                                     );
                                 })}
@@ -1570,12 +1941,40 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                         </div>
                     </div>
                 </div>
-                <div className="flex justify-between items-end pt-4 border-t border-slate-100">
-                    <div className="space-y-1">
-                        <div className="text-[10px] font-black uppercase text-slate-400">Sumár bez DPH: <span className="text-slate-600 ml-2">{formatMoney(subtotal)}</span></div>
-                        {header.has_vat && <div className="text-[10px] font-black uppercase text-slate-400">DPH spolu: <span className="text-orange-600 ml-2">+{formatMoney(totalVat)}</span></div>}
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-end pt-5 border-t border-slate-100">
+                    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-4">
+                            <div>
+                                <div className="text-sm font-bold text-slate-900">Súhrn cenovej ponuky</div>
+                                <div className="text-xs font-medium text-slate-500">Prepočet ceny bez DPH, zľavy, DPH a finálnej ceny.</div>
+                            </div>
+                            <div className="text-right shrink-0">
+                                <div className="text-[10px] font-black uppercase tracking-wide text-orange-600">Celkom s DPH</div>
+                                <div className="text-2xl font-black tabular-nums text-slate-950">{formatMoney(total)}</div>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-100 text-sm">
+                            <div className="bg-white px-4 py-3">
+                                <div className="text-xs font-semibold text-slate-500">Bez DPH</div>
+                                <div className="mt-1 font-black tabular-nums text-slate-900">{formatMoney(subtotal)}</div>
+                            </div>
+                            <div className="bg-white px-4 py-3">
+                                <div className="text-xs font-semibold text-slate-500">Zľava</div>
+                                <div className={`mt-1 font-black tabular-nums ${discountAmount > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                                    {discountAmount > 0 ? `-${formatMoney(discountAmount)}` : formatMoney(0)}
+                                </div>
+                            </div>
+                            <div className="bg-white px-4 py-3">
+                                <div className="text-xs font-semibold text-slate-500">Po zľave bez DPH</div>
+                                <div className="mt-1 font-black tabular-nums text-slate-900">{formatMoney(subtotalAfterDiscount)}</div>
+                            </div>
+                            <div className="bg-white px-4 py-3">
+                                <div className="text-xs font-semibold text-slate-500">DPH spolu</div>
+                                <div className="mt-1 font-black tabular-nums text-orange-600">{header.has_vat ? `+${formatMoney(totalVat)}` : formatMoney(0)}</div>
+                            </div>
+                        </div>
                     </div>
-                    <Button onClick={handleSave} loading={saving} size="lg" className="shadow-orange-200"><CheckCircle2 size={18}/> Vystaviť Cenovú Ponuku</Button>
+                    <Button onClick={handleSave} loading={saving} size="lg" className="shadow-orange-200 lg:min-w-[260px]"><CheckCircle2 size={18}/> {initialQuote?.id ? 'Uložiť Cenovú Ponuku' : 'Vystaviť Cenovú Ponuku'}</Button>
                 </div>
             </div>
         </Modal>
@@ -1585,6 +1984,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
 const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }: any) => {
     const [selectedQuote, setSelectedQuote] = useState<any>(null);
     const [items, setTableItems] = useState<any[]>([]);
+    const [editingQuote, setEditingQuote] = useState<any>(null);
     const printRef = useRef<HTMLDivElement>(null);
 
     const handleViewQuote = async (quote: any) => {
@@ -1598,12 +1998,24 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
         return s + sub;
     }, 0));
     
+    const quoteMeta = parseQuoteMeta(selectedQuote?.notes);
+    const quoteDiscountAmount = roundFin(
+        quoteMeta.discount_type === 'percent'
+            ? Math.min(quoteSubtotal, quoteSubtotal * (Math.max(0, Number(quoteMeta.discount_value || 0)) / 100))
+            : quoteMeta.discount_type === 'fixed'
+                ? Math.min(quoteSubtotal, Math.max(0, Number(quoteMeta.discount_value || 0)))
+                : 0
+    );
+    const quoteSubtotalAfterDiscount = roundFin(Math.max(0, quoteSubtotal - quoteDiscountAmount));
     const quoteVatTotal = roundFin(items.reduce((s: number, i: any) => {
         const sub = roundFin(Number(i.quantity) * Number(i.unit_price));
-        return s + roundFin(sub * ((i.vat_rate || 0) / 100));
+        const share = quoteSubtotal > 0 ? sub / quoteSubtotal : 0;
+        const discountedSub = roundFin(sub - (quoteDiscountAmount * share));
+        return s + roundFin(discountedSub * ((i.vat_rate || 0) / 100));
     }, 0));
 
     const totalStored = roundFin(Number(selectedQuote?.total_amount || 0));
+    const quoteGrandTotal = totalStored > 0 ? totalStored : roundFin(quoteSubtotalAfterDiscount + quoteVatTotal);
 
     const generatePDF = async () => {
         if (!printRef.current) return;
@@ -1611,6 +2023,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
         try {
             await exportElementToPdf(printRef.current, {
                 filename: `CP_${selectedQuote?.quote_number}.pdf`,
+                title: `MojaStavba - Cenová ponuka č. ${selectedQuote?.quote_number}`,
                 pageMarginMm: 0
             });
         } catch (e) {
@@ -1633,6 +2046,7 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                     <div className="flex justify-between items-center mb-6">
                         <button onClick={() => setSelectedQuote(null)} className="h-10 px-3 rounded-xl text-slate-600 hover:text-slate-950 hover:bg-white border border-transparent hover:border-slate-200 font-semibold text-sm flex items-center gap-2 transition group"><ArrowLeft size={17} className="group-hover:-translate-x-0.5 transition-transform"/> Späť na zoznam</button>
                         <div className="flex gap-2">
+                            <Button variant="secondary" onClick={() => setEditingQuote(selectedQuote)}><Pencil size={16}/> Upraviť</Button>
                             <Button variant="secondary" onClick={handleDelete} className="text-red-600 border-red-200 hover:bg-red-50"><Trash2 size={16}/> Zmazať</Button>
                             <Button onClick={generatePDF}><Printer size={16}/> Stiahnuť PDF</Button>
                         </div>
@@ -1645,10 +2059,10 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                         >
                             <div className="flex justify-between items-start mb-10 border-b-2 border-orange-50 pb-6">
                                 <div className="flex items-center gap-4">
-                                    {organization.logo_url && <img src={organization.logo_url} crossOrigin="anonymous" className="h-16 w-16 object-contain" alt="Logo" />}
+                                    {organization.logo_url && <img src={organization.logo_url} crossOrigin="anonymous" className="h-20 w-28 object-contain" alt="Logo" />}
                                     <div>
-                                        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">CENOVÁ PONUKA</h1>
-                                        <div className="text-slate-500 mt-2 font-medium uppercase tracking-widest text-[10px]">č. {selectedQuote.quote_number}</div>
+                                        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Cenová ponuka</h1>
+                                        <div className="text-slate-500 mt-2 font-semibold tracking-wide text-[10px]">č. {selectedQuote.quote_number}</div>
                                     </div>
                                 </div>
                                 <div className="text-right">
@@ -1679,14 +2093,14 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                                     </div>
                                 </div>
                             </div>
-                            <table className="w-full text-[11px] mb-10 border-collapse">
-                                <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[9px]">
+                            <table className="w-full text-[11px] mb-10 border-collapse table-fixed">
+                                <thead className="bg-slate-100 text-slate-600 font-bold text-[9.5px]">
                                     <tr>
-                                        <th className="p-3 text-left">Položka</th>
-                                        <th className="p-3 text-center w-16">Mn.</th>
-                                        <th className="p-3 text-right">Cena bez DPH</th>
-                                        {quoteVatTotal > 0 && <th className="p-3 text-center">DPH %</th>}
-                                        <th className="p-3 text-right">Celkom</th>
+                                        <th className="p-3 text-left w-[48%]">Položka</th>
+                                        <th className="p-3 text-center w-[12%] whitespace-nowrap">Mn.</th>
+                                        <th className="p-3 text-right w-[16%] whitespace-nowrap">Cena bez DPH</th>
+                                        {quoteVatTotal > 0 && <th className="p-3 text-center w-[10%] whitespace-nowrap">DPH</th>}
+                                        <th className="p-3 text-right w-[14%] whitespace-nowrap">Celkom</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -1695,59 +2109,97 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
                                         const itemVat = roundFin(itemSub * ((item.vat_rate || 0) / 100));
                                         return (
                                             <tr key={i}>
-                                                <td className="p-3 font-medium text-slate-800">{item.description}</td>
-                                                <td className="p-3 text-center text-slate-600">{item.quantity} {item.unit}</td>
-                                                <td className="p-3 text-right text-slate-600">{formatMoney(item.unit_price)}</td>
-                                                {quoteVatTotal > 0 && <td className="p-3 text-center text-slate-400 font-bold">{item.vat_rate}%</td>}
-                                                <td className="p-3 text-right font-bold text-slate-800">{formatMoney(itemSub + itemVat)}</td>
+                                                <td className="p-3 font-medium text-slate-800 break-words leading-relaxed">{item.description}</td>
+                                                <td className="p-3 text-center text-slate-600 whitespace-nowrap">{item.quantity} {item.unit}</td>
+                                                <td className="p-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{formatMoney(item.unit_price)}</td>
+                                                {quoteVatTotal > 0 && <td className="p-3 text-center text-slate-500 font-bold whitespace-nowrap tabular-nums">{item.vat_rate}%</td>}
+                                                <td className="p-3 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums">{formatMoney(itemSub + itemVat)}</td>
                                             </tr>
                                         );
                                     })}
                                 </tbody>
                             </table>
-                            <div className="flex justify-end mb-4 md:mb-20">
-                                <div className="w-64 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                    <div className="flex justify-between items-center mb-2 text-slate-500 text-xs">
-                                        <span>Základ dane celkom</span>
-                                        <span>{formatMoney(quoteSubtotal)}</span>
-                                    </div>
-                                    {quoteVatTotal > 0 && (
-                                        <div className="flex justify-between items-center mb-2 text-slate-500 text-xs">
-                                            <span>DPH celkom</span>
-                                            <span>{formatMoney(quoteVatTotal)}</span>
+                            <div className="flex justify-end mb-12">
+                                <div className="w-[92mm] rounded-2xl border border-orange-100 bg-orange-50/40 p-5">
+                                    <div className="space-y-2.5 text-[12px] text-slate-600">
+                                        <div className="flex justify-between gap-6">
+                                            <span>Základ bez DPH</span>
+                                            <span className="font-semibold tabular-nums text-slate-800">{formatMoney(quoteSubtotal)}</span>
                                         </div>
-                                    )}
-                                    <div className="flex justify-between items-center text-xl font-extrabold text-slate-900 border-t border-slate-200 pt-2 mt-2">
-                                        <span>SPOLU k úhrade</span>
-                                        <span>{formatMoney(totalStored)}</span>
+                                        {quoteDiscountAmount > 0 && (
+                                            <>
+                                                <div className="flex justify-between gap-6 text-red-700">
+                                                    <span>Zľava {quoteMeta.discount_type === 'percent' ? `(${quoteMeta.discount_value}%)` : ''}</span>
+                                                    <span className="font-semibold tabular-nums">-{formatMoney(quoteDiscountAmount)}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-6">
+                                                    <span>Po zľave bez DPH</span>
+                                                    <span className="font-semibold tabular-nums text-slate-800">{formatMoney(quoteSubtotalAfterDiscount)}</span>
+                                                </div>
+                                            </>
+                                        )}
+                                        {quoteVatTotal > 0 && (
+                                            <div className="flex justify-between gap-6">
+                                                <span>DPH spolu</span>
+                                                <span className="font-semibold tabular-nums text-slate-800">{formatMoney(quoteVatTotal)}</span>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            </div>
-                            
-                            <div className="mt-auto grid grid-cols-2 gap-20">
-                                <div className="text-center">
-                                    <div className="border-b border-slate-300 mb-2 h-16"></div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Podpis Preberajúceho</div>
-                                </div>
-                                <div className="text-center relative">
-                                    {organization.stamp_url && (
-                                        <img 
-                                            src={organization.stamp_url} 
-                                            crossOrigin="anonymous" 
-                                            className="h-32 absolute -top-24 left-1/2 -translate-x-1/2 opacity-90 rotate-3 pointer-events-none" 
-                                            alt="Stamp" 
-                                        />
-                                    )}
-                                    <div className="border-b border-slate-300 mb-2 h-16"></div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pečiatka a podpis zhotoviteľa</div>
+                                    <div className="mt-4 rounded-xl border border-orange-100 bg-white px-4 py-3 flex justify-between items-center gap-6">
+                                        <div>
+                                            <div className="text-[14px] leading-tight font-extrabold text-slate-900">Spolu k úhrade</div>
+                                            <div className="mt-0.5 text-[10px] font-semibold text-slate-500">{quoteVatTotal > 0 ? 'vrátane DPH' : 'bez DPH'}</div>
+                                        </div>
+                                        <span className="text-[24px] leading-none font-black tabular-nums text-slate-950 whitespace-nowrap">{formatMoney(quoteGrandTotal)}</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="text-center text-slate-300 text-[9px] border-t border-slate-100 pt-4 mt-8 font-medium uppercase tracking-widest">
+                            <div className="mt-auto pt-10">
+                                <div className="grid grid-cols-2 gap-16 items-end">
+                                    <div className="text-center">
+                                        <div className="h-20 flex items-end">
+                                            <div className="w-full border-b border-slate-300"></div>
+                                        </div>
+                                        <div className="mt-3 text-[10px] font-semibold text-slate-500 tracking-wide">Prevzal</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="h-20 flex items-end justify-center">
+                                            {organization.stamp_url && (
+                                                <img
+                                                    src={organization.stamp_url}
+                                                    crossOrigin="anonymous"
+                                                    className="max-h-16 max-w-[58mm] object-contain opacity-95 pointer-events-none"
+                                                    alt="Pečiatka"
+                                                />
+                                            )}
+                                        </div>
+                                        <div className="border-b border-slate-300"></div>
+                                        <div className="mt-3 text-[10px] font-semibold text-slate-500 tracking-wide">Pečiatka a podpis zhotoviteľa</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="text-center text-slate-300 text-[8px] border-t border-slate-100 pt-3 mt-6 font-medium tracking-wide">
                                 Vygenerované aplikáciou MojaStavba
                             </div>
                         </div>
                     </div>
+                    {editingQuote && (
+                        <QuoteBuilder
+                            onClose={() => setEditingQuote(null)}
+                            sites={sites}
+                            profile={profile}
+                            organization={organization}
+                            initialQuote={editingQuote}
+                            initialItems={items}
+                            onSave={() => {
+                                setEditingQuote(null);
+                                setSelectedQuote(null);
+                                refresh();
+                            }}
+                        />
+                    )}
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

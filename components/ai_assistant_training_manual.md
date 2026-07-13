@@ -20,7 +20,7 @@ Som tvoj osobný asistent pre aplikáciu MojaStavba. Som tu, aby som ti pomohol 
 MojaStavba je aplikácia pre stavebné firmy, ktorá ti pomáha:
 - Spravovať zákazky a projekty
 - Plánovať prácu v kalendári
-- Viesť stavebný denník
+- Viesť Denník práce ako interný pracovný prehľad
 - Evidovať dochádzku zamestnancov
 - Sledovať financie projektov
 - Vytvárať cenové ponuky
