@@ -5,11 +5,39 @@ import { Button, Card, Input, CustomLogo, AlertModal, LegalModal, Modal } from '
 import { translateAuthError } from '../lib/utils';
 import { 
   Building2, Smartphone, TrendingUp, Users, ArrowRight, ChevronRight, ChevronLeft,
-  Monitor, Briefcase, CheckCircle2, AlertCircle, ArrowLeft, Download, X, HelpCircle, Apple, ShieldCheck, Info,
+  Monitor, Briefcase, CheckCircle2, AlertCircle, ArrowLeft, Download, X, HelpCircle, Info,
   FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin, User, Eye, EyeOff, Zap, Trophy, Star, Crown, Menu, MoreVertical, Pause, Play
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { PLANS } from './Subscription';
+
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+};
+
+const isStandalonePwa = () => {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+};
+
+const AndroidLogo = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0" fill="currentColor">
+    <path d="M7.5 9.25h9a3 3 0 0 1 3 3v4.75a1 1 0 0 1-1 1H17v2.25a1.25 1.25 0 0 1-2.5 0V18h-5v2.25a1.25 1.25 0 0 1-2.5 0V18H5.5a1 1 0 0 1-1-1v-4.75a3 3 0 0 1 3-3Zm1.25 2.9a.85.85 0 1 0 0 1.7.85.85 0 0 0 0-1.7Zm6.5 0a.85.85 0 1 0 0 1.7.85.85 0 0 0 0-1.7ZM6.7 5.05a.65.65 0 0 1 .9.2L9.05 7.5a7.35 7.35 0 0 1 5.9 0l1.45-2.25a.65.65 0 0 1 1.1.7l-1.4 2.16a5.58 5.58 0 0 1 2.15 2.39H5.75A5.58 5.58 0 0 1 7.9 8.1L6.5 5.95a.65.65 0 0 1 .2-.9Z" />
+  </svg>
+);
+
+const AppleLogo = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0" fill="currentColor">
+    <path d="M16.9 13.05c-.03-2.25 1.85-3.34 1.94-3.39-1.06-1.55-2.68-1.76-3.24-1.78-1.36-.14-2.68.8-3.37.8-.7 0-1.76-.78-2.9-.76-1.48.02-2.86.88-3.62 2.22-1.56 2.7-.4 6.66 1.1 8.84.75 1.07 1.62 2.27 2.77 2.23 1.12-.05 1.54-.71 2.9-.71 1.35 0 1.75.71 2.93.69 1.21-.02 1.98-1.08 2.7-2.16.87-1.23 1.22-2.44 1.24-2.5-.03-.01-2.42-.93-2.45-3.48ZM14.7 6.44c.6-.75 1.01-1.77.9-2.8-.87.04-1.95.6-2.57 1.33-.55.64-1.05 1.7-.92 2.69.98.08 1.97-.5 2.59-1.22Z" />
+  </svg>
+);
+
+const WindowsLogo = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0" fill="currentColor">
+    <path d="M3 5.2 10.7 4v7.25H3V5.2Zm9.15-1.42L21 2.4v8.85h-8.85V3.78ZM3 12.75h7.7V20L3 18.8v-6.05Zm9.15 0H21v8.85l-8.85-1.38v-7.47Z" />
+  </svg>
+);
 
 // Pomocná funkcia pre získanie bezpečnej návratovej URL
 const getRedirectURL = () => {
@@ -118,91 +146,120 @@ const PricingModal = ({ onClose, onSelect }: { onClose: () => void, onSelect: ()
   );
 };
 
-// --- DOWNLOAD MODAL COMPONENT ---
-const DownloadModal = ({ onClose }: { onClose: () => void }) => {
-  const GITHUB_REPO = "https://github.com/javorcikivan1-ux/instalacky_mojastavba/releases/latest/download";
+// --- PWA INSTALL MODAL COMPONENT ---
+const DownloadModal = ({ 
+  onClose, 
+  installPrompt,
+  isInstalled,
+  onPromptUsed
+}: { 
+  onClose: () => void;
+  installPrompt: BeforeInstallPromptEvent | null;
+  isInstalled: boolean;
+  onPromptUsed: () => void;
+}) => {
+  const [installing, setInstalling] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<'android' | 'iphone' | 'mac' | 'windows' | null>(null);
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const canInstall = !!installPrompt && !isInstalled;
+
+  const handleInstall = async (platform: 'android' | 'iphone' | 'mac' | 'windows') => {
+    setSelectedPlatform(platform);
+    if (platform === 'iphone' || !installPrompt) return;
+    setInstalling(true);
+    try {
+      await installPrompt.prompt();
+      await installPrompt.userChoice;
+      onPromptUsed();
+      onClose();
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  const platforms = [
+    { id: 'android' as const, label: 'Android', sublabel: 'Mobilné zariadenie', icon: <Smartphone size={26} />, platformIcon: <AndroidLogo size={22} /> },
+    { id: 'iphone' as const, label: 'iPhone', sublabel: 'Mobilné zariadenie', icon: <Smartphone size={26} />, platformIcon: <AppleLogo size={22} /> },
+    { id: 'windows' as const, label: 'Windows', sublabel: 'Počítač', icon: <Monitor size={26} />, platformIcon: <WindowsLogo size={22} /> },
+    { id: 'mac' as const, label: 'Mac', sublabel: 'Počítač', icon: <Monitor size={26} />, platformIcon: <AppleLogo size={22} /> }
+  ];
 
   return (
-    <Modal title="Stiahnutie aplikácie do Mobilu alebo PC" onClose={onClose} maxWidth="max-w-4xl">
-      <div className="space-y-6">
-        <p className="text-sm text-slate-500 text-center mb-2">
-          Vyberte si platformu. Natívna aplikácia poskytuje rýchlejší prístup a lepšiu stabilitu systému.
-        </p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <a 
-            href={`${GITHUB_REPO}/MojaStavba.exe`}
-            className="group p-6 rounded-2xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all text-center flex flex-col items-center gap-4 shadow-sm"
-          >
-            <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Monitor size={28} />
-            </div>
-            <div>
-              <h3 className="font-black text-slate-900 uppercase tracking-tight text-xs">Windows</h3>
-              <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Pre počítač</p>
-            </div>
-            <div className="mt-2 px-3 py-1.5 bg-slate-900 text-white text-[10px] font-black rounded-lg flex items-center gap-1.5">
-              <Download size={12}/> .EXE
-            </div>
-          </a>
+    <Modal title="" onClose={onClose} maxWidth="max-w-xl" hideHeader={true}>
+      <div className="relative p-6 sm:p-8">
+        <button 
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+        >
+          <X size={20} />
+        </button>
 
-          <a 
-            href={`${GITHUB_REPO}/MojaStavba.apk`}
-            className="group p-6 rounded-2xl border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50 transition-all text-center flex flex-col items-center gap-4 shadow-sm"
-          >
-            <div className="w-14 h-14 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Smartphone size={28} />
-            </div>
-            <div>
-              <h3 className="font-black text-slate-900 uppercase tracking-tight text-xs">Android</h3>
-              <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Pre mobil</p>
-            </div>
-            <div className="mt-2 px-3 py-1.5 bg-orange-600 text-white text-[10px] font-black rounded-lg flex items-center gap-1.5">
-              <Download size={12}/> .APK
-            </div>
-          </a>
-
-          <div className="group p-6 rounded-2xl border-2 border-slate-50 bg-slate-50/50 grayscale opacity-60 text-center flex flex-col items-center gap-4 cursor-not-allowed">
-            <div className="w-14 h-14 bg-slate-200 text-slate-400 rounded-2xl flex items-center justify-center">
-              <Apple size={28} />
-            </div>
-            <div>
-              <h3 className="font-black text-slate-400 uppercase tracking-tight text-xs">iPhone / iPad</h3>
-              <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Pripravujeme</p>
-            </div>
-            <div className="mt-2 px-3 py-1.5 bg-slate-200 text-slate-400 text-[10px] font-black rounded-lg">
-              Vo vývoji
-            </div>
+        <div className="mb-6 flex items-center gap-3 pr-8">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-lg shadow-orange-100">
+            <Download size={22} />
           </div>
+          <h3 className="text-2xl font-black tracking-tight text-slate-900">Stiahnite si aplikáciu MojaStavba</h3>
         </div>
 
-        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-2 text-slate-800 font-black text-xs uppercase tracking-wider">
-                <ShieldCheck size={18} className="text-blue-500"/> Bezpečnosť a dôveryhodnosť
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-                    <div className="text-[10px] font-black text-blue-600 uppercase mb-2 flex items-center gap-1">
-                        <Monitor size={12}/> Inštalácia na Windows
+        {isInstalled ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center">
+            <CheckCircle2 className="mx-auto text-emerald-600 mb-2" size={28} />
+            <div className="font-black text-emerald-900">Aplikácia je už nainštalovaná</div>
+            <p className="text-sm text-emerald-800 mt-1">Nájdete ju medzi aplikáciami alebo na ploche zariadenia.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {platforms.map((platform) => (
+              <button
+                key={platform.id}
+                onClick={() => handleInstall(platform.id)}
+                disabled={installing && selectedPlatform !== platform.id}
+                className={`group rounded-2xl border p-4 text-left transition active:scale-[0.98] disabled:opacity-60 ${
+                  selectedPlatform === platform.id
+                    ? 'border-orange-300 bg-orange-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/60'
+                }`}
+              >
+                <div className="relative flex items-center gap-3 pr-8">
+                  <div className="absolute right-0 top-0 text-slate-400 transition group-hover:text-orange-600">
+                    {platform.platformIcon}
+                  </div>
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-2xl transition ${
+                    selectedPlatform === platform.id ? 'bg-orange-600 text-white' : 'bg-slate-50 text-slate-600 group-hover:bg-orange-100 group-hover:text-orange-600'
+                  }`}>
+                    {platform.icon}
+                  </div>
+                  <div>
+                    <div className="font-black text-slate-900">{platform.label}</div>
+                    <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                      {platform.sublabel}
                     </div>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                        Pretože sme nová aplikácia, Windows môže zobraziť varovanie "SmartScreen". Najprv kliknite na <strong>"Ponechať"</strong>, potom na ikonu <strong>"zobraziť viac"</strong> vedľa tlačidla "Odstrániť" a následne na <strong>"Ponechať aj tak"</strong>. Súbor je 100% bezpečný.
-                    </p>
+                  </div>
                 </div>
+              </button>
+            ))}
+          </div>
+        )}
 
-                <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-                    <div className="text-[10px] font-black text-orange-600 uppercase mb-2 flex items-center gap-1">
-                        <Smartphone size={12}/> Inštalácia na Android
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                        Po stiahnutí APK povoľte v nastaveniach vášho prehliadača <strong>"Inštalovať z neznámych zdrojov"</strong>. Po dokončení inštalácie môžete toto nastavenie opäť vypnúť.
-                    </p>
-                </div>
-            </div>
-        </div>
+        {!isInstalled && selectedPlatform && (
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            {selectedPlatform === 'iphone' || (isIOS && !canInstall) ? (
+              <p className="text-sm text-slate-700 leading-relaxed">
+                Na iPhone otvorte stránku v Safari, stlačte <strong>Zdieľať</strong> a vyberte <strong>Pridať na plochu</strong>.
+              </p>
+            ) : canInstall ? (
+              <div className="flex items-center gap-3 text-sm font-bold text-slate-700">
+                <Download size={18} className="text-orange-600" />
+                {installing ? 'Otváram systémovú inštaláciu...' : 'Potvrďte inštaláciu v systémovom okne.'}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-700 leading-relaxed">
+                Ak sa systémové okno nezobrazí, otvorte menu prehliadača a zvoľte <strong>Inštalovať aplikáciu</strong> alebo <strong>Pridať na plochu</strong>.
+              </p>
+            )}
+          </div>
+        )}
 
-        <Button fullWidth onClick={onClose} variant="secondary">Zavrieť</Button>
       </div>
     </Modal>
   );
@@ -329,6 +386,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isPwaInstalled, setIsPwaInstalled] = useState(() => isStandalonePwa());
 
   // Detekcia mobilnej veľkosti
   useEffect(() => {
@@ -340,6 +399,28 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
     window.addEventListener('resize', checkMobile);
     
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    setIsPwaInstalled(isStandalonePwa());
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setIsPwaInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []);
 
   // Text variants pre animáciu - LEN PRE WEB
@@ -464,7 +545,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
   const isWebOnly = Capacitor.getPlatform() === 'web' && 
                    !navigator.userAgent.toLowerCase().includes('electron') &&
-                   !(window as any).ipcRenderer;
+                   !(window as any).ipcRenderer &&
+                   !isPwaInstalled;
 
   // Efekt pre animované prechody - LEN PRE WEB
   useEffect(() => {
@@ -657,7 +739,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                   className="group inline-flex items-center gap-2.5 bg-white border-2 border-orange-200 hover:border-orange-400 text-orange-600 hover:text-orange-700 px-6 py-3 rounded-2xl font-black text-sm shadow-sm hover:shadow-md transition-all duration-300 active:scale-95"
                 >
                   <Download size={16} className="group-hover:translate-y-0.5 transition-transform duration-200"/>
-                  <span>Stiahnuť aplikáciu MojaStavba</span>
+                  <span>Nainštalovať aplikáciu MojaStavba</span>
                   <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200"/>
                 </button>
               </div>
@@ -910,7 +992,14 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
         </footer>
       )}
 
-      {showDownloadModal && <DownloadModal onClose={() => setShowDownloadModal(false)} />}
+      {showDownloadModal && (
+        <DownloadModal 
+          onClose={() => setShowDownloadModal(false)} 
+          installPrompt={installPrompt}
+          isInstalled={isPwaInstalled}
+          onPromptUsed={() => setInstallPrompt(null)}
+        />
+      )}
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} onSelect={() => { setShowPricingModal(false); onStart(); }} />}
       {showLegal && <LegalModal type={showLegal} onClose={handleCloseLegal} />}
     </div>

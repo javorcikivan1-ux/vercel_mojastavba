@@ -25,15 +25,22 @@ import pkg from './package.json';
 
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown, Download, CheckCircle2, Lock, Star, Phone, Mail, AlertTriangle
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown, Download, CheckCircle2, Lock, Star, Phone, Mail, AlertTriangle, X
 } from 'lucide-react';
 
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
+declare const __APP_BUILD_ID__: string;
+
 const SUPER_ADMIN_EMAIL = 'javorcik.ivan1@gmail.com';
 const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mojastavba/releases/latest";
+const isStandalonePwa = () => {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+};
+
 const APP_SCREENS = new Set([
   'superadmin',
   'dashboard',
@@ -46,7 +53,8 @@ const APP_SCREENS = new Set([
   'analytics',
   'advances',
   'settings',
-  'subscription'
+  'subscription',
+  'updates'
 ]);
 
 const SCREEN_TO_SLUG: Record<string, string> = {
@@ -61,7 +69,8 @@ const SCREEN_TO_SLUG: Record<string, string> = {
   analytics: 'analyza-zakaziek',
   advances: 'zalohy',
   settings: 'nastavenia',
-  subscription: 'predplatne'
+  subscription: 'predplatne',
+  updates: 'aktualizacie'
 };
 
 const SLUG_TO_SCREEN = new Map(
@@ -183,6 +192,7 @@ export const App = () => {
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying' | 'installing'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [showPwaUpdateNotice, setShowPwaUpdateNotice] = useState(false);
 
   const [isFinanceOpen, setIsFinanceOpen] = useState(() => {
     const active = localStorage.getItem('ms_active_screen');
@@ -191,6 +201,23 @@ export const App = () => {
 
   const isNative = Capacitor.isNativePlatform();
   const isElectron = !isNative && navigator.userAgent.toLowerCase().includes('electron');
+  const isPwa = !isNative && !isElectron && isStandalonePwa();
+
+  useEffect(() => {
+    if (!isPwa || view !== 'app') return;
+    const storageKey = 'ms_last_pwa_build_id';
+    const previousBuild = localStorage.getItem(storageKey);
+
+    if (!previousBuild) {
+      localStorage.setItem(storageKey, __APP_BUILD_ID__);
+      return;
+    }
+
+    if (previousBuild !== __APP_BUILD_ID__) {
+      localStorage.setItem(storageKey, __APP_BUILD_ID__);
+      setShowPwaUpdateNotice(true);
+    }
+  }, [isPwa, view]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -863,6 +890,7 @@ export const App = () => {
 
                     <div>
                         <AdminNavItem id="settings" label="Nastavenia" icon={Settings} />
+                        {isPwa && <AdminNavItem id="updates" label="Aktualizácie" icon={RefreshCw} />}
                         {!isSuperAdmin && profile?.role === 'admin' && <AdminNavItem id="subscription" label="Predplatné" icon={CreditCard} />}
                     </div>
                  </nav>
@@ -951,6 +979,7 @@ export const App = () => {
                               { id: 'advances', label: 'Zálohy', icon: Banknote },
                               { id: 'calendar', label: 'Kalendár', icon: Calendar },
                               { id: 'team', label: 'Tím', icon: Users },
+                              ...(isPwa ? [{ id: 'updates', label: 'Aktualizácie', icon: RefreshCw }] : []),
                               { id: 'subscription', label: 'Predplatné', icon: CreditCard },
                               { id: 'settings', label: 'Nastavenia', icon: Settings },
                           ].map(item => (
@@ -999,6 +1028,7 @@ export const App = () => {
                       {activeScreen === 'calendar' && <CalendarScreen profile={profile} onNavigate={handleNavigate} initialAction={navigationAction?.screen === 'calendar' ? navigationAction : null} onInitialActionHandled={() => setNavigationAction(null)} />}
                       {activeScreen === 'team' && <TeamScreen profile={profile} />}
                       {activeScreen === 'settings' && <SettingsScreen profile={profile} organization={organization} onUpdateOrg={setOrganization} onUpdateProfile={handleProfileUpdate} initialTab={initialSettingsTab} />}
+                      {activeScreen === 'updates' && <UpdatesScreen />}
                       {activeScreen === 'subscription' && <SubscriptionScreen profile={profile} organization={organization} onSuccess={() => { fetchProfile(profile.id); setActiveScreen('dashboard'); }} onLogout={handleLogout} />}
                  </div>
                  
@@ -1050,6 +1080,45 @@ export const App = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </Modal>
+             )}
+
+             {showPwaUpdateNotice && (
+                <Modal title="" onClose={() => setShowPwaUpdateNotice(false)} maxWidth="max-w-sm" hideHeader={true}>
+                    <div className="relative p-6 text-center">
+                        <button
+                          onClick={() => setShowPwaUpdateNotice(false)}
+                          className="absolute right-3 top-3 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                        >
+                          <X size={18} />
+                        </button>
+                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-orange-600 text-white shadow-xl shadow-orange-100">
+                          <Sparkles size={30} />
+                        </div>
+                        <h3 className="text-xl font-black tracking-tight text-slate-900">
+                          Aplikácia bola automaticky aktualizovaná
+                        </h3>
+                        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                          MojaStavba beží na novšej verzii. Pozrite si krátky prehľad zmien.
+                        </p>
+                        <div className="mt-6 grid grid-cols-1 gap-2">
+                          <Button
+                            fullWidth
+                            onClick={() => {
+                              setShowPwaUpdateNotice(false);
+                              setActiveScreen('updates');
+                            }}
+                          >
+                            Pozrieť, čo je nové
+                          </Button>
+                          <button
+                            onClick={() => setShowPwaUpdateNotice(false)}
+                            className="rounded-xl px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 transition"
+                          >
+                            Zavrieť
+                          </button>
+                        </div>
                     </div>
                 </Modal>
              )}

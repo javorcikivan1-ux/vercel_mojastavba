@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
     define: {
       // Zabezpečíme, aby process.env.API_KEY bol definovaný aj ako prázdny reťazec, ak v .env chýba
       'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
+      '__APP_BUILD_ID__': JSON.stringify(`${Date.now()}`),
     },
     optimizeDeps: {
       include: ['html2pdf.js']

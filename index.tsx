@@ -13,6 +13,16 @@ if (Capacitor.isNativePlatform()) {
   });
 }
 
+const isElectron = navigator.userAgent.toLowerCase().includes('electron');
+
+if (!Capacitor.isNativePlatform() && !isElectron && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(err => {
+      console.error('PWA service worker registration failed:', err);
+    });
+  });
+}
+
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element not found");
 

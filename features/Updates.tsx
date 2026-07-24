@@ -7,10 +7,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowUpCircle,
-  Smartphone,
   Download,
-  Loader2,
-  Search
+  Loader2
 } from 'lucide-react';
 
 import { Capacitor } from '@capacitor/core';
@@ -19,6 +17,66 @@ import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import pkg from '../package.json';
 
 const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mojastavba/releases/latest";
+
+const pwaUpdates = [
+  {
+    date: '24. júl 2026',
+    version: 'v5.3.5',
+    title: 'Jednoduchšia inštalácia aplikácie',
+    items: [
+      'Na webe pribudlo tlačidlo na inštaláciu aplikácie pre Android, iPhone, Windows a Mac.',
+      'Nainštalovaná webová aplikácia sa otvorí v samostatnom okne bez adresného riadku.',
+      'Úvodná obrazovka v nainštalovanej aplikácii je jednoduchšia a nezobrazuje marketingový obsah webu.'
+    ]
+  },
+  {
+    date: '13. júl 2026',
+    version: 'v5.3.4',
+    title: 'Cenové ponuky',
+    items: [
+      'Predvolená sadzba DPH bola upravená na 23 % s možnosťou zmeny pri položkách.',
+      'Pri tvorbe ponuky sa dajú opakovane používať uložené názvy položiek.',
+      'PDF cenová ponuka má prehľadnejší súhrn cien, zľavy, DPH a finálnej sumy.'
+    ]
+  },
+  {
+    date: '10. júl 2026',
+    version: 'v5.3.0',
+    title: 'Kalendár',
+    items: [
+      'Úlohy v rovnakom čase sa zobrazujú vedľa seba.',
+      'Hotové úlohy sú v kalendári vizuálne odlíšené.'
+    ]
+  },
+  {
+    date: '7. júl 2026',
+    version: 'v5.2.8',
+    title: 'Dochádzka a denník práce',
+    items: [
+      'Mesačný výkaz dochádzky má upravený PDF export pre jednoduchšie spracovanie miezd.',
+      'Denník práce má čistejší výstup a lepšie rozloženie podpisovej časti.',
+      'Fotky nahrané k záznamom sa komprimujú, aby zbytočne nezapĺňali úložisko.'
+    ]
+  },
+  {
+    date: '1. júl 2026',
+    version: 'v5.2.0',
+    title: 'Vizuálne zjednotenie aplikácie',
+    items: [
+      'Zjednotené fonty, kontrast textov a veľkosti nadpisov naprieč aplikáciou.',
+      'Mobilné zobrazenie v sekciách zákazky, financie, analytika a predplatné bolo upravené pre lepšiu čitateľnosť.'
+    ]
+  },
+  {
+    date: 'jún 2026',
+    version: 'v5.1',
+    title: 'Správa tímu a pozvánky',
+    items: [
+      'Pribudlo odosielanie pozvánok zamestnancom e-mailom.',
+      'Pozvaní zamestnanci sa zobrazujú v tíme ako nezaregistrovaní, kým nedokončia registráciu.'
+    ]
+  }
+];
 
 type Status =
   | 'idle'
@@ -38,6 +96,51 @@ export const UpdatesScreen = () => {
 
   const isCapacitor = Capacitor.isNativePlatform();
   const isElectron = !isCapacitor && navigator.userAgent.toLowerCase().includes('electron');
+  const isWebChangelog = !isCapacitor && !isElectron;
+
+  if (isWebChangelog) {
+    return (
+      <div className="max-w-4xl mx-auto py-6 px-1 sm:px-4">
+        <div className="mb-7">
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
+            <RefreshCw className="text-orange-600" size={32} />
+            Čo je nové
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            Tu nájdete zoznam posledných aktualizácií a najdôležitejších zmien v aplikácii.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          {pwaUpdates.map((update, index) => (
+            <div
+              key={`${update.date}-${update.title}`}
+              className={`px-5 py-5 ${index !== pwaUpdates.length - 1 ? 'border-b border-slate-100' : ''}`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                <div>
+                  <h3 className="text-base font-black tracking-tight text-slate-900">{update.title}</h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                    <span>{update.date}</span>
+                    <span className="h-1 w-1 rounded-full bg-slate-300" />
+                    <span>{update.version}</span>
+                  </div>
+                </div>
+              </div>
+              <ul className="mt-3 space-y-1.5">
+                {update.items.map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-orange-500 shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const initVersion = async () => {
