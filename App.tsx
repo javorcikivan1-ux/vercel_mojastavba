@@ -188,6 +188,8 @@ export const App = () => {
   const isApplyingBrowserHistory = useRef(false);
   const lastAppRouteHash = useRef('');
   const mainContentRef = useRef<HTMLElement | null>(null);
+  const profileRef = useRef<UserProfile | null>(null);
+  const isLoggingOutRef = useRef(false);
   
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying' | 'installing'>('idle');
@@ -202,6 +204,10 @@ export const App = () => {
   const isNative = Capacitor.isNativePlatform();
   const isElectron = !isNative && navigator.userAgent.toLowerCase().includes('electron');
   const isPwa = !isNative && !isElectron && isStandalonePwa();
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   useEffect(() => {
     if (!isPwa || view !== 'app') return;
@@ -451,9 +457,18 @@ export const App = () => {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (isLoggingOutRef.current) {
+          setSession(null);
+          setProfile(null);
+          setOrganization(null);
+          setView('landing');
+          setLoading(false);
+          return;
+      }
+
       setSession(session);
       if (session) {
-          const isSilentFetch = !!profile; 
+          const isSilentFetch = !!profileRef.current; 
           fetchProfile(session.user.id, isSilentFetch);
       }
       else {
@@ -472,7 +487,7 @@ export const App = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [profile?.id]);
+  }, []);
 
   const fetchProfile = async (userId: string, silent = false) => {
       if (!silent) setLoading(true);
@@ -496,32 +511,33 @@ export const App = () => {
   };
 
   const handleLogout = async () => {
+    isLoggingOutRef.current = true;
     setView('landing');
     setProfile(null);
     setOrganization(null);
     setSession(null);
     setShowLogoutConfirm(false);
+    setUpdateAvailable(null);
+    setShowPwaUpdateNotice(false);
     localStorage.removeItem('ms_active_screen');
     localStorage.removeItem('ms_selected_site_id');
-    await supabase.auth.signOut();
-    
-    // Force redirect pre všetky platformy
-    if (Capacitor.isNativePlatform()) {
-      window.location.href = '/';
-    } else if (isElectron) {
-      // Pre Electron - len nastaviť view, nemeňť URL
-      // Aplikácia zostane na rovnakej URL, ale zobrazí landing page
-      setTimeout(() => {
-        setView('landing');
-      }, 100);
-    } else {
-      // Pre web a mobile web - force replace v histórii
-      setTimeout(() => {
-        window.location.replace(window.location.origin);
-      }, 100);
-    }
-  };
 
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.error('Logout failed', error);
+    }
+
+    window.history.replaceState({}, '', window.location.pathname);
+    setLoading(false);
+    setInitialLoginView('login');
+    setActiveScreen('dashboard');
+    setSelectedSiteId(null);
+    setSelectedDiarySiteId(null);
+    setTimeout(() => {
+      isLoggingOutRef.current = false;
+    }, 500);
+  };
   const handleNavigate = (screen: string, params?: any) => {
       if (screen === 'settings' && params?.tab) {
           setInitialSettingsTab(params.tab);
