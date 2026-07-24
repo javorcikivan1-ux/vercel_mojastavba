@@ -25,7 +25,7 @@ import pkg from './package.json';
 
 import { 
   BarChart3, Building2, Calendar, Wallet, Users, LogOut, 
-  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, Sparkles, ArrowUpCircle, WifiOff, Frown, Download, CheckCircle2, Lock, Star, Phone, Mail, AlertTriangle, X
+  ChevronRight, ChevronLeft, Clock, CreditCard, Settings, LayoutGrid, BookOpen, FileCheck, Loader2, ShieldAlert, Banknote, TrendingUp, ChevronDown, PieChart, RefreshCw, ArrowUpCircle, WifiOff, Frown, Download, CheckCircle2, Lock, Star, Phone, Mail, AlertTriangle, X
 } from 'lucide-react';
 
 import { App as CapApp } from '@capacitor/app';
@@ -36,6 +36,23 @@ declare const __APP_BUILD_ID__: string;
 
 const SUPER_ADMIN_EMAIL = 'javorcik.ivan1@gmail.com';
 const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mojastavba/releases/latest";
+const AppLoadingScreen = () => (
+  <div className="h-[100dvh] bg-slate-50 flex items-center justify-center px-6">
+    <div className="w-full max-w-sm text-center">
+      <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-white shadow-lg shadow-slate-200/70 ring-1 ring-slate-200">
+        <img src="/pwa-icon-192.png" alt="MojaStavba" className="h-12 w-12 object-contain" />
+      </div>
+      <div className="flex items-center justify-center gap-3 text-slate-900">
+        <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
+        <span className="text-lg font-bold">Načítavam aplikáciu</span>
+      </div>
+      <p className="mt-3 text-sm leading-relaxed text-slate-500">
+        Ak načítanie trvá dlhšie, skontrolujte prosím pripojenie na internet.
+      </p>
+    </div>
+  </div>
+);
+
 const isStandalonePwa = () => {
   if (typeof window === 'undefined') return false;
   return window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true;
@@ -599,7 +616,7 @@ export const App = () => {
       );
   };
 
-  if (loading && !profile) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-orange-600" size={40}/></div>;
+  if (loading && !profile) return <AppLoadingScreen />;
 
   if (view === 'about') return (
     <AboutApp
@@ -1136,8 +1153,8 @@ export const App = () => {
                         >
                           <X size={18} />
                         </button>
-                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-orange-600 text-white shadow-xl shadow-orange-100">
-                          <Sparkles size={30} />
+                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white shadow-xl shadow-orange-100 ring-1 ring-orange-100">
+                          <img src="/pwa-icon-192.png" alt="MojaStavba" className="h-10 w-10 object-contain" />
                         </div>
                         <h3 className="text-xl font-black tracking-tight text-slate-900">
                           Aplikácia bola automaticky aktualizovaná
