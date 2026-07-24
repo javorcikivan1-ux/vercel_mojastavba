@@ -547,6 +547,12 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                    !navigator.userAgent.toLowerCase().includes('electron') &&
                    !(window as any).ipcRenderer &&
                    !isPwaInstalled;
+  const landingShellClass = isWebOnly
+    ? "min-h-screen bg-white text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col"
+    : "h-[100dvh] min-h-0 bg-white text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col";
+  const heroSectionClass = isWebOnly
+    ? "flex-1 flex flex-col items-center justify-center px-6 pt-12 pb-12 md:pt-24 md:pb-20 bg-gradient-to-br from-orange-50/30 via-orange-25/20 to-amber-25/10 text-center min-h-[calc(100dvh-80px)]"
+    : "flex-1 min-h-0 flex flex-col items-center justify-center px-6 pt-10 pb-10 md:pt-12 md:pb-12 bg-gradient-to-br from-orange-50/30 via-orange-25/20 to-amber-25/10 text-center";
 
   // Efekt pre animované prechody - LEN PRE WEB
   useEffect(() => {
@@ -632,9 +638,9 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
   const menuIconStyle = "text-slate-400 group-hover:text-orange-600 transition-colors";
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col">
+    <div className={landingShellClass}>
       <header className="relative z-[100]">
-        <nav className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0">
+        <nav className="border-y border-slate-200 bg-white/95 backdrop-blur-md sticky top-0">
           <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between gap-2">
             <a href="/" className="flex items-center gap-1.5 md:gap-2.5 min-w-0 shrink hover:opacity-80 transition">
               <img 
@@ -729,7 +735,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
       </header>
 
       <main className="flex-1 flex flex-col bg-white">
-        <section className="flex-1 flex flex-col items-center justify-center px-6 pt-12 pb-12 md:pt-24 md:pb-20 bg-gradient-to-br from-orange-50/30 via-orange-25/20 to-amber-25/10 text-center min-h-[calc(100vh-80px)]">
+        <section className={heroSectionClass}>
           <div className="max-w-6xl mx-auto">
             {/* TLAČIDLO SŤAHOVANIA - ZOBRAZENÉ LEN NA WEBE */}
             {isWebOnly && (
