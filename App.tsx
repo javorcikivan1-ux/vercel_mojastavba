@@ -227,18 +227,25 @@ export const App = () => {
   }, [profile]);
 
   useEffect(() => {
-    if (!isPwa || view !== 'app') return;
+    if (!isPwa) return;
     const storageKey = 'ms_last_pwa_build_id';
+    const noticeKey = 'ms_seen_pwa_update_notice_build_id';
     const previousBuild = localStorage.getItem(storageKey);
+    const seenNoticeBuild = localStorage.getItem(noticeKey);
 
-    if (!previousBuild) {
-      localStorage.setItem(storageKey, __APP_BUILD_ID__);
+    if (view !== 'app') {
+      if (view === 'landing' && !previousBuild) {
+        localStorage.setItem(storageKey, __APP_BUILD_ID__);
+      }
       return;
     }
 
-    if (previousBuild !== __APP_BUILD_ID__) {
+    if (!previousBuild || previousBuild !== __APP_BUILD_ID__) {
       localStorage.setItem(storageKey, __APP_BUILD_ID__);
-      setShowPwaUpdateNotice(true);
+      if (seenNoticeBuild !== __APP_BUILD_ID__) {
+        localStorage.setItem(noticeKey, __APP_BUILD_ID__);
+        setShowPwaUpdateNotice(true);
+      }
     }
   }, [isPwa, view]);
 
