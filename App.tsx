@@ -616,7 +616,10 @@ export const App = () => {
       );
   };
 
-  if (loading && !profile) return <AppLoadingScreen />;
+  if (loading && !profile) {
+      if (isPwa || isNative || isElectron) return <AppLoadingScreen />;
+      return <div className="h-screen bg-white" />;
+  }
 
   if (view === 'about') return (
     <AboutApp

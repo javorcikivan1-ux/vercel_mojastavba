@@ -44,7 +44,7 @@
     <style>
       .boot-splash {
         min-height: 100dvh;
-        display: flex;
+        display: none;
         align-items: center;
         justify-content: center;
         padding: 24px;
@@ -52,6 +52,9 @@
         color: #0f172a;
         font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         text-align: center;
+      }
+      @media (display-mode: standalone) {
+        .boot-splash { display: flex; }
       }
       .boot-card { width: 100%; max-width: 360px; }
       .boot-logo {
