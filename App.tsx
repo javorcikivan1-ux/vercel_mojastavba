@@ -41,6 +41,23 @@ const isStandalonePwa = () => {
   return window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true;
 };
 
+const clearStoredSupabaseSession = () => {
+  if (typeof window === 'undefined') return;
+
+  const clearStorage = (storage: Storage) => {
+    for (let i = storage.length - 1; i >= 0; i -= 1) {
+      const key = storage.key(i);
+      if (!key) continue;
+      if ((key.startsWith('sb-') && key.includes('-auth-token')) || key === 'supabase.auth.token') {
+        storage.removeItem(key);
+      }
+    }
+  };
+
+  clearStorage(window.localStorage);
+  clearStorage(window.sessionStorage);
+};
+
 const APP_SCREENS = new Set([
   'superadmin',
   'dashboard',
@@ -521,11 +538,14 @@ export const App = () => {
     setShowPwaUpdateNotice(false);
     localStorage.removeItem('ms_active_screen');
     localStorage.removeItem('ms_selected_site_id');
+    clearStoredSupabaseSession();
 
     try {
-      await supabase.auth.signOut({ scope: 'local' });
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Logout failed', error);
+    } finally {
+      clearStoredSupabaseSession();
     }
 
     window.history.replaceState({}, '', window.location.pathname);
