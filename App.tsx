@@ -530,6 +530,44 @@ export const App = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  const syncEmployeeInviteCompletion = async (prof: UserProfile) => {
+      if (prof.role !== 'employee' || !prof.organization_id || !prof.email) return;
+
+      try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token;
+          if (!accessToken) return;
+
+          const pendingInviteToken = localStorage.getItem('ms_pending_invite_token') || '';
+          const pendingInviteCompanyId = localStorage.getItem('ms_pending_invite_company_id') || '';
+          const pendingInviteEmail = localStorage.getItem('ms_pending_invite_email') || '';
+          const inviteToken = pendingInviteCompanyId === prof.organization_id && pendingInviteEmail === String(prof.email).trim().toLowerCase()
+              ? pendingInviteToken
+              : '';
+
+          await fetch('/api/complete-invite', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${accessToken}`
+              },
+              body: JSON.stringify({
+                  companyId: prof.organization_id,
+                  email: prof.email,
+                  inviteToken
+              })
+          });
+
+          if (inviteToken) {
+              localStorage.removeItem('ms_pending_invite_token');
+              localStorage.removeItem('ms_pending_invite_company_id');
+              localStorage.removeItem('ms_pending_invite_email');
+          }
+      } catch (inviteError) {
+          console.warn('Invite completion sync failed:', inviteError);
+      }
+  };
+
   const fetchProfile = async (userId: string, silent = false) => {
       if (!silent) setLoading(true);
       
@@ -540,6 +578,7 @@ export const App = () => {
               const { data: org } = await supabase.from('organizations').select('*').eq('id', prof.organization_id).single();
               setOrganization(org);
               setView('app');
+              syncEmployeeInviteCompletion(prof as UserProfile);
           } else {
               setView('landing');
           }

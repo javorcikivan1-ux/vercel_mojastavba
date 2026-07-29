@@ -104,7 +104,7 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
   const [showSelection, setShowSelection] = useState(false);
   
   const [formData, setFormData] = useState({
-    email: initialOrg.email || profile.email,
+    email: profile.email,
     phone: profile.phone || '',
     name: initialOrg.name || '',
     ico: initialOrg.ico || '',
@@ -124,7 +124,7 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
         setOrganization(data);
         setFormData(prev => ({
           ...prev,
-          email: data.email || prev.email,
+          email: profile.email || prev.email,
           phone: prev.phone,
           name: data.name || prev.name,
           ico: data.ico || prev.ico,
@@ -155,7 +155,6 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
       const { error } = await supabase.from('organizations').update({ 
           subscription_status: 'pending_payment',
           subscription_plan: selectedPlan.id,
-          email: formData.email,
           name: formData.name,
           ico: formData.ico,
           dic: formData.dic,

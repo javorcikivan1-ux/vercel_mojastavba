@@ -1024,6 +1024,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyId, setCompanyId] = useState("");
+  const [inviteToken, setInviteToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false); 
@@ -1039,12 +1040,19 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
       const urlCompanyId = params.get('companyId');
       const urlAction = params.get('action');
       const urlEmail = params.get('email');
+      const urlInviteToken = params.get('inviteToken');
 
       // Vždy skontrolovať URL bez ohľadu na initialView
       if (urlAction === 'register-emp') {
           setView('register-emp');
           if (urlCompanyId) setCompanyId(urlCompanyId);
           if (urlEmail) setEmail(urlEmail);
+          if (urlInviteToken) {
+              setInviteToken(urlInviteToken);
+              localStorage.setItem('ms_pending_invite_token', urlInviteToken);
+              if (urlCompanyId) localStorage.setItem('ms_pending_invite_company_id', urlCompanyId);
+              if (urlEmail) localStorage.setItem('ms_pending_invite_email', urlEmail.trim().toLowerCase());
+          }
       } else {
           setView(initialView);
           if (initialCompanyId) setCompanyId(initialCompanyId);
@@ -1053,10 +1061,13 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
 
   const markInviteCompleted = async (companyIdValue: string, emailValue: string) => {
       try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token;
+          if (!accessToken) return;
           await fetch('/api/complete-invite', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ companyId: companyIdValue, email: emailValue })
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+              body: JSON.stringify({ companyId: companyIdValue, email: emailValue, inviteToken })
           });
       } catch (inviteError) {
           console.warn('Invite completion sync failed:', inviteError);
