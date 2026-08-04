@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { formatDate, formatDuration } from '../lib/utils';
 import { exportElementToPdf } from '../lib/pdfExport';
+import { fetchSiteWeather } from '../lib/weather';
+
+const SITE_LOCATION_FIELDS = 'id, name, status, address, latitude, longitude, location_label';
 
 const getLocalDateString = (date: Date) => {
     const y = date.getFullYear();
@@ -68,7 +71,7 @@ const DIARY_TRANSLATIONS: any = {
   sk: {
     manage_diary: 'Denník práce', back_to_overview: 'Späť',
     diary_section_weather: '1. Poveternostné podmienky', diary_section_weather_sub: 'Teplota a počasie počas dňa',
-    weather_status: 'Stav počasia', temp_morning: 'Teplota Ráno', temp_noon: 'Teplota Obed',
+    weather_status: 'Stav počasia', temp_morning: 'Teplota Ráno', temp_noon: 'Teplota Obed', temp_evening: 'Teplota Večer',
     weather_sunny: 'Slnečno', weather_partly_cloudy: 'Polooblačno', weather_cloudy: 'Oblačno',
     weather_rainy: 'Dážď', weather_storm: 'Búrka', weather_windy: 'Vietor', weather_snow: 'Sneženie',
     diary_section_notes: '2. Popis vykonaných prác', diary_section_notes_sub: 'Detailný záznam postupu prác',
@@ -87,14 +90,14 @@ const DIARY_TRANSLATIONS: any = {
     diary_saved: 'Záznam bol uložený.', prev_day_copied: 'Dáta z predchádzajúceho dňa boli skopírované.',
     no_prev_day_record: 'Pre predchádzajúci deň sa nenašiel žiadny záznam.', search_site_placeholder: 'Vyhľadať zákazku',
     export_pdf: 'Export PDF', generating: 'Generujem...', archive_label: 'Archív', active_label: 'Aktívna',
-    total_materials: 'Súčet materiálov', stamp_signature: 'Pečiatka a podpis zhotoviteľa', morning_7: 'Teplota 7:00', noon_13: 'Teplota 13:00',
+    total_materials: 'Súčet materiálov', stamp_signature: 'Pečiatka a podpis zhotoviteľa', morning_7: 'Teplota 8:00', noon_13: 'Teplota 12:00', evening_17: 'Teplota 17:00',
     days_short: ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'], site_label: 'Zákazka', date_label: 'Dátum', generated_via: 'Vygenerované cez MojaStavba', unlock_for_edits_desc: 'Záznam je možné priebežne upravovať.',
     confirm: 'Potvrdiť', cancel: 'Zrušiť', understand: 'Rozumiem'
   },
   en: {
     manage_diary: 'Site Diary', back_to_overview: 'Back',
     diary_section_weather: '1. Weather conditions', diary_section_weather_sub: 'Temperature and weather during the day',
-    weather_status: 'Weather status', temp_morning: 'Morning Temp', temp_noon: 'Noon Temp',
+    weather_status: 'Weather status', temp_morning: 'Morning Temp', temp_noon: 'Noon Temp', temp_evening: 'Evening Temp',
     weather_sunny: 'Sunny', weather_partly_cloudy: 'Partly Cloudy', weather_cloudy: 'Cloudy',
     weather_rainy: 'Rainy', weather_storm: 'Stormy', weather_windy: 'Windy', weather_snow: 'Snowing',
     diary_section_notes: '2. Description of work', diary_section_notes_sub: 'Detailed record of work progress',
@@ -113,7 +116,7 @@ const DIARY_TRANSLATIONS: any = {
     diary_saved: 'Diary has been saved.', prev_day_copied: 'Data from the previous day copied.',
     no_prev_day_record: 'No record found for the previous day.', search_site_placeholder: 'Search and select site',
     export_pdf: 'Export PDF', generating: 'Generating...', archive_label: 'Archive', active_label: 'Active',
-    total_materials: 'Total materials', stamp_signature: 'Contractor stamp and signature', morning_7: 'Temp 7:00', noon_13: 'Temp 13:00',
+    total_materials: 'Total materials', stamp_signature: 'Contractor stamp and signature', morning_7: 'Temp 8:00', noon_13: 'Temp 12:00', evening_17: 'Temp 17:00',
     days_short: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], site_label: 'Site', date_label: 'Date', generated_via: 'Generated via MojaStavba', unlock_for_edits_desc: 'To make changes, the record must first be unlocked.',
     confirm: 'Confirm', cancel: 'Cancel', understand: 'I understand'
 
@@ -121,7 +124,7 @@ const DIARY_TRANSLATIONS: any = {
   de: {
     manage_diary: 'Bautagebuch', back_to_overview: 'Zurück',
     diary_section_weather: '1. Wetterbedingungen', diary_section_weather_sub: 'Temperatur und Wetter während des Tages',
-    weather_status: 'Wetterzustand', temp_morning: 'Temp. Morgen', temp_noon: 'Temp. Mittag',
+    weather_status: 'Wetterzustand', temp_morning: 'Temp. Morgen', temp_noon: 'Temp. Mittag', temp_evening: 'Temp. Abend',
     weather_sunny: 'Sonnig', weather_partly_cloudy: 'Teilweise bewölkt', weather_cloudy: 'Bewölkt',
     weather_rainy: 'Regnerisch', weather_storm: 'Stürmisch', weather_windy: 'Windig', weather_snow: 'Schneit',
     diary_section_notes: '2. Arbeitsbeschreibung', diary_section_notes_sub: 'Detaillierte Aufzeichnung des Arbeitsfortschritts',
@@ -140,7 +143,7 @@ const DIARY_TRANSLATIONS: any = {
     diary_saved: 'Tagebuch wurde gespeichert.', prev_day_copied: 'Daten vom Vortag kopiert.',
     no_prev_day_record: 'Kein Eintrag für den Vortag gefunden.', search_site_placeholder: 'Standort suchen',
     export_pdf: 'PDF Export', generating: 'Generiere...', archive_label: 'Archiv', active_label: 'Aktiv',
-    total_materials: 'Materialien gesamt', stamp_signature: 'Stempel und Unterschrift des Auftragnehmers', morning_7: 'Temp 7:00', noon_13: 'Temp 13:00',
+    total_materials: 'Materialien gesamt', stamp_signature: 'Stempel und Unterschrift des Auftragnehmers', morning_7: 'Temp 8:00', noon_13: 'Temp 12:00', evening_17: 'Temp 17:00',
     days_short: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], site_label: 'Baustelle', date_label: 'Datum', generated_via: 'Generiert über MojaStavba', unlock_for_edits_desc: 'Für Änderungen muss der Eintrag zuerst entsperrt werden.',
     confirm: 'Bestätigen', cancel: 'Abbrechen', understand: 'Verstanden'
 
@@ -148,7 +151,7 @@ const DIARY_TRANSLATIONS: any = {
   hu: {
     manage_diary: 'Építési Napló', back_to_overview: 'Vissza',
     diary_section_weather: '1. Időjárási viszonyok', diary_section_weather_sub: 'Hőmérséklet és időjárás a nap folyamán',
-    weather_status: 'Időjárás állapota', temp_morning: 'Reggeli hőm.', temp_noon: 'Déli hőm.',
+    weather_status: 'Időjárás állapota', temp_morning: 'Reggeli hőm.', temp_noon: 'Déli hőm.', temp_evening: 'Esti hőm.',
     weather_sunny: 'Napos', weather_partly_cloudy: 'Részben felhős', weather_cloudy: 'Felhős',
     weather_rainy: 'Esős', weather_storm: 'Viharos', weather_windy: 'Szeles', weather_snow: 'Havazás',
     diary_section_notes: '2. Elvégzett munkák leírása', diary_section_notes_sub: 'A munkafolyamat részletes rögzítése',
@@ -167,7 +170,7 @@ const DIARY_TRANSLATIONS: any = {
     diary_saved: 'A napló mentve lett.', prev_day_copied: 'A tegnapi adatok átmásolva.',
     no_prev_day_record: 'Nem található bejegyzés a tegnapi napra.', search_site_placeholder: 'Helyszín keresése',
     export_pdf: 'PDF Export', generating: 'Generálás...', archive_label: 'Archív', active_label: 'Aktív',
-    total_materials: 'Anyagok összesen', stamp_signature: 'Vállalkozó bélyegzője és aláírása', morning_7: 'Hőm 7:00', noon_13: 'Hőm 13:00',
+    total_materials: 'Anyagok összesen', stamp_signature: 'Vállalkozó bélyegzője és aláírása', morning_7: 'Hőm 8:00', noon_13: 'Hőm 12:00', evening_17: 'Hőm 17:00',
     days_short: ['Hé', 'Ke', 'Sze', 'Csü', 'Pé', 'Szo', 'Vas'], site_label: 'Építkezés', date_label: 'Dátum', generated_via: 'MojaStavba által generálva', unlock_for_edits_desc: 'A módosításhoz először fel kell oldani a bejegyzést.',
     confirm: 'Megerősítés', cancel: 'Mégse', understand: 'Értem'
 
@@ -175,7 +178,7 @@ const DIARY_TRANSLATIONS: any = {
   pl: {
     manage_diary: 'Dziennik Budowy', back_to_overview: 'Wstecz',
     diary_section_weather: '1. Warunki pogodowe', diary_section_weather_sub: 'Temperatura i pogoda w ciągu dnia',
-    weather_status: 'Status pogody', temp_morning: 'Temp. rano', temp_noon: 'Temp. w południe',
+    weather_status: 'Status pogody', temp_morning: 'Temp. rano', temp_noon: 'Temp. w południe', temp_evening: 'Temp. wieczorem',
     weather_sunny: 'Słonecznie', weather_partly_cloudy: 'Częściowe zachmurzenie', weather_cloudy: 'Pochmurno',
     weather_rainy: 'Deszczowo', weather_storm: 'Burzowo', weather_windy: 'Wietrznie', weather_snow: 'Śnieg',
     diary_section_notes: '2. Opis wykonanych prac', diary_section_notes_sub: 'Szczegółowy zapis postępu prac',
@@ -194,7 +197,7 @@ const DIARY_TRANSLATIONS: any = {
     diary_saved: 'Dziennik został zapisany.', prev_day_copied: 'Dane z poprzedniego dnia skopiowane.',
     no_prev_day_record: 'Nie znaleziono wpisu z poprzedniego dnia.', search_site_placeholder: 'Szukaj budowy',
     export_pdf: 'Eksport PDF', generating: 'Generowanie...', archive_label: 'Archiwum', active_label: 'Aktywna',
-    total_materials: 'Materiały razem', stamp_signature: 'Pieczątka i podpis wykonawcy', morning_7: 'Temp 7:00', noon_13: 'Temp 13:00',
+    total_materials: 'Materiały razem', stamp_signature: 'Pieczątka i podpis wykonawcy', morning_7: 'Temp 8:00', noon_13: 'Temp 12:00', evening_17: 'Temp 17:00',
     days_short: ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'], site_label: 'Budowa', date_label: 'Data', generated_via: 'Wygenerowano przez MojaStavba', unlock_for_edits_desc: 'Aby wprowadzić zmiany, należy najpierw odblokować wpis.',
     confirm: 'Potwierdź', cancel: 'Anuluj', understand: 'Rozumiem'
 
@@ -202,7 +205,7 @@ const DIARY_TRANSLATIONS: any = {
   ua: {
     manage_diary: 'Будівельний Журнал', back_to_overview: 'Назад',
     diary_section_weather: '1. Погодні умови', diary_section_weather_sub: 'Температура та погода протягом дня',
-    weather_status: 'Стан погоди', temp_morning: 'Темп. вранці', temp_noon: 'Темп. вдень',
+    weather_status: 'Стан погоди', temp_morning: 'Темп. вранці', temp_noon: 'Темп. вдень', temp_evening: 'Темп. увечері',
     weather_sunny: 'Сонячно', weather_partly_cloudy: 'Мінлива хмарність', weather_cloudy: 'Хмарно',
     weather_rainy: 'Дощ', weather_storm: 'Гроза', weather_windy: 'Вітер', weather_snow: 'Сніг',
     diary_section_notes: '2. Опис виконаних робіт', diary_section_notes_sub: 'Детальний запис ходу робіт',
@@ -221,7 +224,7 @@ const DIARY_TRANSLATIONS: any = {
     diary_saved: 'Журнал збережено.', prev_day_copied: 'Дані за попередній день скопійовано.',
     no_prev_day_record: 'Запису за попередній день не знайдено.', search_site_placeholder: 'Пошук об\'єкта',
     export_pdf: 'Експорт PDF', generating: 'Генерую...', archive_label: 'Архів', active_label: 'Активний',
-    total_materials: 'Матеріали разом', stamp_signature: 'Печатка та підпис підрядника', morning_7: 'Темп 7:00', noon_13: 'Темп 13:00',
+    total_materials: 'Матеріали разом', stamp_signature: 'Печатка та підпис підрядника', morning_7: 'Темп 8:00', noon_13: 'Темп 12:00', evening_17: 'Темп 17:00',
     days_short: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'], site_label: 'Об’єкт', date_label: 'Дата', generated_via: 'Згенеровано через MojaStavba', unlock_for_edits_desc: 'Щоб внести зміни, запис потрібно спочатку розблокувати.',
     confirm: 'Підтвердити', cancel: 'Скасувати', understand: 'Розумію'
   }
@@ -282,6 +285,8 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
   const [exporting, setExporting] = useState(false);
   
   const [loading, setLoading] = useState(false);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [autoWeatherInfo, setAutoWeatherInfo] = useState('');
   const [alertState, setAlertState] = useState<{open: boolean, message: string, type: 'success' | 'error'}>({ open: false, message: '', type: 'success' });
 
   const printRef = useRef<HTMLDivElement>(null);
@@ -291,7 +296,11 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
   useEffect(() => {
     const loadSites = async () => {
         if (fixedSiteId) {
-            const { data } = await supabase.from('sites').select('id, name, status').eq('id', fixedSiteId).single();
+            let { data, error }: any = await supabase.from('sites').select(SITE_LOCATION_FIELDS).eq('id', fixedSiteId).single();
+            if (error && /latitude|longitude|location_label|schema cache/i.test(error.message || '')) {
+                const fallback = await supabase.from('sites').select('id, name, status, address').eq('id', fixedSiteId).single();
+                data = fallback.data;
+            }
             if (data) {
                 setSites([data]);
                 setSelectedSiteId(data.id);
@@ -300,13 +309,21 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
             return;
         }
 
-        const { data } = await supabase.from('sites')
-            .select('id, name, status')
+        let { data, error }: any = await supabase.from('sites')
+            .select(SITE_LOCATION_FIELDS)
             .eq('organization_id', profile.organization_id)
             .order('status', { ascending: true });
+
+        if (error && /latitude|longitude|location_label|schema cache/i.test(error.message || '')) {
+            const fallback = await supabase.from('sites')
+                .select('id, name, status, address')
+                .eq('organization_id', profile.organization_id)
+                .order('status', { ascending: true });
+            data = fallback.data;
+        }
         
         if(data && data.length > 0) {
-            const sorted = data.sort((a, b) => {
+            const sorted = data.sort((a: any, b: any) => {
                 if (a.status === 'active' && b.status !== 'active') return -1;
                 if (a.status !== 'active' && b.status === 'active') return 1;
                 return 0;
@@ -405,31 +422,133 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
       return { record: record.data, attendance: attendance.data, materials: materials.data };
   };
 
+  const fetchStoredWeatherSnapshot = async (siteId: string, dateStr: string) => {
+      const { data, error } = await supabase
+          .from('site_weather_snapshots')
+          .select('weather, weather_morning, weather_noon, weather_evening, temperature_morning, temperature_noon, temperature_evening')
+          .eq('site_id', siteId)
+          .eq('weather_date', dateStr)
+          .maybeSingle();
+
+      if (error) {
+          console.warn('Denný snapshot počasia zatiaľ nie je dostupný', error);
+          return null;
+      }
+
+      return data;
+  };
+
+  const fetchFreshSite = async (siteId: string) => {
+      let { data, error }: any = await supabase
+          .from('sites')
+          .select(SITE_LOCATION_FIELDS)
+          .eq('id', siteId)
+          .maybeSingle();
+
+      if (error && /latitude|longitude|location_label|schema cache/i.test(error.message || '')) {
+          const fallback = await supabase
+              .from('sites')
+              .select('id, name, status, address')
+              .eq('id', siteId)
+              .maybeSingle();
+          data = fallback.data;
+          error = fallback.error;
+      }
+
+      if (error || !data) {
+          if (error) console.warn('Zákazku pre počasie sa nepodarilo obnoviť', error);
+          return sites.find(site => site.id === siteId) || null;
+      }
+
+      setSites(prev => {
+          const exists = prev.some(site => site.id === data.id);
+          if (!exists) return [data, ...prev];
+          return prev.map(site => site.id === data.id ? { ...site, ...data } : site);
+      });
+
+      return data;
+  };
+
+  const stripUnsupportedDiaryColumns = (entry: any) => {
+      const { temperature_evening, weather_morning, weather_noon, weather_evening, ...safeEntry } = entry;
+      return safeEntry;
+  };
+
   const handleDaySelect = async (day: Date) => {
       if(!selectedSiteId) return;
       setSelectedDay(day);
       setPreviewDay(null); 
       setLoading(true);
+      setAutoWeatherInfo('');
       setDiaryEntry(null); 
       
       try {
           const { record, attendance, materials } = await fetchDayData(day, selectedSiteId);
-
-          setDiaryEntry(record || { 
-              weather: t('weather_sunny'), 
+          const selectedSite = await fetchFreshSite(selectedSiteId);
+          const hasSavedRecord = Boolean(record);
+          let entry = record || {
+              weather: '',
+              weather_morning: '',
+              weather_noon: '',
+              weather_evening: '',
               temperature_morning: '', 
               temperature_noon: '', 
+              temperature_evening: '',
               mechanisms: '', 
               notes: '',
               status: 'draft',
               photos: []
-          });
+          };
+          entry = {
+              ...entry,
+              weather_morning: entry.weather_morning || (hasSavedRecord ? entry.weather : '') || '',
+              weather_noon: entry.weather_noon || (hasSavedRecord ? entry.weather : '') || '',
+              weather_evening: entry.weather_evening || (hasSavedRecord ? entry.weather : '') || '',
+              temperature_evening: entry.temperature_evening || ''
+          };
+
+          const needsWeatherData = !entry.temperature_morning || !entry.temperature_noon || !entry.temperature_evening || !entry.weather_morning || !entry.weather_noon || !entry.weather_evening;
+          if (selectedSite && needsWeatherData) {
+              setWeatherLoading(true);
+              try {
+                  const dateStr = getLocalDateString(day);
+                  const storedWeather = await fetchStoredWeatherSnapshot(selectedSiteId, dateStr);
+                  const hasConfirmedLocation = selectedSite?.latitude != null && selectedSite?.longitude != null;
+                  if (!storedWeather && !hasConfirmedLocation) {
+                      throw new Error('missing-location');
+                  }
+                  const weather = storedWeather || await fetchSiteWeather(Number(selectedSite.latitude), Number(selectedSite.longitude), dateStr);
+                  entry = { ...entry, ...weather };
+                  const hasAutoWeather = Boolean(
+                      weather.weather_morning || weather.weather_noon || weather.weather_evening ||
+                      weather.temperature_morning || weather.temperature_noon || weather.temperature_evening
+                  );
+                  if (hasAutoWeather) {
+                      setAutoWeatherInfo(storedWeather
+                          ? `Počasie doplnené z denného záznamu: ${selectedSite.location_label || selectedSite.address || selectedSite.name}`
+                          : `Počasie doplnené podľa potvrdenej polohy: ${selectedSite.location_label || selectedSite.address || selectedSite.name}`);
+                  } else {
+                      setAutoWeatherInfo('Počasie sa doplní automaticky až po najbližšom čase merania.');
+                  }
+              } catch (weatherError) {
+                  console.warn('Počasie sa nepodarilo automaticky doplniť', weatherError);
+                  const message = weatherError instanceof Error && weatherError.message === 'missing-location'
+                      ? 'Pre automatické počasie treba v zákazke potvrdiť polohu cez Priradiť adresu.'
+                      : 'Počasie sa nepodarilo automaticky načítať. Údaje môžete doplniť ručne.';
+                  setAutoWeatherInfo(message);
+              } finally {
+                  setWeatherLoading(false);
+              }
+          }
+
+          setDiaryEntry(entry);
           setDailyAttendance(attendance || []);
           setDailyMaterials(materials || []);
       } catch (e) {
           console.error(e);
       } finally {
           setLoading(false);
+          setWeatherLoading(false);
       }
   };
 
@@ -505,8 +624,12 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
               ...prev,
               mechanisms: record.mechanisms,
               weather: record.weather,
+              weather_morning: record.weather_morning || record.weather || '',
+              weather_noon: record.weather_noon || record.weather || '',
+              weather_evening: record.weather_evening || record.weather || '',
               temperature_morning: record.temperature_morning,
-              temperature_noon: record.temperature_noon
+              temperature_noon: record.temperature_noon,
+              temperature_evening: record.temperature_evening || ''
           }));
           setAlertState({ open: true, message: t('prev_day_copied'), type: 'success' });
       } else {
@@ -520,8 +643,10 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
       if(!selectedDay || !selectedSiteId || !diaryEntry) return;
       const normalizedStatus = 'draft';
       const dateStr = getLocalDateString(selectedDay);
+      const normalizedWeather = diaryEntry.weather_noon || diaryEntry.weather_morning || diaryEntry.weather_evening || diaryEntry.weather || t('weather_sunny');
       const payload = {
           ...diaryEntry,
+          weather: normalizedWeather,
           site_id: selectedSiteId,
           organization_id: profile.organization_id,
           date: dateStr,
@@ -531,14 +656,36 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
       const { id, ...saveData } = payload; 
       try {
           if (diaryEntry.id) {
-              await supabase.from('diary_records').update({ ...saveData, status: normalizedStatus }).eq('id', diaryEntry.id);
+              const { error } = await supabase.from('diary_records').update({ ...saveData, status: normalizedStatus }).eq('id', diaryEntry.id);
+              if (error) throw error;
           } else {
-              const { data } = await supabase.from('diary_records').insert([saveData]).select().single();
+              const { data, error } = await supabase.from('diary_records').insert([saveData]).select().single();
+              if (error) throw error;
               if(data) setDiaryEntry(data);
           }
           setAlertState({ open: true, message: t('diary_saved'), type: 'success' });
           fetchMonthOverview();
       } catch (err: any) {
+          const message = String(err?.message || '');
+          if (/temperature_evening|schema cache|column/i.test(message)) {
+              const fallbackData = stripUnsupportedDiaryColumns(saveData);
+              try {
+                  if (diaryEntry.id) {
+                      const { error } = await supabase.from('diary_records').update({ ...fallbackData, status: normalizedStatus }).eq('id', diaryEntry.id);
+                      if (error) throw error;
+                  } else {
+                      const { data, error } = await supabase.from('diary_records').insert([fallbackData]).select().single();
+                      if (error) throw error;
+                      if(data) setDiaryEntry(data);
+                  }
+                  setAlertState({ open: true, message: t('diary_saved'), type: 'success' });
+                  fetchMonthOverview();
+                  return;
+              } catch (fallbackErr: any) {
+                  setAlertState({ open: true, message: fallbackErr.message, type: 'error' });
+                  return;
+              }
+          }
           setAlertState({ open: true, message: err.message, type: 'error' });
       }
   };
@@ -617,10 +764,11 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
       if (!selectedSiteId) return;
       setExporting(true);
       try {
-          const [records, logs, materials] = await Promise.all([
+          const [records, logs, materials, snapshots] = await Promise.all([
               supabase.from('diary_records').select('*').eq('site_id', selectedSiteId).order('date', {ascending: true}),
               supabase.from('attendance_logs').select('*, profiles(full_name)').eq('site_id', selectedSiteId).order('date', {ascending: true}),
-              supabase.from('materials').select('*').eq('site_id', selectedSiteId).order('purchase_date', {ascending: true})
+              supabase.from('materials').select('*').eq('site_id', selectedSiteId).order('purchase_date', {ascending: true}),
+              supabase.from('site_weather_snapshots').select('*').eq('site_id', selectedSiteId).order('weather_date', {ascending: true})
           ]);
 
           const groupedData: any[] = [];
@@ -633,12 +781,14 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
           const sortedDates = Array.from(allDates).sort();
 
           sortedDates.forEach(date => {
-              groupedData.push({
-                  date: date,
-                  record: records.data?.find((r: any) => r.date === date),
-                  logs: logs.data?.filter((l: any) => l.date === date),
-                  materials: materials.data?.filter((m: any) => m.purchase_date === date)
-              });
+              const record = records.data?.find((r: any) => r.date === date);
+              const snapshot = snapshots.data?.find((s: any) => s.weather_date === date);
+               groupedData.push({
+                   date: date,
+                   record: record || snapshot,
+                   logs: logs.data?.filter((l: any) => l.date === date),
+                   materials: materials.data?.filter((m: any) => m.purchase_date === date)
+               });
           });
 
           setFullExportData(groupedData);
@@ -763,7 +913,21 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
           default:
               return <Cloud size={16} className="text-slate-400" />;
       }
-  };
+   };
+
+   const weatherOptions = [
+       { value: 'Slnečno', label: `${t('weather_sunny')} ☀️` },
+       { value: 'Polooblačno', label: `${t('weather_partly_cloudy')} ⛅` },
+       { value: 'Oblačno', label: `${t('weather_cloudy')} ☁️` },
+       { value: 'Dážď', label: `${t('weather_rainy')} 🌧️` },
+       { value: 'Búrka', label: `${t('weather_storm')} ⛈️` },
+       { value: 'Vietor', label: `${t('weather_windy')} 💨` },
+       { value: 'Sneženie', label: `${t('weather_snow')} ❄️` }
+   ];
+
+   const getEntryWeather = (entry: any, slot: 'morning' | 'noon' | 'evening' = 'noon') => {
+       return entry?.[`weather_${slot}`] || entry?.weather || '';
+   };
 
   return (
     <div className="space-y-6 relative">
@@ -899,7 +1063,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                 {previewDay.stats?.record && (
     <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-100/50 p-2 rounded-lg border border-slate-200/50">
         <div className="flex items-center gap-2">
-            {renderWeatherIcon(previewDay.stats.record.weather)}
+            {renderWeatherIcon(getEntryWeather(previewDay.stats.record))}
         </div>
 
         <span className="font-bold text-slate-700">
@@ -1021,18 +1185,47 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                   <div className="xl:col-span-2 space-y-6">
                       <Card className="border-t-4 border-t-orange-500 relative overflow-hidden shadow-md">
                           <SectionHeader icon={Cloud} title={t('diary_section_weather')} sub={t('diary_section_weather_sub')} />
+                          {(weatherLoading || autoWeatherInfo) && (
+                              <div className={`mb-4 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${autoWeatherInfo.includes('nepodarilo') ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-blue-100 bg-blue-50 text-blue-800'}`}>
+                                  {weatherLoading ? <Loader2 size={16} className="animate-spin" /> : <Cloud size={16} />}
+                                  <span>{weatherLoading ? 'Načítavam počasie podľa polohy zákazky...' : autoWeatherInfo}</span>
+                              </div>
+                          )}
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                              <Select label={t('weather_status')} value={diaryEntry.weather} onChange={(e: any) => setDiaryEntry({...diaryEntry, weather: e.target.value})}>
-                                  <option value="Slnečno">{t('weather_sunny')} ☀️</option>
-                                  <option value="Polooblačno">{t('weather_partly_cloudy')} ⛅</option>
-                                  <option value="Oblačno">{t('weather_cloudy')} ☁️</option>
-                                  <option value="Dážď">{t('weather_rainy')} 🌧️</option>
-                                  <option value="Búrka">{t('weather_storm')} ⛈️</option>
-                                  <option value="Vietor">{t('weather_windy')} 💨</option>
-                                  <option value="Sneženie">{t('weather_snow')} ❄️</option>
-                              </Select>
-                              <Input label={t('temp_morning')} value={diaryEntry.temperature_morning} onChange={(e: any) => setDiaryEntry({...diaryEntry, temperature_morning: e.target.value})} placeholder="°C" />
-                              <Input label={t('temp_noon')} value={diaryEntry.temperature_noon} onChange={(e: any) => setDiaryEntry({...diaryEntry, temperature_noon: e.target.value})} placeholder="°C" />
+                              {[
+                                  { title: t('morning_7'), weatherKey: 'weather_morning', tempKey: 'temperature_morning' },
+                                  { title: t('noon_13'), weatherKey: 'weather_noon', tempKey: 'temperature_noon' },
+                                  { title: t('evening_17'), weatherKey: 'weather_evening', tempKey: 'temperature_evening' }
+                              ].map((slot: any) => (
+                                  <div key={slot.weatherKey} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                                      <div className="mb-3 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-600">
+                                          {renderWeatherIcon(diaryEntry[slot.weatherKey] || diaryEntry.weather)}
+                                          <span>{slot.title}</span>
+                                      </div>
+                                      <div className="space-y-3">
+                                              <Select
+                                                  label={t('weather_status')}
+                                              value={diaryEntry[slot.weatherKey] || ''}
+                                              onChange={(e: any) => setDiaryEntry({
+                                                  ...diaryEntry,
+                                                  [slot.weatherKey]: e.target.value,
+                                                  weather: slot.weatherKey === 'weather_noon' ? e.target.value : diaryEntry.weather
+                                              })}
+                                          >
+                                              <option value="">Vyberte počasie</option>
+                                              {weatherOptions.map(option => (
+                                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                              ))}
+                                          </Select>
+                                          <Input
+                                              label={slot.title}
+                                              value={diaryEntry[slot.tempKey] || ''}
+                                              onChange={(e: any) => setDiaryEntry({...diaryEntry, [slot.tempKey]: e.target.value})}
+                                              placeholder="°C"
+                                          />
+                                      </div>
+                                  </div>
+                              ))}
                           </div>
 
                           <SectionHeader 
@@ -1191,23 +1384,24 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                               <div className="text-lg font-bold text-slate-950 leading-tight">{selectedDay.toLocaleDateString(getLocaleCode())}</div>
                           </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-4 mb-7 break-inside-avoid">
-                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center">{renderWeatherIcon(diaryEntry.weather)}</div>
-                              <div>
-                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">{t('weather_status')}</div>
-                                  <div className="font-bold text-slate-950">{diaryEntry.weather || '-'}</div>
-                              </div>
-                          </div>
-                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">{t('morning_7')}</div>
-                              <div className="text-xl font-bold text-slate-950 tabular-nums">{diaryEntry.temperature_morning || '-'} °C</div>
-                          </div>
-                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">{t('noon_13')}</div>
-                              <div className="text-xl font-bold text-slate-950 tabular-nums">{diaryEntry.temperature_noon || '-'} °C</div>
-                          </div>
-                      </div>
+                       <div className="grid grid-cols-3 gap-4 mb-7 break-inside-avoid">
+                           {[
+                               { label: t('morning_7'), weather: getEntryWeather(diaryEntry, 'morning'), temp: diaryEntry.temperature_morning },
+                               { label: t('noon_13'), weather: getEntryWeather(diaryEntry, 'noon'), temp: diaryEntry.temperature_noon },
+                               { label: t('evening_17'), weather: getEntryWeather(diaryEntry, 'evening'), temp: diaryEntry.temperature_evening }
+                           ].map((slot) => (
+                               <div key={slot.label} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                   <div className="flex items-center gap-2 mb-2">
+                                       <div className="h-8 w-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center">{renderWeatherIcon(slot.weather)}</div>
+                                       <div>
+                                           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em]">{slot.label}</div>
+                                           <div className="text-xs font-bold text-slate-900">{slot.weather || '-'}</div>
+                                       </div>
+                                   </div>
+                                   <div className="text-xl font-bold text-slate-950 tabular-nums">{slot.temp || '-'} °C</div>
+                               </div>
+                           ))}
+                       </div>
                       {[
                           { title: `1. ${t('workers')}`, content: dailyAttendance.length > 0 ? dailyAttendance.map(l => `${l.profiles?.full_name} (${Number(l.hours).toFixed(1)}h)`).join(', ') : t('no_records') },
                           { title: `2. ${t('diary_section_mechanisms')}`, content: diaryEntry.mechanisms || t('no_records') },
@@ -1348,21 +1542,20 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                           </div>
 
                           <div className="grid grid-cols-3 gap-3 p-4 border-b border-slate-100">
-                              <div className="bg-slate-50 rounded-xl p-3 flex items-center justify-center gap-2 text-center">
-                                  {renderWeatherIcon(day.record?.weather)}
-                                  <div>
-                                      <div className="text-[8px] uppercase text-slate-500 font-bold text-center tracking-[0.12em]">{t('weather_status')}</div>
-                                      <div className="font-bold text-xs text-center text-slate-900">{day.record?.weather || '-'}</div>
+                              {[
+                                  { label: t('morning_7'), weather: getEntryWeather(day.record, 'morning'), temp: day.record?.temperature_morning },
+                                  { label: t('noon_13'), weather: getEntryWeather(day.record, 'noon'), temp: day.record?.temperature_noon },
+                                  { label: t('evening_17'), weather: getEntryWeather(day.record, 'evening'), temp: day.record?.temperature_evening }
+                              ].map((slot) => (
+                                  <div key={slot.label} className="bg-slate-50 rounded-xl p-3 text-center">
+                                      <div className="mb-1 flex items-center justify-center gap-1.5">
+                                          {renderWeatherIcon(slot.weather)}
+                                          <span className="text-[8px] uppercase text-slate-500 font-bold tracking-[0.12em]">{slot.label}</span>
+                                      </div>
+                                      <div className="font-bold text-xs text-slate-900">{slot.weather || '-'}</div>
+                                      <div className="font-bold text-xs text-slate-900 tabular-nums">{slot.temp ? `${slot.temp}°C` : '-'}</div>
                                   </div>
-                              </div>
-                              <div className="bg-slate-50 rounded-xl p-3">
-                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center tracking-[0.12em]">{t('morning_7')}</div>
-                                  <div className="font-bold text-xs text-center text-slate-900 tabular-nums">{day.record?.temperature_morning ? `${day.record.temperature_morning}°C` : '-'}</div>
-                              </div>
-                              <div className="bg-slate-50 rounded-xl p-3">
-                                  <div className="text-[8px] uppercase text-slate-500 font-bold text-center tracking-[0.12em]">{t('noon_13')}</div>
-                                  <div className="font-bold text-xs text-center text-slate-900 tabular-nums">{day.record?.temperature_noon ? `${day.record.temperature_noon}°C` : '-'}</div>
-                              </div>
+                              ))}
                           </div>
 
                           <div className="space-y-4 p-4">

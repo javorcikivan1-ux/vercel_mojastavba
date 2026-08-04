@@ -563,7 +563,7 @@ const TeamList = ({ profile, onSelect }: any) => {
                 <Info size={16} className="text-blue-500 mt-0.5 shrink-0"/>
                 <p className="text-[10px] text-blue-700 leading-relaxed font-medium">
                     <strong>Mzdová sadzba:</strong> to čo zamestnanec vidí vo svojom profile.<br/>
-                    <strong>Celková cena práce:</strong> náklad pre firmu (vrátane odvodov), ktorý sa použije na výpočet zisku stavby.
+                    <strong>Celková cena práce (CCP):</strong> úplný náklad firmy na zamestnanca. Toto číslo sa používa najmä pri výpočte analytiky zákaziek a firmy.
                 </p>
             </div>
 
@@ -1016,7 +1016,7 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                             <Info size={16} className="text-blue-500 mt-0.5 shrink-0"/>
                             <p className="text-[10px] text-blue-700 leading-relaxed font-medium">
                                 <strong>Mzdová sadzba:</strong> to čo zamestnanec vidí vo svojom profile.<br/>
-                                <strong>Celková cena práce (CCP):</strong> náklad pre firmu (vrátane odvodov), ktorý sa použije na výpočet zisku stavby.
+                                <strong>Celková cena práce (CCP):</strong> úplný náklad firmy na zamestnanca. Toto číslo sa používa najmä pri výpočte analytiky zákaziek a firmy.
                             </p>
                         </div>
 

@@ -11,6 +11,43 @@ const logoUrl = 'https://lordsbenison.sk/wp-content/uploads/2026/07/icon-only.pn
 const supportRecipients = ['javorcik.ivan1@gmail.com', 'sluzby@lordsbenison.eu'];
 const HOUR = 60 * 60 * 1000;
 
+const buildUserConfirmationEmail = ({ requestLabel, safeUserName, safeOrgName }) => `
+  <!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Poziadavka prijata | MojaStavba</title>
+    </head>
+    <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#0f172a;">
+      <div style="max-width:620px;margin:0 auto;padding:32px 18px;">
+        <div style="text-align:center;margin-bottom:22px;">
+          <img src="${logoUrl}" width="54" height="54" alt="MojaStavba" style="display:inline-block;width:54px;height:54px;border-radius:16px;">
+        </div>
+        <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;box-shadow:0 18px 45px rgba(15,23,42,.07);overflow:hidden;">
+          <div style="padding:30px 34px;border-bottom:1px solid #f1f5f9;">
+            <div style="font-size:12px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">MojaStavba</div>
+            <h1 style="margin:0;font-size:25px;line-height:1.25;color:#0f172a;">Uspesne sme prijali vasu poziadavku</h1>
+          </div>
+          <div style="padding:28px 34px;">
+            <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155;">Dobry den ${safeUserName},</p>
+            <p style="margin:0 0 18px;font-size:16px;line-height:1.7;color:#334155;">
+              vasu spravu typu <strong style="color:#0f172a;">${requestLabel}</strong> sme prijali a ozveme sa spat do 24 hodin.
+            </p>
+            <div style="margin:22px 0;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;padding:16px 18px;">
+              <div style="font-size:12px;font-weight:800;color:#9a3412;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Firma</div>
+              <div style="font-size:16px;font-weight:800;color:#0f172a;">${safeOrgName}</div>
+            </div>
+            <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">
+              Na tento e-mail neodpovedajte. Sprava bola odoslana automaticky z adresy noreply@moja-stavba.sk.
+            </p>
+          </div>
+        </div>
+      </div>
+    </body>
+  </html>
+`;
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -125,6 +162,21 @@ export default async function handler(req, res) {
         </html>
       `
     });
+
+    try {
+      await resend.emails.send({
+        from: 'MojaStavba <noreply@moja-stavba.sk>',
+        to: normalizedEmail,
+        subject: 'MojaStavba: uspesne sme prijali vasu poziadavku',
+        html: buildUserConfirmationEmail({
+          requestLabel,
+          safeUserName,
+          safeOrgName
+        })
+      });
+    } catch (confirmationError) {
+      console.warn('Support confirmation email error:', confirmationError);
+    }
 
     return res.status(200).json({ ok: true });
   } catch (error) {

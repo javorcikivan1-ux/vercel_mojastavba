@@ -27,7 +27,7 @@ const PHM_TRANSLATIONS: any = {
   sk: {
     fuel_log: 'Tankovanie', km_log: 'Kilometre', date_label: 'Dátum', vehicle_plate: 'EČV',
     amount_vat: 'Suma s DPH', calculated_cost: 'Vypočítaný náklad', km_count: 'Počet km',
-    km_rate: 'Sadzba za km', receipt_photo: 'Odfotiť bloček', save_changes: 'Uložiť zmeny',
+    km_rate: 'Sadzba za km', receipt_photo: 'Bloček', save_changes: 'Uložiť zmeny',
     add_record: 'Pridať záznam', unassigned_vehicle: 'Nezaradené vozidlo',
     note_details: 'Poznámka / Detaily', total_phm_transport: 'Doprava a PHM Celkom',
     no_phm_records: 'Žiadne záznamy dopravy alebo PHM.', delete_confirm_title: 'Zmazať záznam?',
@@ -171,7 +171,8 @@ export const ProjectPHM: React.FC<ProjectPHMProps> = ({ siteId, profile, organiz
 
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+    const galleryInputRef = useRef<HTMLInputElement>(null);
 
     const loadData = async () => {
         setLoading(true);
@@ -208,7 +209,74 @@ export const ProjectPHM: React.FC<ProjectPHMProps> = ({ siteId, profile, organiz
             window.alert("Error: " + err.message);
         } finally {
             setUploading(false);
+            e.target.value = '';
         }
+    };
+
+    const ReceiptUpload = ({ accent = 'orange' }: { accent?: 'orange' | 'blue' }) => {
+        const spinnerClass = accent === 'blue' ? 'text-blue-500' : 'text-orange-500';
+        const tileClass = accent === 'blue'
+            ? 'border-slate-300 text-slate-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+            : 'border-slate-300 text-slate-600 hover:border-orange-400 hover:bg-orange-50 hover:text-orange-700';
+        const iconClass = accent === 'blue' ? 'text-blue-500' : 'text-orange-500';
+
+        return (
+            <div className="pt-2 space-y-3">
+                <input
+                    type="file"
+                    ref={cameraInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileUpload}
+                />
+                <input
+                    type="file"
+                    ref={galleryInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                    <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        disabled={uploading}
+                        className={`min-h-[104px] rounded-2xl border-2 border-dashed bg-white px-3 py-4 text-center transition-all disabled:cursor-wait disabled:opacity-70 ${tileClass}`}
+                    >
+                        <span className="flex flex-col items-center justify-center gap-2">
+                            {uploading ? <Loader2 className={`animate-spin ${spinnerClass}`} /> : <Camera size={28} className={iconClass} />}
+                            <span className="text-xs font-black uppercase tracking-wide">Odfotiť</span>
+                        </span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => galleryInputRef.current?.click()}
+                        disabled={uploading}
+                        className={`min-h-[104px] rounded-2xl border-2 border-dashed bg-white px-3 py-4 text-center transition-all disabled:cursor-wait disabled:opacity-70 ${tileClass}`}
+                    >
+                        <span className="flex flex-col items-center justify-center gap-2">
+                            {uploading ? <Loader2 className={`animate-spin ${spinnerClass}`} /> : <ImageIcon size={28} className={iconClass} />}
+                            <span className="text-xs font-black uppercase tracking-wide">Nahrať</span>
+                        </span>
+                    </button>
+                </div>
+                {form.receipt_url && (
+                    <button
+                        type="button"
+                        onClick={() => setPreviewImage(form.receipt_url)}
+                        className="relative h-32 w-full overflow-hidden rounded-2xl border border-green-200 bg-green-50 shadow-inner"
+                    >
+                        <img src={form.receipt_url} alt={t('receipt_uploaded')} className="absolute inset-0 h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-slate-950/35" />
+                        <div className="relative z-10 flex h-full flex-col items-center justify-center text-center text-white">
+                            <CheckCircle2 size={32} className="drop-shadow" />
+                            <span className="mt-2 text-xs font-black uppercase tracking-wide drop-shadow">{t('receipt_uploaded')}</span>
+                        </div>
+                    </button>
+                )}
+            </div>
+        );
     };
 
     const handleEdit = (log: any) => {
@@ -412,17 +480,7 @@ export const ProjectPHM: React.FC<ProjectPHMProps> = ({ siteId, profile, organiz
                                     placeholder="0.00" 
                                     className="!text-xs sm:!text-sm !h-[42px] sm:h-auto"
                                 />
-                                <div className="pt-2">
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
-                                    <button 
-                                        type="button"
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className={`w-full h-32 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all ${form.receipt_url ? 'border-green-500 bg-green-50 text-green-700 shadow-inner' : 'border-slate-300 text-slate-400 hover:border-orange-400 hover:bg-orange-50'}`}
-                                    >
-                                        {uploading ? <Loader2 className="animate-spin text-orange-500" /> : form.receipt_url ? <CheckCircle2 size={32} className="text-green-500"/> : <Camera size={32}/>}
-                                        <span className="text-xs font-black uppercase mt-2">{uploading ? t('uploading') : form.receipt_url ? t('receipt_uploaded') : t('receipt_photo')}</span>
-                                    </button>
-                                </div>
+                                <ReceiptUpload accent="orange" />
                             </div>
                         ) : (
                             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
@@ -454,17 +512,7 @@ export const ProjectPHM: React.FC<ProjectPHMProps> = ({ siteId, profile, organiz
                                     </div>
                                     <span className="text-xl font-black text-slate-900">{formatMoney(parseFloat(form.amount) || 0)}</span>
                                 </div>
-                                <div className="pt-2">
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
-                                    <button 
-                                        type="button"
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className={`w-full h-32 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all ${form.receipt_url ? 'border-green-500 bg-green-50 text-green-700 shadow-inner' : 'border-slate-300 text-slate-400 hover:border-blue-400 hover:bg-blue-50'}`}
-                                    >
-                                        {uploading ? <Loader2 className="animate-spin text-blue-500" /> : form.receipt_url ? <CheckCircle2 size={32} className="text-green-500"/> : <Camera size={32}/>}
-                                        <span className="text-xs font-black uppercase mt-2">{uploading ? t('uploading') : form.receipt_url ? t('receipt_uploaded') : t('receipt_photo')}</span>
-                                    </button>
-                                </div>
+                                <ReceiptUpload accent="blue" />
                             </div>
                         )}
 

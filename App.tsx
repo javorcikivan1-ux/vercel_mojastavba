@@ -199,6 +199,76 @@ const UnpaidLockScreen = ({ onLogout }: { onLogout: () => void }) => (
     </div>
 );
 
+const LegacyAppMigrationOverlay = ({ platform }: { platform: 'mobile' | 'desktop' }) => {
+  const platformLabel = platform === 'mobile' ? 'mobilnú APK aplikáciu' : 'desktopovú EXE aplikáciu';
+
+  const openWebsite = () => {
+    window.open('https://www.moja-stavba.sk', '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-md">
+      <div className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-slate-200 bg-white shadow-[0_30px_90px_-35px_rgba(15,23,42,0.7)]">
+        <div className="p-6 sm:p-8">
+          <div className="mb-5 grid gap-5 md:grid-cols-[1fr_0.92fr] md:items-start">
+            <div className="flex items-start gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-orange-50 ring-1 ring-orange-100">
+                <img src="/pwa-icon-192.png" alt="MojaStavba" className="h-11 w-11 object-contain" />
+              </div>
+              <div>
+                <div className="mb-2 inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-red-700">
+                  Táto verzia už nie je podporovaná
+                </div>
+                <h1 className="text-2xl font-bold leading-tight text-slate-950 sm:text-3xl">
+                  Prejdite na novú aplikáciu MojaStavba
+                </h1>
+                <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+                  Používate starú {platformLabel}. Nové funkcie a opravy sú odteraz dostupné v aplikácii
+                  MojaStavba PWA priamo z webu.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-4 text-sm font-medium leading-relaxed text-slate-700">
+              Dáta ostávajú vo vašom účte. Mení sa iba spôsob spúšťania aplikácie.
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {[
+              'Odinštalujte pôvodnú aplikáciu zo zariadenia.',
+              'Otvorte stránku www.moja-stavba.sk v prehliadači.',
+              'Kliknite na Stiahnuť aplikáciu MojaStavba a vyberte svoje zariadenie.',
+              'Postupujte podľa návodu a prihláste sa rovnakým účtom ako doteraz.'
+            ].map((step, index) => (
+              <div key={step} className="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-orange-600 ring-1 ring-slate-200">
+                  {index + 1}
+                </div>
+                <p className="pt-1 text-sm font-semibold leading-relaxed text-slate-700">{step}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center">
+            <button
+              type="button"
+              onClick={openWebsite}
+              className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-orange-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-orange-200 transition hover:bg-orange-700"
+            >
+              <Download size={18} />
+              Otvoriť www.moja-stavba.sk
+            </button>
+            <p className="text-xs leading-relaxed text-slate-500">
+              Ak ste prihlásení a nevidíte postup inštalácie, odhláste sa z účtu. Na úvodnej obrazovke sa zobrazí tlačidlo na inštaláciu aplikácie.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const App = () => {
   const initialRoute = parseAppRouteHash(window.location.hash);
   const [session, setSession] = useState<any>(null);
@@ -229,6 +299,7 @@ export const App = () => {
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying' | 'installing'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [showPwaUpdateNotice, setShowPwaUpdateNotice] = useState(false);
+  const [forcedLegacyMigrationPreview, setForcedLegacyMigrationPreview] = useState<'mobile' | 'desktop' | null>(null);
 
   const [isFinanceOpen, setIsFinanceOpen] = useState(() => {
     const active = localStorage.getItem('ms_active_screen');
@@ -265,6 +336,20 @@ export const App = () => {
       }
     }
   }, [isPwa, view]);
+
+  useEffect(() => {
+    if (!(import.meta as any).env?.DEV) return;
+    (window as any).showPwaUpdateModal = () => setShowPwaUpdateNotice(true);
+    (window as any).showLegacyMigrationModal = (platform: 'mobile' | 'desktop' = 'desktop') => {
+      setForcedLegacyMigrationPreview(platform === 'mobile' ? 'mobile' : 'desktop');
+    };
+    (window as any).hideLegacyMigrationModal = () => setForcedLegacyMigrationPreview(null);
+    return () => {
+      delete (window as any).showPwaUpdateModal;
+      delete (window as any).showLegacyMigrationModal;
+      delete (window as any).hideLegacyMigrationModal;
+    };
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -660,6 +745,10 @@ export const App = () => {
       return <div className="h-screen bg-white" />;
   }
 
+  if (forcedLegacyMigrationPreview || isNative || isElectron) {
+      return <LegacyAppMigrationOverlay platform={forcedLegacyMigrationPreview || (isNative ? 'mobile' : 'desktop')} />;
+  }
+
   if (view === 'about') return (
     <AboutApp
       onStart={() => { setInitialLoginView('onboarding'); setView('login'); }}
@@ -992,7 +1081,7 @@ export const App = () => {
 
                     <div>
                         <AdminNavItem id="settings" label="Nastavenia" icon={Settings} />
-                        {isPwa && <AdminNavItem id="updates" label="Aktualizácie" icon={RefreshCw} />}
+                        <AdminNavItem id="updates" label="Aktualizácie" icon={RefreshCw} />
                         {!isSuperAdmin && profile?.role === 'admin' && <AdminNavItem id="subscription" label="Predplatné" icon={CreditCard} />}
                     </div>
                  </nav>
@@ -1081,7 +1170,7 @@ export const App = () => {
                               { id: 'advances', label: 'Zálohy', icon: Banknote },
                               { id: 'calendar', label: 'Kalendár', icon: Calendar },
                               { id: 'team', label: 'Tím', icon: Users },
-                              ...(isPwa ? [{ id: 'updates', label: 'Aktualizácie', icon: RefreshCw }] : []),
+                              { id: 'updates', label: 'Aktualizácie', icon: RefreshCw },
                               { id: 'subscription', label: 'Predplatné', icon: CreditCard },
                               { id: 'settings', label: 'Nastavenia', icon: Settings },
                           ].map(item => (

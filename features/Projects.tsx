@@ -9,6 +9,7 @@ import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 import { exportElementToPdf } from '../lib/pdfExport';
 import { ProjectPHM } from './ProjectPHM';
 import { PLANS } from './Subscription';
+import { searchProjectLocations, type LocationResult } from '../lib/weather';
 
 // Type declaration for window object
 declare global {
@@ -26,6 +27,51 @@ declare global {
 const PAGE_SIZE = 12;
 const DEFAULT_VAT_RATE = 23;
 const UNIT_OPTIONS = ['ks', 'm', 'm2', 'm3', 'kg', 't', 'l', 'bal', 'paleta', 'hod', 'súbor', 'km'];
+
+const SK_REGIONS = [
+    'Banskobystrický kraj',
+    'Bratislavský kraj',
+    'Košický kraj',
+    'Nitriansky kraj',
+    'Prešovský kraj',
+    'Trenčiansky kraj',
+    'Trnavský kraj',
+    'Žilinský kraj'
+];
+
+const SK_DISTRICTS_BY_REGION: Record<string, string[]> = {
+    'Banskobystrický kraj': ['Banská Bystrica', 'Banská Štiavnica', 'Brezno', 'Detva', 'Krupina', 'Lučenec', 'Poltár', 'Revúca', 'Rimavská Sobota', 'Veľký Krtíš', 'Zvolen', 'Žarnovica', 'Žiar nad Hronom'],
+    'Bratislavský kraj': ['Bratislava I', 'Bratislava II', 'Bratislava III', 'Bratislava IV', 'Bratislava V', 'Malacky', 'Pezinok', 'Senec'],
+    'Košický kraj': ['Gelnica', 'Košice I', 'Košice II', 'Košice III', 'Košice IV', 'Košice-okolie', 'Michalovce', 'Rožňava', 'Sobrance', 'Spišská Nová Ves', 'Trebišov'],
+    'Nitriansky kraj': ['Komárno', 'Levice', 'Nitra', 'Nové Zámky', 'Šaľa', 'Topoľčany', 'Zlaté Moravce'],
+    'Prešovský kraj': ['Bardejov', 'Humenné', 'Kežmarok', 'Levoča', 'Medzilaborce', 'Poprad', 'Prešov', 'Sabinov', 'Snina', 'Stará Ľubovňa', 'Stropkov', 'Svidník', 'Vranov nad Topľou'],
+    'Trenčiansky kraj': ['Bánovce nad Bebravou', 'Ilava', 'Myjava', 'Nové Mesto nad Váhom', 'Partizánske', 'Považská Bystrica', 'Prievidza', 'Púchov', 'Trenčín'],
+    'Trnavský kraj': ['Dunajská Streda', 'Galanta', 'Hlohovec', 'Piešťany', 'Senica', 'Skalica', 'Trnava'],
+    'Žilinský kraj': ['Bytča', 'Čadca', 'Dolný Kubín', 'Kysucké Nové Mesto', 'Liptovský Mikuláš', 'Martin', 'Námestovo', 'Ružomberok', 'Turčianske Teplice', 'Tvrdošín', 'Žilina']
+};
+
+const SK_REGION_ABBREVIATIONS: Record<string, string> = {
+    'Bratislavský kraj': 'BSK',
+    'Trnavský kraj': 'TTSK',
+    'Trenčiansky kraj': 'TSK',
+    'Nitriansky kraj': 'NSK',
+    'Žilinský kraj': 'ŽSK',
+    'Banskobystrický kraj': 'BBSK',
+    'Prešovský kraj': 'PSK',
+    'Košický kraj': 'KSK'
+};
+
+const composeProjectAddress = (parts: { street?: string; city?: string; district?: string; region?: string; country?: string }) =>
+    [
+        parts.street,
+        parts.city,
+        parts.district ? `okr. ${parts.district}` : '',
+        parts.region ? (SK_REGION_ABBREVIATIONS[parts.region] || parts.region) : '',
+        parts.country === 'Slovenská republika' ? 'SR' : parts.country
+    ]
+        .map(part => part?.trim())
+        .filter(Boolean)
+        .join(', ');
 
 const roundFin = (num: number): number => {
     return Math.round((num + Number.EPSILON) * 100) / 100;
@@ -276,9 +322,14 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
   
   const [showModal, setShowModal] = useState(false);
   const [editingSite, setEditingSite] = useState<any>(null);
-  const [formData, setFormData] = useState<any>({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: DEFAULT_VAT_RATE, isIndividualVat: false });
+  const [formData, setFormData] = useState<any>({ name: '', address: '', client_name: '', budget: 0, status: activeTab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: DEFAULT_VAT_RATE, isIndividualVat: false, latitude: null, longitude: null, location_label: '' });
   const [budgetBreakdown, setBudgetBreakdown] = useState<{id: string, label: string, amount: number, vatRate?: number}[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [locationResults, setLocationResults] = useState<LocationResult[]>([]);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [showLocationHelp, setShowLocationHelp] = useState(false);
+  const [activeLocationField, setActiveLocationField] = useState<'city'>('city');
+  const [addressParts, setAddressParts] = useState({ country: 'Slovenská republika', region: '', district: '', city: '', street: '' });
   
   const [alertState, setAlertState] = useState<{open: boolean, title: string, message: string, type: string}>({ open: false, title: '', message: '', type: 'success' });
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string | null}>({ open: false, action: '', id: null });
@@ -286,7 +337,10 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
   const openCreateSiteModal = (tab: 'leads' | 'active') => {
       setActiveTab(tab);
       setEditingSite(null);
-      setFormData({ name: '', address: '', client_name: '', budget: 0, status: tab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: DEFAULT_VAT_RATE, isIndividualVat: false });
+      setFormData({ name: '', address: '', client_name: '', budget: 0, status: tab === 'leads' ? 'lead' : 'active', lead_stage: 'new', notes: '', hasVat: false, vatRate: DEFAULT_VAT_RATE, isIndividualVat: false, latitude: null, longitude: null, location_label: '' });
+      setLocationResults([]);
+      setActiveLocationField('city');
+      setAddressParts({ country: 'Slovenská republika', region: '', district: '', city: '', street: '' });
       setBudgetBreakdown([]);
       setShowBreakdown(false);
       setShowModal(true);
@@ -432,11 +486,119 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
           notes: cleanNotes,
           hasVat: hasVat,
           vatRate: vatRate,
-          isIndividualVat: isIndividualVat
+          isIndividualVat: isIndividualVat,
+          latitude: site.latitude ?? null,
+          longitude: site.longitude ?? null,
+          location_label: site.location_label || ''
       });
+      setLocationResults([]);
+      setActiveLocationField('city');
+      setAddressParts({ country: 'Slovenská republika', region: '', district: '', city: site.location_label || '', street: site.address || '' });
       setBudgetBreakdown(breakdown);
       setShowBreakdown(breakdown.length > 0);
       setShowModal(true);
+  };
+
+  const updateAddressPart = (field: keyof typeof addressParts, value: string) => {
+    const next = {
+        ...addressParts,
+        [field]: value,
+        ...(field === 'region' ? { district: '', city: '' } : {}),
+        ...(field === 'district' ? { city: '' } : {})
+    };
+    setAddressParts(next);
+    setFormData((prev: any) => ({
+        ...prev,
+        address: composeProjectAddress(next),
+        ...(field === 'region' || field === 'district' || field === 'city' || field === 'street'
+            ? { latitude: null, longitude: null, location_label: '' }
+            : {})
+    }));
+  };
+
+  const runLocationSearch = async (query: string, showAlerts = true) => {
+    const cleanQuery = query.trim();
+    if (cleanQuery.length < 2) {
+        if (showAlerts) {
+            setAlertState({ open: true, title: 'Poloha zákazky', message: 'Zadajte aspoň 2 znaky adresy.', type: 'error' });
+        }
+        return;
+    }
+    setLocationLoading(true);
+    try {
+        const results = await searchProjectLocations(cleanQuery, 'city', {
+            district: addressParts.district || undefined
+        });
+        setLocationResults(results);
+        if (showAlerts && results.length === 0) {
+            setAlertState({ open: true, title: 'Poloha zákazky', message: 'Nenašla sa žiadna obec alebo časť obce. Skúste doplniť okres alebo názov obce.', type: 'error' });
+        }
+    } catch (err: any) {
+        if (showAlerts) {
+            setAlertState({ open: true, title: 'Poloha zákazky', message: err.message || 'Poloha sa nepodarila vyhľadať.', type: 'error' });
+        }
+    } finally {
+        setLocationLoading(false);
+    }
+  };
+
+  const handleLocationSelect = (location: LocationResult) => {
+    const cityName = location.admin3 || location.name || addressParts.city;
+    const nextParts = {
+        ...addressParts,
+        city: cityName,
+        district: addressParts.district || location.admin2 || '',
+        region: addressParts.region || location.admin1 || '',
+        country: location.country || addressParts.country || 'Slovenská republika'
+    };
+    const nextAddress = composeProjectAddress(nextParts);
+    setAddressParts(nextParts);
+    setFormData({
+        ...formData,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        location_label: cityName,
+        address: nextAddress
+    });
+    setLocationResults([]);
+  };
+
+  useEffect(() => {
+    if (!showModal) return;
+    const searchQuery = addressParts.city.trim();
+    if (searchQuery.length < 2) {
+        setLocationResults([]);
+        return;
+    }
+
+    const timer = window.setTimeout(() => {
+        runLocationSearch(searchQuery, false);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [addressParts.city, addressParts.district, addressParts.region, showModal]);
+
+  const renderLocationDropdown = (field: 'city') => {
+    if (activeLocationField !== field || locationResults.length === 0) return null;
+
+    return (
+        <div className="absolute left-0 right-0 top-[74px] z-[10000] max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-slate-500">
+            Vyberte obec / mesto
+          </div>
+          {locationResults.map(location => (
+            <button
+              type="button"
+              key={location.id}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleLocationSelect(location)}
+              className="flex w-full items-center gap-3 border-b border-slate-100 px-3 py-3 text-left last:border-b-0 hover:bg-orange-50"
+            >
+              <span className="block min-w-0 truncate text-base font-bold text-slate-900">{location.name}</span>
+            </button>
+          ))}
+        </div>
+    );
   };
 
   const calculateTotalWithVat = (items: any[], hasVat: boolean, isIndividual: boolean, globalRate: number) => {
@@ -536,6 +698,21 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
             result = await supabase.from('sites').update(payload).eq('id', editingSite.id).select();
         } else {
             result = await supabase.from('sites').insert([payload]).select();
+        }
+
+        if (result.error && /latitude|longitude|location_label|schema cache/i.test(result.error.message || '')) {
+            if (payload.latitude != null || payload.longitude != null || payload.location_label) {
+                throw new Error('Poloha sa neuložila, pretože databáza ešte nemá načítané nové polia pre adresu. Skúste stránku obnoviť a zákazku uložiť znova.');
+            }
+            const fallbackPayload = { ...payload };
+            delete fallbackPayload.latitude;
+            delete fallbackPayload.longitude;
+            delete fallbackPayload.location_label;
+            if(editingSite) {
+                result = await supabase.from('sites').update(fallbackPayload).eq('id', editingSite.id).select();
+            } else {
+                result = await supabase.from('sites').insert([fallbackPayload]).select();
+            }
         }
 
         if(result.error) throw result.error;
@@ -769,7 +946,75 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
         <Modal title={editingSite ? "Upraviť" : (activeTab === 'leads' ? "Nový Dopyt" : "Nový Projekt")} onClose={() => setShowModal(false)}>
           <form onSubmit={handleSaveSite}>
             <Input label="Názov" value={formData.name} onChange={(e: any) => setFormData({...formData, name: e.target.value})} required autoFocus placeholder={activeTab === 'leads' ? "Napr. Rekonštrukcia bytu" : "Napr. Rodinný dom Záhorská"} />
-            <Input label="Adresa" value={formData.address} onChange={(e: any) => setFormData({...formData, address: e.target.value})} placeholder="Ulica, Mesto" />
+            <Input label="Adresa" value={formData.address} readOnly disabled placeholder="Adresa sa doplní po vyplnení polí nižšie" className="bg-slate-100 text-slate-600 cursor-not-allowed" />
+            <div className="mb-4 rounded-2xl border border-orange-100 bg-orange-50/40 p-4">
+              <div className="min-w-0">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <label className="flex items-center gap-2 text-xs font-bold text-orange-700 uppercase tracking-wider">
+                        <MapPin size={16} />
+                        Priradiť adresu
+                      </label>
+                      <p className="mt-0.5 text-xs font-medium text-slate-500">Najprv nájdite a potvrďte polohu zákazky.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowLocationHelp(true)}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-orange-200 bg-white text-orange-600 shadow-sm hover:bg-orange-50"
+                      title="Na čo slúži poloha?"
+                    >
+                      <Info size={17} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Select label="Krajina" value={addressParts.country} onChange={(e: any) => updateAddressPart('country', e.target.value)}>
+                      <option value="Slovenská republika">Slovenská republika</option>
+                    </Select>
+                    <Select label="Kraj" value={addressParts.region} onChange={(e: any) => updateAddressPart('region', e.target.value)}>
+                      <option value="">Vyberte kraj</option>
+                      {SK_REGIONS.map(region => <option key={region} value={region}>{region}</option>)}
+                    </Select>
+                    <Select label="Okres" value={addressParts.district} onChange={(e: any) => updateAddressPart('district', e.target.value)} disabled={!addressParts.region}>
+                      <option value="">{addressParts.region ? 'Vyberte okres' : 'Najprv vyberte kraj'}</option>
+                      {(SK_DISTRICTS_BY_REGION[addressParts.region] || []).map(district => <option key={district} value={district}>{district}</option>)}
+                    </Select>
+                    <div className="relative mb-4">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Obec / mesto</label>
+                      <input
+                        value={addressParts.city}
+                        onFocus={() => setActiveLocationField('city')}
+                        onChange={(e) => updateAddressPart('city', e.target.value)}
+                        placeholder="Napr. Re..."
+                        className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition"
+                      />
+                      {locationLoading && activeLocationField === 'city' && (
+                        <Loader2 size={16} className="absolute right-3 top-[39px] animate-spin text-orange-500" />
+                      )}
+                      {renderLocationDropdown('city')}
+                    </div>
+                    <div className="relative sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Ulica a číslo</label>
+                      <input
+                        value={addressParts.street}
+                        onChange={(e) => updateAddressPart('street', e.target.value)}
+                        placeholder="Napr. M. Nandrássyho 654/10"
+                        className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition"
+                      />
+                      <p className="mt-1.5 text-xs font-medium text-slate-500">Ulicu a súpisné číslo je nutné dopísať ručne.</p>
+                    </div>
+                  </div>
+
+                  {formData.latitude && formData.longitude && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
+                      <CheckCircle2 size={14} />
+                      <span className="truncate">{formData.location_label || 'Poloha potvrdená'}</span>
+                      <span className="text-slate-400">({Number(formData.latitude).toFixed(5)}, {Number(formData.longitude).toFixed(5)})</span>
+                    </div>
+                  )}
+                  <p className="mt-2 text-xs font-medium text-slate-500">Adresa bude použitá na automatické dopĺňanie počasia v denníku prác.</p>
+              </div>
+            </div>
             <Input label="Klient (Meno)" value={formData.client_name} onChange={(e: any) => setFormData({...formData, client_name: e.target.value})} placeholder="Ján Novák" />
             
             <div className="space-y-4 mt-4">
@@ -780,7 +1025,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                 </div>
                 <Select label="Status" value={formData.status} onChange={(e: any) => setFormData({...formData, status: e.target.value})}>
                     <option value="lead">Dopyt (Lead)</option>
-                    <option value="active">Aktívna Stavba</option>
+                    <option value="active">Aktívna</option>
                     <option value="planning">V príprave</option>
                     <option value="paused">Pozastavená</option>
                     <option value="completed">Dokončená</option>
@@ -922,6 +1167,28 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
             </div>
             <Button type="submit" fullWidth className="mt-6 shadow-orange-200" size="lg">{editingSite ? 'Uložiť Zmeny' : 'Vytvoriť Zákazku'}</Button>
           </form>
+        </Modal>
+      )}
+
+      {showLocationHelp && (
+        <Modal title="Prečo priradiť adresu?" onClose={() => setShowLocationHelp(false)} maxWidth="max-w-md">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-2xl border border-orange-100 bg-orange-50 p-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
+                <MapPin size={22} />
+              </div>
+              <div>
+                <h4 className="font-black text-slate-950">Poloha pomáha denníku práce</h4>
+                <p className="mt-1 text-sm font-medium leading-relaxed text-slate-600">
+                  Keď má zákazka vybranú obec alebo časť obce, aplikácia vie do denníka práce automaticky doplniť počasie a teplotu pre konkrétny deň.
+                </p>
+              </div>
+            </div>
+            <p className="text-sm font-medium leading-relaxed text-slate-600">
+              Ulicu a číslo dopíšte ručne. Pre počasie sa použije poloha vybranej obce, takže presné súpisné číslo nie je potrebné overovať cez externý register.
+            </p>
+            <Button fullWidth onClick={() => setShowLocationHelp(false)}>Rozumiem</Button>
+          </div>
         </Modal>
       )}
 

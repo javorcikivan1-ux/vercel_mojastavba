@@ -20,60 +20,148 @@ const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mo
 
 const pwaUpdates = [
   {
-    date: '24. júl 2026',
-    version: 'v5.3.5',
-    title: 'Jednoduchšia inštalácia aplikácie',
+    date: '5. august 2026',
+    version: 'v5.4.3',
+    title: 'Poloha zákazky, automatické počasie a PHM bločky',
     items: [
-      'Na webe pribudlo tlačidlo na inštaláciu aplikácie pre Android, iPhone, Windows a Mac.',
-      'Nainštalovaná webová aplikácia sa otvorí v samostatnom okne bez adresného riadku.',
-      'Úvodná obrazovka v nainštalovanej aplikácii je jednoduchšia a nezobrazuje marketingový obsah webu.'
+      'V sekcii PHM pri zákazke je možné bloček na mobile priamo odfotiť fotoaparátom. Používateľ ho nemusí najprv fotiť mimo aplikácie a následne nahrávať zo zariadenia.',
+      'Po odfotení alebo nahratí bločku sa zobrazí náhľad, aby bolo možné skontrolovať, či je doklad čitateľný ešte pred uložením.',
+      'V denníku práce pribudlo automatické dopĺňanie počasia pre zákazky, ktoré majú priradenú a overenú adresu.',
+      'Počasie sa dopĺňa trikrát denne - ráno, na obed a podvečer. V denníku tak môže byť zachytené, že sa počasie počas dňa zmenilo.',
+      'Staršie dni pred spustením tejto funkcie si vedia počasie doplniť spätne po otvorení konkrétneho dňa, ak má zákazka overenú adresu.'
+    ]
+  },
+  {
+    date: '30. júl 2026',
+    version: 'v5.4.2',
+    title: 'Prehľadnejší návod na inštaláciu aplikácie',
+    items: [
+      'Inštalačné okno teraz rozlišuje Android, iPhone, Windows a Mac a pri každej platforme zobrazuje konkrétne kroky pre najbežnejšie prehliadače.',
+      'Doplnené boli návody pre Chrome, Edge, Safari, Operu a Firefox vrátane informácie, čo robiť, ak sa inštalačné tlačidlo nezobrazí.',
+      'Na mobiloch bol upravený vzhľad inštalačného okna, aby sa logá a texty neprekrývali a návod sa dal pohodlne čítať aj na menšom displeji.'
+    ]
+  },
+  {
+    date: '24. júl 2026',
+    version: 'v5.4.1',
+    title: 'Prechod z EXE a APK na PWA',
+    items: [
+      'Aplikácia prešla na inštaláciu formou PWA, teda priamo z webu bez samostatného EXE alebo APK súboru.',
+      'Pre používateľov je tento spôsob jednoduchší: aplikáciu si pridajú z prehliadača a po spustení sa otvorí vo vlastnom okne podobne ako bežná aplikácia.',
+      'Pre vývoj a údržbu je PWA praktickejšia cesta, pretože odpadá neustále riešenie rôznych povolení, licencií a schvaľovacích procesov pre obchody s aplikáciami.',
+      'Ak bude v budúcnosti technicky vhodné alebo o to bude výrazný záujem, nebránime sa návratu ku klasickým inštalačným balíkom.'
     ]
   },
   {
     date: '13. júl 2026',
-    version: 'v5.3.4',
-    title: 'Cenové ponuky',
+    version: 'v5.4.0',
+    title: 'Cenové ponuky a opakovane používané položky',
     items: [
-      'Predvolená sadzba DPH bola upravená na 23 % s možnosťou zmeny pri položkách.',
-      'Pri tvorbe ponuky sa dajú opakovane používať uložené názvy položiek.',
-      'PDF cenová ponuka má prehľadnejší súhrn cien, zľavy, DPH a finálnej sumy.'
+      'Predvolená sadzba DPH bola upravená na 23 %, pričom sadzbu je stále možné zmeniť pri konkrétnej položke.',
+      'Pri tvorbe cenovej ponuky si môžete opakovane vyberať uložené názvy položiek. Pomáha to firmám, ktoré často používajú rovnaké práce alebo materiály.',
+      'Uložené položky sú navrhnuté tak, aby zbytočne nezapĺňali databázu cenami. Ukladá sa hlavne názov položky, ktorý urýchľuje písanie ponúk.',
+      'PDF cenová ponuka má čistejší súhrn cien: suma bez DPH, zľava, základ po zľave, DPH a výsledná suma s DPH sú zobrazené prehľadnejšie.'
     ]
   },
   {
     date: '10. júl 2026',
-    version: 'v5.3.0',
-    title: 'Kalendár',
+    version: 'v5.3.9',
+    title: 'Kalendár a plánovanie práce',
     items: [
-      'Úlohy v rovnakom čase sa zobrazujú vedľa seba.',
-      'Hotové úlohy sú v kalendári vizuálne odlíšené.'
+      'Úlohy naplánované na rovnaký čas sa v kalendári zobrazujú vedľa seba, takže sa už vizuálne neprekrývajú.',
+      'Hotové úlohy sú odlíšené od rozpracovaných. Používateľ rýchlejšie vidí, čo je vybavené a čo ešte treba riešiť.'
     ]
   },
   {
     date: '7. júl 2026',
-    version: 'v5.2.8',
+    version: 'v5.3.8',
     title: 'Dochádzka a denník práce',
     items: [
-      'Mesačný výkaz dochádzky má upravený PDF export pre jednoduchšie spracovanie miezd.',
-      'Denník práce má čistejší výstup a lepšie rozloženie podpisovej časti.',
-      'Fotky nahrané k záznamom sa komprimujú, aby zbytočne nezapĺňali úložisko.'
+      'Mesačný výkaz dochádzky má upravený PDF export tak, aby bol vhodnejší pre účtovníctvo a spracovanie miezd.',
+      'Denník práce bol zjednodušený ako interný prehľad vykonaných prác. Zbytočné stavy a podpisové prvky boli odstránené alebo upravené.',
+      'Fotky nahrané k záznamom sa komprimujú, aby úložisko vydržalo aj pri väčšom počte firiem, zamestnancov a denných fotiek.'
     ]
   },
   {
     date: '1. júl 2026',
-    version: 'v5.2.0',
+    version: 'v5.3.7',
     title: 'Vizuálne zjednotenie aplikácie',
     items: [
-      'Zjednotené fonty, kontrast textov a veľkosti nadpisov naprieč aplikáciou.',
-      'Mobilné zobrazenie v sekciách zákazky, financie, analytika a predplatné bolo upravené pre lepšiu čitateľnosť.'
+      'Zjednotili sa fonty, kontrast textov, veľkosti nadpisov a štítky naprieč aplikáciou.',
+      'Viaceré sivé alebo príliš malé texty boli zosilnené tak, aby boli čitateľné aj na mobile a pri horších displejoch.',
+      'Mobilné zobrazenie v zákazkách, financiách, analytike, tíme a predplatnom bolo upravené tak, aby karty nezaberali zbytočné prázdne miesto.'
     ]
   },
   {
-    date: 'jún 2026',
-    version: 'v5.1',
+    date: '26. jún 2026',
+    version: 'v5.3.6',
     title: 'Správa tímu a pozvánky',
     items: [
-      'Pribudlo odosielanie pozvánok zamestnancom e-mailom.',
-      'Pozvaní zamestnanci sa zobrazujú v tíme ako nezaregistrovaní, kým nedokončia registráciu.'
+      'Pribudlo odosielanie pozvánok zamestnancom e-mailom priamo z aplikácie.',
+      'Pozvaní zamestnanci sa zobrazujú v tíme ako pozvaní alebo nezaregistrovaní, kým nedokončia registráciu.',
+      'Pri opakovanom poslaní pozvánky sa systém správa stabilnejšie a zobrazuje počet odoslaní, aby bolo jasné, čo sa už riešilo.',
+      'Štítky pri zamestnancoch boli vizuálne zmenšené, aby sa dlhšie stavy nelámali zbytočne na viac riadkov.'
+    ]
+  },
+  {
+    date: '12. jún 2026',
+    version: 'v5.3.5',
+    title: 'Spustenie predplatného',
+    items: [
+      'MojaStavba bola pripravená na oficiálne spustenie predaja formou mesačného predplatného.',
+      'Boli vytvorené tri programy: Silver, Gold a Platinum, aby si firmy mohli vybrať rozsah podľa veľkosti a potrieb.',
+      'Pribudol objednávkový proces priamo v aplikácii. Používateľ si vie vybrať balík, doplniť fakturačné údaje a odoslať objednávku.'
+    ]
+  },
+  {
+    date: '27. máj 2026',
+    version: 'v5.3.4',
+    title: 'Financie a analytika zákaziek',
+    items: [
+      'Prehľad zákazky zobrazuje príjmy, náklady, PHM, mzdy a priebežný výsledok na jednom mieste.',
+      'Analytika zákaziek bola upravená tak, aby lepšie zvládala dlhšie obdobia a väčší počet záznamov.',
+      'Mobilné tabuľky boli zjednodušené, aby boli čitateľné aj bez horizontálneho posúvania.'
+    ]
+  },
+  {
+    date: '9. máj 2026',
+    version: 'v5.3.3',
+    title: 'PDF exporty',
+    items: [
+      'PDF exporty boli upravené tak, aby sa obsah správne zalamoval na viac strán a nevznikal scroll vo vygenerovanom dokumente.',
+      'Export zákazky, dochádzky, denníka práce a cenovej ponuky dostal jednotnejší a profesionálnejší vizuál.',
+      'Do exportov sa používajú firemné údaje, logo, pečiatka a podpis z nastavení firmy.'
+    ]
+  },
+  {
+    date: '18. apríl 2026',
+    version: 'v5.3.2',
+    title: 'Mobilné rozhranie',
+    items: [
+      'Spodné mobilné menu bolo upravené pre rýchlejší prístup k hlavným častiam aplikácie vrátane predplatného a aktualizácií.',
+      'Karty v zákazkách, tíme, financiách, analytike a zálohách boli optimalizované pre menšie displeje.',
+      'Opravené boli miesta s príliš malým, málo kontrastným alebo zle zalomeným textom.',
+      'Navigačné panely v zákazkách boli na mobile upravené tak, aby sa položky zmestili prirodzenejšie a nepôsobili odrezané.'
+    ]
+  },
+  {
+    date: '22. marec 2026',
+    version: 'v5.3.1',
+    title: 'Nástenka a rýchle akcie',
+    items: [
+      'Nástenka bola upravená tak, aby zobrazovala praktickejšie informácie pre dennú prácu firmy.',
+      'Rýchle akcie boli zmenené na konkrétne pracovné kroky, napríklad nová zákazka, nová úloha alebo príprava podkladu pre cenovú ponuku.'
+    ]
+  },
+  {
+    date: '15. február 2026',
+    version: 'v5.3.0',
+    title: 'Základ pracovnej aplikácie',
+    items: [
+      'Aplikácia obsahuje správu zákaziek, dochádzku, denník práce, tím, kalendár, financie, analytiku a zálohy.',
+      'Administrátor vie spravovať firmu, zamestnancov, sadzby, prístupy a základné firemné nastavenia.',
+      'Zamestnanci môžu zapisovať prácu a pracovať s pridelenými zákazkami podľa oprávnení.',
+      'Cieľom tejto verzie bolo postaviť jeden pracovný systém pre zákazky, ľudí, náklady a každodennú evidenciu práce.'
     ]
   }
 ];

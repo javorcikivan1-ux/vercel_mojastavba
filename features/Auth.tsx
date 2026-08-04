@@ -21,24 +21,6 @@ const isStandalonePwa = () => {
   return window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true;
 };
 
-const AndroidLogo = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0" fill="currentColor">
-    <path d="M7.5 9.25h9a3 3 0 0 1 3 3v4.75a1 1 0 0 1-1 1H17v2.25a1.25 1.25 0 0 1-2.5 0V18h-5v2.25a1.25 1.25 0 0 1-2.5 0V18H5.5a1 1 0 0 1-1-1v-4.75a3 3 0 0 1 3-3Zm1.25 2.9a.85.85 0 1 0 0 1.7.85.85 0 0 0 0-1.7Zm6.5 0a.85.85 0 1 0 0 1.7.85.85 0 0 0 0-1.7ZM6.7 5.05a.65.65 0 0 1 .9.2L9.05 7.5a7.35 7.35 0 0 1 5.9 0l1.45-2.25a.65.65 0 0 1 1.1.7l-1.4 2.16a5.58 5.58 0 0 1 2.15 2.39H5.75A5.58 5.58 0 0 1 7.9 8.1L6.5 5.95a.65.65 0 0 1 .2-.9Z" />
-  </svg>
-);
-
-const AppleLogo = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0" fill="currentColor">
-    <path d="M16.9 13.05c-.03-2.25 1.85-3.34 1.94-3.39-1.06-1.55-2.68-1.76-3.24-1.78-1.36-.14-2.68.8-3.37.8-.7 0-1.76-.78-2.9-.76-1.48.02-2.86.88-3.62 2.22-1.56 2.7-.4 6.66 1.1 8.84.75 1.07 1.62 2.27 2.77 2.23 1.12-.05 1.54-.71 2.9-.71 1.35 0 1.75.71 2.93.69 1.21-.02 1.98-1.08 2.7-2.16.87-1.23 1.22-2.44 1.24-2.5-.03-.01-2.42-.93-2.45-3.48ZM14.7 6.44c.6-.75 1.01-1.77.9-2.8-.87.04-1.95.6-2.57 1.33-.55.64-1.05 1.7-.92 2.69.98.08 1.97-.5 2.59-1.22Z" />
-  </svg>
-);
-
-const WindowsLogo = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0" fill="currentColor">
-    <path d="M3 5.2 10.7 4v7.25H3V5.2Zm9.15-1.42L21 2.4v8.85h-8.85V3.78ZM3 12.75h7.7V20L3 18.8v-6.05Zm9.15 0H21v8.85l-8.85-1.38v-7.47Z" />
-  </svg>
-);
-
 // Pomocná funkcia pre získanie bezpečnej návratovej URL
 const getRedirectURL = () => {
   const origin = window.location.origin;
@@ -147,6 +129,39 @@ const PricingModal = ({ onClose, onSelect }: { onClose: () => void, onSelect: ()
 };
 
 // --- PWA INSTALL MODAL COMPONENT ---
+const BrowserLogo = ({ type }: { type: 'edge' | 'chrome' | 'safari' | 'opera' | 'firefox' }) => {
+  return (
+    <img
+      src={`/brand-icons/${type}.png`}
+      alt=""
+      aria-hidden="true"
+      className="h-11 w-11 shrink-0 object-contain drop-shadow-sm"
+    />
+  );
+};
+
+const PlatformLogo = ({ type, className = 'h-9 w-9' }: { type: 'android' | 'apple' | 'windows'; className?: string }) => (
+  <img
+    src={`/brand-icons/${type}.png`}
+    alt=""
+    aria-hidden="true"
+    className={`${className} shrink-0 object-contain`}
+  />
+);
+
+const StepList = ({ steps }: { steps: string[] }) => (
+  <ol className="space-y-2.5">
+    {steps.map((step, index) => (
+      <li key={step} className="flex gap-3 text-sm font-semibold leading-relaxed text-slate-700">
+        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-50 text-[11px] font-black text-orange-700 ring-1 ring-orange-100">
+          {index + 1}
+        </span>
+        <span>{step}</span>
+      </li>
+    ))}
+  </ol>
+);
+
 const DownloadModal = ({ 
   onClose, 
   installPrompt,
@@ -163,9 +178,8 @@ const DownloadModal = ({
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const canInstall = !!installPrompt && !isInstalled;
 
-  const handleInstall = async (platform: 'android' | 'iphone' | 'mac' | 'windows') => {
-    setSelectedPlatform(platform);
-    if (platform === 'iphone' || !installPrompt) return;
+  const handleNativeInstall = async () => {
+    if (!installPrompt) return;
     setInstalling(true);
     try {
       await installPrompt.prompt();
@@ -178,15 +192,247 @@ const DownloadModal = ({
   };
 
   const platforms = [
-    { id: 'android' as const, label: 'Android', sublabel: 'Mobilné zariadenie', icon: <Smartphone size={26} />, platformIcon: <AndroidLogo size={22} /> },
-    { id: 'iphone' as const, label: 'iPhone', sublabel: 'Mobilné zariadenie', icon: <Smartphone size={26} />, platformIcon: <AppleLogo size={22} /> },
-    { id: 'windows' as const, label: 'Windows', sublabel: 'Počítač', icon: <Monitor size={26} />, platformIcon: <WindowsLogo size={22} /> },
-    { id: 'mac' as const, label: 'Mac', sublabel: 'Počítač', icon: <Monitor size={26} />, platformIcon: <AppleLogo size={22} /> }
+    { id: 'android' as const, label: 'Android', sublabel: 'Mobilné zariadenie', icon: <Smartphone size={26} />, platformIcon: <PlatformLogo type="android" className="h-6 w-6 sm:h-8 sm:w-8" />, logoClass: '', iconClass: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200' },
+    { id: 'iphone' as const, label: 'iPhone', sublabel: 'Mobilné zariadenie', icon: <Smartphone size={26} />, platformIcon: <PlatformLogo type="apple" className="h-6 w-6 sm:h-8 sm:w-8" />, logoClass: '', iconClass: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200' },
+    { id: 'windows' as const, label: 'Windows', sublabel: 'Počítač', icon: <Monitor size={26} />, platformIcon: <PlatformLogo type="windows" className="h-6 w-6 sm:h-8 sm:w-8" />, logoClass: '', iconClass: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200' },
+    { id: 'mac' as const, label: 'Mac', sublabel: 'Počítač', icon: <Monitor size={26} />, platformIcon: <PlatformLogo type="apple" className="h-6 w-6 sm:h-8 sm:w-8" />, logoClass: '', iconClass: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200' }
   ];
 
+  const selectedPlatformData = platforms.find(platform => platform.id === selectedPlatform);
+  const browserInstallHint = canInstall
+    ? 'Kliknite alebo ťuknite na tlačidlo Spustiť inštaláciu. Ak sa zobrazí okno prehliadača, potvrďte inštaláciu. Ak sa nič nestane alebo sa tlačidlo nezobrazuje, nejde o chybu. Niektoré zariadenia a prehliadače vyžadujú ručné pridanie aplikácie.'
+    : 'Ak sa inštalačné tlačidlo nezobrazuje, nejde o chybu. Niektoré zariadenia a prehliadače vyžadujú ručné pridanie aplikácie podľa návodu nižšie.';
+
+  const installDetails: Record<'android' | 'iphone' | 'mac' | 'windows', {
+    title: string;
+    note: string;
+    quick?: string;
+    browsers: Array<{ name: string; logo: 'edge' | 'chrome' | 'safari' | 'opera' | 'firefox'; steps: string[] }>;
+    manage?: string[];
+  }> = {
+    android: {
+      title: 'Inštalácia na Android',
+      note: 'Na Androide funguje MojaStavba ako aplikácia bez APK súboru. Najspoľahlivejšie je použiť Chrome alebo Edge.',
+      quick: browserInstallHint,
+      browsers: [
+        {
+          name: 'Google Chrome',
+          logo: 'chrome',
+          steps: [
+            'Otvorte www.moja-stavba.sk v prehliadači Chrome.',
+            'Ťuknite na tri bodky napravo od adresného riadka.',
+            'Vyberte Inštalovať a vytvoriť odkaz a následne Inštalovať.',
+            'V niektorých verziách sa položka môže volať Inštalovať aplikáciu alebo Pridať na plochu.',
+            'Potvrďte inštaláciu. Ikona MojaStavba sa zobrazí na domovskej obrazovke alebo v zozname aplikácií.'
+          ]
+        },
+        {
+          name: 'Microsoft Edge',
+          logo: 'edge',
+          steps: [
+            'Otvorte www.moja-stavba.sk v prehliadači Microsoft Edge.',
+            'Ťuknite na menu s tromi bodkami.',
+            'Vyberte Pridať do telefónu, Pridať na plochu alebo Nainštalovať aplikáciu.',
+            'Názov položky sa môže líšiť podľa verzie Edge.',
+            'Potvrďte pridanie aplikácie. Ak sa možnosť nezobrazuje, skúste stránku otvoriť v Google Chrome.'
+          ]
+        },
+        {
+          name: 'Opera',
+          logo: 'opera',
+          steps: [
+            'Otvorte www.moja-stavba.sk v Opere.',
+            'Ťuknite na menu napravo od adresného riadka.',
+            'Vyberte Pridať do.',
+            'Vyberte pridanie na domovskú obrazovku a potvrďte ho.',
+            'Podľa verzie Opery môže vzniknúť samostatná aplikácia alebo iba odkaz na stránku. Pre plnohodnotnú inštaláciu odporúčame Chrome alebo Edge.'
+          ]
+        },
+        {
+          name: 'Mozilla Firefox',
+          logo: 'firefox',
+          steps: [
+            'Otvorte www.moja-stavba.sk vo Firefoxe.',
+            'Ťuknite na menu s tromi bodkami.',
+            'Vyberte Inštalovať.',
+            'Potvrďte pridanie aplikácie na domovskú obrazovku.',
+            'Ak Firefox vytvorí iba odkaz alebo možnosť inštalácie nezobrazí, použite Google Chrome alebo Microsoft Edge.'
+          ]
+        }
+      ],
+      manage: []
+    },
+    iphone: {
+      title: 'Inštalácia na iPhone',
+      note: 'iPhone neumožňuje otvoriť systémové okno inštalácie jedným klikom. Apple vyžaduje ručné pridanie cez Safari.',
+      quick: 'Na iPhone je nutné aplikáciu nainštalovať ručne. Použite prosím návod nižšie.',
+      browsers: [
+        {
+          name: 'Safari',
+          logo: 'safari',
+          steps: [
+            'Otvorte www.moja-stavba.sk v Safari.',
+            'Ťuknite na ikonu Zdieľať - štvorec so šípkou smerujúcou nahor.',
+            'V niektorých zobrazeniach Safari je potrebné najprv ťuknúť na Viac a potom na Zdieľať.',
+            'Posuňte ponuku nižšie a vyberte Pridať na plochu.',
+            'Ak sa zobrazí možnosť Otvoriť ako webovú aplikáciu, zapnite ju.',
+            'Skontrolujte názov MojaStavba a ťuknite na Pridať.',
+            'Ak možnosť Pridať na plochu nevidíte, posuňte ponuku nadol, zvoľte Upraviť akcie a pridajte túto položku medzi dostupné akcie.'
+          ]
+        },
+        {
+          name: 'Google Chrome',
+          logo: 'chrome',
+          steps: [
+            'Otvorte www.moja-stavba.sk v Chrome.',
+            'Ťuknite na ikonu Zdieľať napravo od adresného riadka.',
+            'Vyberte Pridať na plochu.',
+            'Skontrolujte názov MojaStavba a potvrďte tlačidlom Pridať.'
+          ]
+        },
+        {
+          name: 'Mozilla Firefox',
+          logo: 'firefox',
+          steps: [
+            'Otvorte www.moja-stavba.sk vo Firefoxe.',
+            'Ťuknite na ikonu Zdieľať v adresnom riadku.',
+            'Vyberte Pridať na plochu.',
+            'Skontrolujte názov MojaStavba a potvrďte tlačidlom Pridať.'
+          ]
+        },
+        {
+          name: 'Microsoft Edge / Opera',
+          logo: 'edge',
+          steps: [
+            'Otvorte www.moja-stavba.sk.',
+            'Otvorte ponuku Zdieľať.',
+            'Ak sa zobrazí možnosť Pridať na plochu, vyberte ju a potvrďte pridanie.',
+            'Ak možnosť nevidíte, otvorte stránku v Safari a použite postup pre Safari.'
+          ]
+        }
+      ],
+      manage: []
+    },
+    windows: {
+      title: 'Inštalácia na Windows',
+      note: 'Na Windows odporúčame Edge alebo Chrome. Po inštalácii sa MojaStavba otvorí vo vlastnom okne ako desktop aplikácia.',
+      quick: browserInstallHint,
+      browsers: [
+        {
+          name: 'Microsoft Edge',
+          logo: 'edge',
+          steps: [
+            'Otvorte www.moja-stavba.sk v Microsoft Edge.',
+            'Ak sa v adresnom riadku zobrazí ikona inštalácie aplikácie, kliknite na ňu.',
+            'Ak ikonu nevidíte, kliknite na tri bodky vpravo hore.',
+            'Vyberte Ďalšie nástroje a potom Aplikácie.',
+            'Kliknite na Nainštalovať túto lokalitu ako aplikáciu.',
+            'Skontrolujte názov MojaStavba a potvrďte inštaláciu.'
+          ]
+        },
+        {
+          name: 'Google Chrome',
+          logo: 'chrome',
+          steps: [
+            'Otvorte www.moja-stavba.sk v Google Chrome.',
+            'Ak sa napravo v adresnom riadku zobrazí ikona inštalácie, kliknite na ňu.',
+            'Ak ikonu nevidíte, kliknite na tri bodky vpravo hore.',
+            'Vyberte Prenášať, uložiť a zdieľať. V anglickej verzii Cast, save and share.',
+            'Vyberte Nainštalovať stránku ako aplikáciu alebo Install page as app.',
+            'Potvrďte inštaláciu.'
+          ]
+        },
+        {
+          name: 'Opera',
+          logo: 'opera',
+          steps: [
+            'Otvorte www.moja-stavba.sk v Opere.',
+            'Skontrolujte pravú časť adresného riadka a menu prehliadača.',
+            'Ak sa zobrazí ikona alebo možnosť inštalácie aplikácie, kliknite na ňu a inštaláciu potvrďte.',
+            'Ak sa možnosť nezobrazuje, otvorte stránku v Microsoft Edge alebo Google Chrome.',
+            'Ponuka inštalácie v Opere sa môže líšiť podľa verzie prehliadača.'
+          ]
+        },
+        {
+          name: 'Mozilla Firefox',
+          logo: 'firefox',
+          steps: [
+            'Otvorte www.moja-stavba.sk vo Firefoxe.',
+            'V adresnom riadku vyhľadajte ikonu webovej aplikácie.',
+            'Kliknite na ikonu.',
+            'Firefox vytvorí samostatnú webovú aplikáciu a pridá ju na panel úloh a do ponuky Štart.',
+            'Ak sa ikona nezobrazuje, skontrolujte aktualizáciu Firefoxu a nepoužívajte súkromné prehliadanie. Ak možnosť stále nevidíte, použite Microsoft Edge alebo Google Chrome.'
+          ]
+        }
+      ],
+      manage: []
+    },
+    mac: {
+      title: 'Inštalácia na Mac',
+      note: 'Na Macu odporúčame Safari alebo Chrome. Aplikácia sa po pridaní otvorí samostatne, podobne ako bežná aplikácia.',
+      quick: browserInstallHint,
+      browsers: [
+        {
+          name: 'Safari',
+          logo: 'safari',
+          steps: [
+            'Táto možnosť je dostupná v systéme macOS Sonoma 14 alebo novšom.',
+            'Otvorte www.moja-stavba.sk v Safari.',
+            'V hornej systémovej lište kliknite na Súbor a vyberte Pridať do Docku.',
+            'Prípadne kliknite na ikonu Zdieľať v Safari a vyberte Pridať do Docku.',
+            'Skontrolujte názov MojaStavba a kliknite na Pridať.',
+            'Ak možnosť Pridať do Docku nevidíte, použite Google Chrome alebo Microsoft Edge.'
+          ]
+        },
+        {
+          name: 'Google Chrome',
+          logo: 'chrome',
+          steps: [
+            'Otvorte www.moja-stavba.sk v Google Chrome.',
+            'Ak sa v adresnom riadku zobrazí ikona inštalácie, kliknite na ňu.',
+            'Ak ikonu nevidíte, kliknite na tri bodky vpravo hore.',
+            'Vyberte Cast, save and share.',
+            'Vyberte Install page as app.',
+            'Potvrďte inštaláciu.'
+          ]
+        },
+        {
+          name: 'Microsoft Edge',
+          logo: 'edge',
+          steps: [
+            'Otvorte www.moja-stavba.sk v Microsoft Edge.',
+            'Kliknite na tri bodky vpravo hore.',
+            'Vyberte Ďalšie nástroje a potom Aplikácie.',
+            'Kliknite na Nainštalovať túto lokalitu ako aplikáciu.',
+            'Potvrďte inštaláciu.'
+          ]
+        },
+        {
+          name: 'Opera',
+          logo: 'opera',
+          steps: [
+            'Otvorte www.moja-stavba.sk v Opere.',
+            'Pozrite menu prehliadača alebo adresný riadok.',
+            'Ak je dostupná možnosť inštalácie aplikácie, potvrďte ju.',
+            'Ak sa nezobrazuje, použite Safari alebo Chrome.'
+          ]
+        },
+        {
+          name: 'Mozilla Firefox',
+          logo: 'firefox',
+          steps: [
+            'Firefox na Macu momentálne neponúka vytvorenie samostatnej webovej aplikácie.',
+            'Otvorte stránku v Safari, Google Chrome alebo Microsoft Edge a použite príslušný postup vyššie.'
+          ]
+        }
+      ],
+      manage: []
+    }
+  };
+
   return (
-    <Modal title="" onClose={onClose} maxWidth="max-w-xl" hideHeader={true}>
-      <div className="relative p-6 sm:p-8">
+    <Modal title="" onClose={onClose} maxWidth="max-w-4xl" hideHeader={true}>
+      <div className="relative max-h-[88vh] overflow-y-auto p-5 sm:p-8">
         <button 
           onClick={onClose}
           className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
@@ -198,64 +444,139 @@ const DownloadModal = ({
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-lg shadow-orange-100">
             <Download size={22} />
           </div>
-          <h3 className="text-2xl font-black tracking-tight text-slate-900">Stiahnite si aplikáciu MojaStavba</h3>
+          <div>
+            <h3 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">Stiahnite si aplikáciu MojaStavba</h3>
+          </div>
         </div>
 
-        {isInstalled ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center">
-            <CheckCircle2 className="mx-auto text-emerald-600 mb-2" size={28} />
-            <div className="font-black text-emerald-900">Aplikácia je už nainštalovaná</div>
-            <p className="text-sm text-emerald-800 mt-1">Nájdete ju medzi aplikáciami alebo na ploche zariadenia.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {platforms.map((platform) => (
-              <button
-                key={platform.id}
-                onClick={() => handleInstall(platform.id)}
-                disabled={installing && selectedPlatform !== platform.id}
-                className={`group rounded-2xl border p-4 text-left transition active:scale-[0.98] disabled:opacity-60 ${
-                  selectedPlatform === platform.id
-                    ? 'border-orange-300 bg-orange-50 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/60'
-                }`}
-              >
-                <div className="relative flex items-center gap-3 pr-8">
-                  <div className="absolute right-0 top-0 text-slate-400 transition group-hover:text-orange-600">
-                    {platform.platformIcon}
-                  </div>
-                  <div className={`flex h-11 w-11 items-center justify-center rounded-2xl transition ${
-                    selectedPlatform === platform.id ? 'bg-orange-600 text-white' : 'bg-slate-50 text-slate-600 group-hover:bg-orange-100 group-hover:text-orange-600'
-                  }`}>
-                    {platform.icon}
-                  </div>
-                  <div>
-                    <div className="font-black text-slate-900">{platform.label}</div>
-                    <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
-                      {platform.sublabel}
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))}
+        {isInstalled && (
+          <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 shrink-0 text-emerald-600" size={24} />
+              <div>
+                <div className="font-black text-emerald-900">Aplikácia je už pravdepodobne nainštalovaná</div>
+                <p className="mt-1 text-sm font-semibold leading-relaxed text-emerald-800">
+                  Ak ju chcete nainštalovať nanovo, najprv ju odstráňte zo zariadenia alebo zo zoznamu aplikácií v prehliadači.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
-        {!isInstalled && selectedPlatform && (
-          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            {selectedPlatform === 'iphone' || (isIOS && !canInstall) ? (
-              <p className="text-sm text-slate-700 leading-relaxed">
-                Na iPhone otvorte stránku v Safari, stlačte <strong>Zdieľať</strong> a vyberte <strong>Pridať na plochu</strong>.
-              </p>
-            ) : canInstall ? (
-              <div className="flex items-center gap-3 text-sm font-bold text-slate-700">
-                <Download size={18} className="text-orange-600" />
-                {installing ? 'Otváram systémovú inštaláciu...' : 'Potvrďte inštaláciu v systémovom okne.'}
+        <div className="grid grid-cols-2 gap-3">
+          {platforms.map((platform) => (
+            <button
+              key={platform.id}
+              onClick={() => setSelectedPlatform(platform.id)}
+              disabled={installing}
+              className={`group rounded-2xl border p-3 text-left transition active:scale-[0.98] disabled:opacity-60 sm:p-4 ${
+                selectedPlatform === platform.id
+                  ? 'border-orange-300 bg-white shadow-sm ring-4 ring-orange-50'
+                  : 'border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/60'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 ring-1 ring-slate-200 transition group-hover:bg-white sm:h-12 sm:w-12 sm:rounded-2xl">
+                  {platform.platformIcon}
+                </div>
+                <div>
+                  <div className="font-black text-slate-900">{platform.label}</div>
+                  <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                    {platform.sublabel}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <p className="text-sm text-slate-700 leading-relaxed">
-                Ak sa systémové okno nezobrazí, otvorte menu prehliadača a zvoľte <strong>Inštalovať aplikáciu</strong> alebo <strong>Pridať na plochu</strong>.
-              </p>
+            </button>
+          ))}
+        </div>
+
+        {selectedPlatform && selectedPlatformData && (
+          <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className={selectedPlatformData.logoClass}>{selectedPlatformData.platformIcon}</div>
+                  <h4 className="text-lg font-black text-slate-950">{installDetails[selectedPlatform].title}</h4>
+                </div>
+              </div>
+
+              {selectedPlatform !== 'iphone' && canInstall && (
+                <button
+                  type="button"
+                  onClick={handleNativeInstall}
+                  disabled={installing}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-orange-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-100 transition hover:bg-orange-700 disabled:opacity-60"
+                >
+                  <Download size={17} />
+                  {installing ? 'Otváram...' : 'Spustiť inštaláciu'}
+                </button>
+              )}
+            </div>
+
+            {installDetails[selectedPlatform].quick && (
+              <div className="mb-4 space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold leading-relaxed text-slate-600 shadow-sm">
+                {selectedPlatform === 'iphone' ? (
+                  <p>{installDetails[selectedPlatform].quick}</p>
+                ) : (
+                  <>
+                    <p>
+                      Kliknite alebo ťuknite na tlačidlo <strong className="font-black text-slate-900">Spustiť inštaláciu</strong>.
+                    </p>
+                    <p>
+                      Ak sa zobrazí okno prehliadača, potvrďte inštaláciu. Ak sa nič nestane alebo sa tlačidlo nezobrazuje, nejde o chybu. Niektoré zariadenia a prehliadače vyžadujú ručné pridanie aplikácie.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold leading-relaxed text-slate-600">
+              {selectedPlatform === 'iphone'
+                ? 'Nainštalujte si aplikáciu ručne podľa návodu nižšie.'
+                : 'Nejde Vám inštalácia alebo sa nezobrazuje vyššie inštalačné tlačidlo? Nainštalujte si aplikáciu ručne.'}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {installDetails[selectedPlatform].browsers.map(browser => (
+                <div key={`${selectedPlatform}-${browser.name}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 flex items-center gap-3 border-b border-slate-100 pb-3">
+                    <BrowserLogo type={browser.logo} />
+                    <div>
+                      <div className="text-sm font-black text-slate-900">{browser.name}</div>
+                    </div>
+                  </div>
+                  <StepList steps={browser.steps} />
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold leading-relaxed text-slate-600">
+              {selectedPlatform === 'iphone'
+                ? 'Ak sa zobrazí možnosť Pridať na plochu alebo potvrdenie názvu aplikácie, potvrďte ju. Ikona MojaStavba sa potom zobrazí priamo na ploche iPhonu alebo iPadu.'
+                : 'Ak sa vás systém pri inštalácii opýta, či chcete vytvoriť odkaz na pracovnej ploche alebo domovskej obrazovke, povoľte ho. Ikona aplikácie sa potom zobrazí priamo medzi aplikáciami.'}
+            </div>
+
+            {!!installDetails[selectedPlatform].manage?.length && (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="mb-2 flex items-center gap-2 text-sm font-black text-slate-900">
+                  <HelpCircle size={17} className="text-orange-600" />
+                  Keď aplikácia už existuje alebo inštalácia nejde
+                </div>
+                <ul className="space-y-1.5 text-sm font-semibold leading-relaxed text-slate-600">
+                  {installDetails[selectedPlatform].manage?.map(item => (
+                    <li key={item} className="flex gap-2">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {isIOS && selectedPlatform !== 'iphone' && (
+              <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold leading-relaxed text-blue-800">
+                Ste na iPhone/iPade. Najistejšie je použiť postup pre iPhone cez Safari.
+              </div>
             )}
           </div>
         )}
@@ -742,11 +1063,11 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
               <div className="mb-8 animate-in fade-in duration-700">
                 <button 
                   onClick={() => setShowDownloadModal(true)}
-                  className="group inline-flex items-center gap-2.5 bg-white border-2 border-orange-200 hover:border-orange-400 text-orange-600 hover:text-orange-700 px-6 py-3 rounded-2xl font-black text-sm shadow-sm hover:shadow-md transition-all duration-300 active:scale-95"
+                  className="group inline-flex items-center gap-2.5 bg-white border-2 border-orange-200 hover:border-orange-400 text-orange-600 hover:text-orange-700 px-4 py-3 sm:px-6 rounded-2xl font-black text-sm shadow-sm hover:shadow-md transition-all duration-300 active:scale-95"
                 >
-                  <Download size={16} className="group-hover:translate-y-0.5 transition-transform duration-200"/>
+                  <Download size={16} className="hidden sm:block group-hover:translate-y-0.5 transition-transform duration-200"/>
                   <span>Nainštalovať aplikáciu MojaStavba</span>
-                  <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200"/>
+                  <ArrowRight size={14} className="hidden sm:block opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200"/>
                 </button>
               </div>
             )}
