@@ -268,13 +268,14 @@ const getLocalDateISO = (date: Date) => {
 
 interface WorkerModeProps {
   profile: any;
+  organization: any;
   onLogout: () => void;
   onTabChange?: (tab: string) => void;
 }
 
-export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialProfile, onLogout, onTabChange }) => {
+export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialProfile, organization: initialOrganization, onLogout, onTabChange }) => {
   const [profile, setProfile] = useState(initialProfile);
-  const [organization, setOrganization] = useState<any>(null);
+  const [organization] = useState<any>(initialOrganization);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'log' | 'history' | 'profile' | 'advances' | 'updates'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -411,25 +412,15 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
     const weekStartStr = getLocalDateISO(monday);
 
     try {
-        const [sitesRes, todoTasksRes, logsRes, profileRes, weekLogsRes, advancesRes, permsRes, orgRes] = await Promise.all([
+        const [sitesRes, todoTasksRes, logsRes, weekLogsRes, advancesRes, permsRes] = await Promise.all([
             supabase.from('sites').select('id, name').eq('organization_id', profile.organization_id).eq('status', 'active'),
             supabase.from('tasks').select('*, sites(name)').eq('assigned_to', profile.id).eq('status', 'todo').order('start_date', { ascending: true }),
             supabase.from('attendance_logs').select('*, sites(name)').eq('user_id', profile.id).gte('date', startOfMonth).order('date', { ascending: false }),
-            supabase.from('profiles').select('*').eq('id', profile.id).single(),
             supabase.from('attendance_logs').select('date, hours').eq('user_id', profile.id).gte('date', weekStartStr),
             supabase.from('advances').select('*').eq('user_id', profile.id).order('date', { ascending: false }),
-            supabase.from('site_permissions').select('*, sites(name, address)').eq('user_id', profile.id),
-            supabase.from('organizations').select('*').eq('id', profile.organization_id).single()
+            supabase.from('site_permissions').select('*, sites(name, address)').eq('user_id', profile.id)
         ]);
 
-        if (profileRes.data) {
-            setProfile(profileRes.data);
-            setProfileForm({
-                full_name: profileRes.data.full_name || '',
-                phone: profileRes.data.phone || ''
-            });
-        }
-        if (orgRes.data) setOrganization(orgRes.data);
         if (sitesRes.data) setProjects(sitesRes.data);
         if (todoTasksRes.data) setTodoTasks(todoTasksRes.data);
         if (advancesRes.data) setMyAdvances(advancesRes.data);

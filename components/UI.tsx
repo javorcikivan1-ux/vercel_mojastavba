@@ -45,7 +45,7 @@ export const Card = ({ children, className = '', padding = 'p-6', onClick }: any
   </div>
 );
 
-export const Badge = ({ status }: { status: string }) => {
+export const Badge = ({ status, variant = 'default' }: { status: string; variant?: 'default' | 'subtle' }) => {
   const styles: any = {
     active: "bg-green-100 text-green-700 border-green-200",
     planning: "bg-blue-100 text-blue-700 border-blue-200",
@@ -72,6 +72,21 @@ export const Badge = ({ status }: { status: string }) => {
     meeting: "Obhliadka",
     pricing: "Cenenie"
   };
+  const dotStyles: any = {
+    active: 'bg-emerald-500', planning: 'bg-blue-500', paused: 'bg-amber-500',
+    finished: 'bg-slate-400', completed: 'bg-slate-400', todo: 'bg-slate-400',
+    done: 'bg-emerald-500', new: 'bg-blue-500', contacted: 'bg-amber-500',
+    meeting: 'bg-purple-500', pricing: 'bg-orange-500'
+  };
+
+  if (variant === 'subtle') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+        <span className={`h-1.5 w-1.5 rounded-full ${dotStyles[status] || dotStyles.todo}`} aria-hidden="true" />
+        {labels[status] || status}
+      </span>
+    );
+  }
   
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${styles[status] || styles.todo}`}>

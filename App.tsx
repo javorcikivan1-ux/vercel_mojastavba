@@ -293,6 +293,7 @@ export const App = () => {
   const lastAppRouteHash = useRef('');
   const mainContentRef = useRef<HTMLElement | null>(null);
   const profileRef = useRef<UserProfile | null>(null);
+  const profileLoadRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
   const isLoggingOutRef = useRef(false);
   
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
@@ -655,22 +656,64 @@ export const App = () => {
 
   const fetchProfile = async (userId: string, silent = false) => {
       if (!silent) setLoading(true);
-      
-      try {
-          const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).single();
-          if(prof) {
-              setProfile(prof);
-              const { data: org } = await supabase.from('organizations').select('*').eq('id', prof.organization_id).single();
+
+      const existingLoad = profileLoadRef.current;
+      if (existingLoad?.userId === userId) {
+          try {
+              await existingLoad.promise;
+          } finally {
+              if (!silent) setLoading(false);
+          }
+          return;
+      }
+
+      const loadPromise = (async () => {
+          try {
+              // Load the profile and its organization in one round trip. The
+              // fallback keeps login working if the embedded relation is not
+              // available in a particular Supabase schema cache yet.
+              const joinedResult = await supabase
+                  .from('profiles')
+                  .select('*, organization:organizations(*)')
+                  .eq('id', userId)
+                  .single();
+
+              let prof: any = null;
+              let org: any = null;
+
+              if (!joinedResult.error && joinedResult.data?.organization) {
+                  const { organization: joinedOrganization, ...profileData } = joinedResult.data as any;
+                  prof = profileData;
+                  org = joinedOrganization;
+              } else {
+                  const profileResult = await supabase.from('profiles').select('*').eq('id', userId).single();
+                  if (profileResult.error || !profileResult.data) throw profileResult.error || new Error('Profil nebol nájdený.');
+
+                  prof = profileResult.data;
+                  const organizationResult = await supabase.from('organizations').select('*').eq('id', prof.organization_id).single();
+                  if (organizationResult.error || !organizationResult.data) throw organizationResult.error || new Error('Firma nebola nájdená.');
+                  org = organizationResult.data;
+              }
+
+              if (isLoggingOutRef.current) return;
+
+              profileRef.current = prof as UserProfile;
+              setProfile(prof as UserProfile);
               setOrganization(org);
               setView('app');
-              syncEmployeeInviteCompletion(prof as UserProfile);
-          } else {
-              setView('landing');
+              void syncEmployeeInviteCompletion(prof as UserProfile);
+          } catch (e) {
+              console.error("Fetch profile failed", e);
+              if (!isLoggingOutRef.current) setView('landing');
           }
-      } catch (e) {
-          console.error("Fetch profile failed", e);
-          setView('landing');
+      })();
+
+      profileLoadRef.current = { userId, promise: loadPromise };
+
+      try {
+          await loadPromise;
       } finally {
+          if (profileLoadRef.current?.promise === loadPromise) profileLoadRef.current = null;
           if (!silent) setLoading(false);
       }
   };
@@ -814,7 +857,7 @@ export const App = () => {
            return (
                <>
                 {!isOnline && <OfflineOverlay />}
-                <WorkerModeScreen profile={profile} onLogout={handleLogout} onTabChange={setWorkerTab} />
+                <WorkerModeScreen profile={profile} organization={organization} onLogout={handleLogout} onTabChange={setWorkerTab} />
                 {workerTab === 'dashboard' && (
                     <>
                         <SupportWidget profile={profile} organization={organization} />
@@ -1291,24 +1334,24 @@ export const App = () => {
                           Aplikácia bola automaticky aktualizovaná
                         </h3>
                         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                          MojaStavba beží na novšej verzii. Pozrite si krátky prehľad zmien.
+                          Úprava vizuálnych prvkov pre mobilné zariadenia v sekcii Zákazky
                         </p>
-                        <div className="mt-6 grid grid-cols-1 gap-2">
-                          <Button
-                            fullWidth
-                            onClick={() => {
-                              setShowPwaUpdateNotice(false);
-                              setActiveScreen('updates');
-                            }}
-                          >
-                            Pozrieť, čo je nové
+                        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
+                          <ul className="space-y-3 text-sm font-medium leading-relaxed text-slate-700">
+                            <li className="flex gap-2.5">
+                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
+                              <span>Úprava vizuálnych prvkov pre mobilné zariadenia v sekcii Zákazky.</span>
+                            </li>
+                            <li className="flex gap-2.5">
+                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
+                              <span>Optimalizácia rýchlosti prihlasovania do aplikácie pre zamestnancov.</span>
+                            </li>
+                          </ul>
+                        </div>
+                        <div className="mt-6">
+                          <Button fullWidth onClick={() => setShowPwaUpdateNotice(false)}>
+                            Rozumiem
                           </Button>
-                          <button
-                            onClick={() => setShowPwaUpdateNotice(false)}
-                            className="rounded-xl px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 transition"
-                          >
-                            Zavrieť
-                          </button>
                         </div>
                     </div>
                 </Modal>

@@ -898,7 +898,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                                             <MapPin size={12} /> {site.address || 'Bez adresy'}
                                         </div>
                                     </div>
-                                    <Badge status={site.status} />
+                                    <Badge status={site.status} variant="subtle" />
                                 </div>
                                 <div className="space-y-3 mb-6 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
                                     <div className="flex justify-between items-center text-xs">
@@ -2514,7 +2514,49 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
                     {Object.keys(summary).length} pracovníkov
                  </span>
             </div>
-            <div className="overflow-x-auto custom-scrollbar">
+            <div className="sm:hidden">
+                <div className="divide-y divide-orange-100/70">
+                    {Object.entries(summary).map(([name, data]: any) => (
+                        <div key={name} className="bg-white/70 p-4">
+                            <div className="mb-3 flex min-w-0 items-center gap-2">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-700">
+                                    <User size={15} />
+                                </span>
+                                <span className="min-w-0 truncate text-sm font-bold text-slate-900">{name}</span>
+                            </div>
+                            <div className="grid grid-cols-[86px_minmax(0,1fr)_48px] items-end gap-3">
+                                <div className="min-w-0">
+                                    <div className="text-[10px] font-semibold text-slate-500">Čas</div>
+                                    <div className="mt-0.5 whitespace-nowrap text-sm font-bold tabular-nums text-slate-800">{formatDuration(Number(data.hours))}</div>
+                                </div>
+                                <div className="min-w-0 border-l border-slate-200 pl-3">
+                                    <div className="text-[10px] font-semibold text-slate-500">Náklady</div>
+                                    <div className="mt-0.5 whitespace-nowrap text-[13px] font-bold tracking-tight tabular-nums text-slate-900 min-[380px]:text-sm">{formatMoney(Number(data.cost))}</div>
+                                </div>
+                                <div className="min-w-0 border-l border-slate-200 pl-3 text-right">
+                                    <div className="text-[10px] font-semibold text-slate-500">Podiel</div>
+                                    <div className="mt-0.5 whitespace-nowrap text-sm font-bold tabular-nums text-slate-800">{((data.cost / (totalCost || 1)) * 100).toFixed(0)} %</div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="border-t border-orange-200 bg-orange-100/60 p-4">
+                    <div className="mb-2 text-xs font-bold text-orange-950">Celkový súčet</div>
+                    <div className="flex items-end justify-between gap-4">
+                        <div>
+                            <div className="text-[10px] font-semibold text-orange-800/70">Odpracovaný čas</div>
+                            <div className="mt-0.5 text-base font-bold tabular-nums text-orange-950">{formatDuration(totalHours)}</div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-[10px] font-semibold text-orange-800/70">Náklady na prácu</div>
+                            <div className="mt-0.5 text-lg font-bold tabular-nums text-orange-950">{formatMoney(totalCost)}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="hidden overflow-x-auto custom-scrollbar sm:block">
                 <table className="w-full text-sm text-left min-w-[450px]">
                     <thead className="bg-orange-50 text-orange-700 font-bold border-b border-orange-100 uppercase text-xs">
                         <tr><th className="p-4">Meno</th><th className="p-4 text-right">Odpracovaný čas</th><th className="p-4 text-right">Náklady na prácu</th><th className="p-4 text-right">Podiel</th></tr>
@@ -2582,6 +2624,7 @@ const LogDetailModal = ({ log, onClose }: { log: any, onClose: () => void }) => 
 
 const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
   const [site, setSite] = useState<any>(null);
   const [data, setData] = useState<any>({ tasks: [], transactions: [], materials: [], logs: [], fuel: [] });
   const [employees, setEmployees] = useState<any[]>([]); 
@@ -2827,6 +2870,16 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       }))
   ].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  const projectTabs = [
+    { id: 'overview', label: 'Prehľad', icon: BarChart3 },
+    { id: 'labor', label: 'Dochádzka', icon: HardHat },
+    { id: 'rates', label: 'Sadzby tímu', icon: Settings2 },
+    { id: 'finance', label: 'Príjmy & výdavky', icon: Euro },
+    { id: 'phm', label: 'PHM', icon: Fuel },
+    { id: 'permissions', label: 'Prístupy', icon: Shield },
+  ];
+  const activeProjectTab = projectTabs.find(tab => tab.id === activeTab) || projectTabs[0];
+
   const { breakdown: budgetItems, cleanNotes, hasVat, vatRate } = parseNotesData(site.notes);
 
   return (
@@ -2846,7 +2899,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 text-sm flex-wrap mb-3">
             <button onClick={() => setStatusModalOpen(true)} className="inline-flex items-center gap-1 rounded-full hover:bg-slate-50 transition active:scale-95">
-                <Badge status={site.status} />
+                <Badge status={site.status} variant="subtle" />
                 <ChevronDown size={14} className="text-slate-500 group-hover:text-slate-700"/>
             </button>
             {site.client_name && <span className="flex items-center gap-1.5 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 font-medium"><User size={14} className="text-slate-400"/> {site.client_name}</span>}
@@ -2857,38 +2910,77 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
           </div>
         </div>
         
-        <div className={`w-full xl:w-auto xl:min-w-[260px] p-4 rounded-2xl shadow-sm border relative overflow-hidden group ${stats.profit >= 0 ? 'bg-green-50/70 border-green-100' : 'bg-red-50/70 border-red-100'}`}>
-          <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${stats.profit >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <div className="pl-2 pr-12 relative z-10">
-              <div className={`text-xs font-semibold mb-1 flex items-center gap-2 ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                <Activity size={12} className={stats.profit >= 0 ? 'text-green-500' : 'text-red-500'}/>
+        <div className={`relative w-full border-t border-slate-100 pt-4 sm:overflow-hidden sm:rounded-2xl sm:border sm:p-4 sm:shadow-sm xl:w-auto xl:min-w-[260px] ${stats.profit >= 0 ? 'sm:bg-green-50/60 sm:border-green-100' : 'sm:bg-red-50/60 sm:border-red-100'}`}>
+          <div className={`absolute bottom-0 left-0 top-0 hidden w-1 sm:block ${stats.profit >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <div className="relative z-10 sm:pl-2 sm:pr-12">
+              <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-500 sm:font-semibold">
+                <Activity size={12} className={`hidden sm:block ${stats.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}/>
                 Priebežný zisk
               </div>
-              <div className={`text-2xl md:text-[1.7rem] font-bold ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'} tabular-nums leading-tight`}>
+              <div className={`text-[1.75rem] font-bold tracking-tight ${stats.profit >= 0 ? 'text-emerald-700' : 'text-red-700'} tabular-nums leading-tight sm:text-[1.7rem]`}>
                 {formatMoney(stats.profit)}
               </div>
           </div>
-          <div className={`absolute right-4 top-4 h-10 w-10 rounded-xl flex items-center justify-center ${stats.profit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+          <div className={`absolute right-4 top-4 hidden h-10 w-10 items-center justify-center rounded-xl sm:flex ${stats.profit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
              <TrendingUp size={20} />
           </div>
         </div>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-[600px]">
-        <div className="border-b border-slate-100 bg-white px-2 py-2">
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
-          {[
-            { id: 'overview', label: 'Prehľad', icon: BarChart3 },
-            { id: 'labor', label: 'Dochádzka', icon: HardHat },
-            { id: 'rates', label: 'Sadzby tímu', icon: Settings2 },
-            { id: 'finance', label: 'Príjmy & výdavky', icon: Euro },
-            { id: 'phm', label: 'PHM', icon: Fuel },
-            { id: 'permissions', label: 'Prístupy', icon: Shield },
-          ].map(tab => (
+        <div className="border-b border-slate-100 bg-white p-2">
+          <div className="sm:hidden">
             <button
+              type="button"
+              aria-expanded={mobileTabsOpen}
+              aria-controls="project-mobile-menu"
+              onClick={() => setMobileTabsOpen(open => !open)}
+              className="flex min-h-[50px] w-full touch-manipulation items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left shadow-sm active:bg-slate-100"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700">
+                <activeProjectTab.icon size={18} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Menu zákazky</span>
+                <span className="block truncate text-sm font-bold text-slate-900">{activeProjectTab.label}</span>
+              </span>
+              <ChevronDown size={19} className={`shrink-0 text-slate-500 transition-transform ${mobileTabsOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {mobileTabsOpen && (
+              <div id="project-mobile-menu" className="mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg" role="tablist" aria-label="Sekcie zákazky">
+                {projectTabs.map(tab => (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setMobileTabsOpen(false);
+                    }}
+                    className={`flex min-h-[48px] w-full touch-manipulation select-none items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm font-semibold last:border-b-0 active:bg-orange-50 ${
+                      activeTab === tab.id ? 'bg-orange-50 text-orange-700' : 'bg-white text-slate-700'
+                    }`}
+                  >
+                    <tab.icon size={18} className={activeTab === tab.id ? 'text-orange-600' : 'text-slate-500'} />
+                    <span className="flex-1">{tab.label}</span>
+                    {activeTab === tab.id && <CheckCircle2 size={17} className="text-orange-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="hidden gap-1.5 overflow-x-auto no-scrollbar sm:flex" role="tablist" aria-label="Sekcie zákazky">
+          {projectTabs.map(tab => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`min-h-[42px] flex-1 min-w-max py-2.5 px-4 text-sm font-semibold text-center rounded-2xl transition-colors whitespace-nowrap flex items-center justify-center gap-2 ${
+              className={`min-h-[42px] min-w-max flex-1 touch-manipulation select-none whitespace-nowrap rounded-2xl px-4 py-2.5 text-center text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
                 activeTab === tab.id ? 'bg-orange-50 text-orange-700 border border-orange-100 shadow-sm' : 'text-slate-700 border border-transparent hover:bg-slate-50 hover:text-slate-950'
               }`}
             >

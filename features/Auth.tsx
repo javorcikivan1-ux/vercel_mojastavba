@@ -1355,6 +1355,21 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [resendingVerification, setResendingVerification] = useState(false);
 
+  const notifyRegistration = async (userId: string | undefined, notificationToken: string) => {
+      if (!userId) return;
+      try {
+          const response = await fetch('/api/registration-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId, notificationToken })
+          });
+          if (!response.ok) console.error('Registration notification failed:', response.status);
+      } catch (notificationError) {
+          // Internal notification must never prevent a successful signup.
+          console.error('Registration notification failed:', notificationError);
+      }
+  };
+
   // AUTOMATICKÉ NAČÍTANIE Z URL (MAGIC LINK)
   useEffect(() => {
       const params = new URLSearchParams(window.location.search);
@@ -1490,6 +1505,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
           setView('login');
       }
       else if (view === 'register-admin') {
+        const notificationToken = crypto.randomUUID();
         const { data: auth, error: authError } = await supabase.auth.signUp({ 
           email, 
           password, 
@@ -1498,12 +1514,14 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                 full_name: fullName, 
                 company_name: companyName, 
                 role: 'admin',
-                nickname: useNickname ? nickname.trim() : null
+                nickname: useNickname ? nickname.trim() : null,
+                registration_notification_token: notificationToken
             },
             emailRedirectTo: redirectURL 
           } 
         });
         if(authError) throw authError;
+        await notifyRegistration(auth.user?.id, notificationToken);
         if (auth.session) onLogin();
         else { showVerificationNotice(email); }
       }
