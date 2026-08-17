@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mojastavba-pwa-v1';
+const CACHE_NAME = 'mojastavba-pwa-v2';
 const APP_SHELL = ['/', '/manifest.webmanifest', '/icon-only.png'];
 
 self.addEventListener('install', (event) => {
@@ -43,5 +43,45 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => caches.match(event.request))
+  );
+});
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || 'MojaStavba';
+  const options = {
+    body: payload.body || 'Máte nové upozornenie.',
+    icon: '/pwa-icon-192.png',
+    badge: '/icon-only.png',
+    tag: payload.tag || 'mojastavba-notification',
+    renotify: Boolean(payload.renotify),
+    data: {
+      url: payload.url || '/#/kalendar',
+      taskId: payload.taskId || null
+    }
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || '/#/kalendar', self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
+      for (const client of clients) {
+        if (new URL(client.url).origin !== self.location.origin) continue;
+        if ('navigate' in client) await client.navigate(targetUrl);
+        return client.focus();
+      }
+      return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
+    })
   );
 });

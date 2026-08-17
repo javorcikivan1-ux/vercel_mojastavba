@@ -20,6 +20,16 @@ const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mo
 
 const pwaUpdates = [
   {
+    date: '17. august 2026',
+    version: 'v5.4.4',
+    title: 'Mobilné rozhranie, rozhranie zamestnanca a notifikácie',
+    items: [
+      'Mobilné rozhranie bolo optimalizované pre plynulejšie a prirodzenejšie používanie na smartfónoch a tabletoch.',
+      'Rozhranie zamestnanca pre desktop aj mobil dostalo čistejší a prehľadnejší dizajn, ktorý lepšie odzrkadľuje moderný štýl aplikácie.',
+      'V nastaveniach pribudla možnosť zapnutia push notifikácií pre kalendár. Administrátor môže povoliť upozornenia a byť informovaný včas pred začiatkom naplánovanej úlohy.'
+    ]
+  },
+  {
     date: '5. august 2026',
     version: 'v5.4.3',
     title: 'Poloha zákazky, automatické počasie a PHM bločky',

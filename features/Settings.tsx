@@ -4,12 +4,18 @@ import { supabase } from '../lib/supabase';
 import { Card, Button, Input, AlertModal, LegalModal, ConfirmModal, Select, Modal } from '../components/UI';
 import { 
   Lock, Save, Settings, Copy, CheckCircle2, Building2, KeyRound, 
-  Bell, Image as ImageIcon, Shield, Users, LogOut, Clock, 
+  Bell, BellRing, Image as ImageIcon, Shield, Users, LogOut, Clock, 
   RefreshCw, FileText, Tags, Trash2, Plus, Palette, Check, 
   Camera, Loader2, FileSignature, AlertTriangle, MapPin, CreditCard,
 } from 'lucide-react';
 import { UpdatesScreen } from './Updates';
 import { Capacitor } from '@capacitor/core';
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+  getPushNotificationStatus,
+  type PushNotificationStatus
+} from '../lib/pushNotifications';
 
 // Pastel palette for task categories
 const PASTEL_COLORS = [
@@ -274,6 +280,8 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   const isCapacitor = Capacitor.isNativePlatform();
   const isElectron = navigator.userAgent.toLowerCase().includes('electron');
   const isApp = isCapacitor || isElectron;
+  const isStandalonePwa = window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+  const isBrowserWebsite = !isApp && !isStandalonePwa;
 
   useEffect(() => {
       if (initialTab === 'updates' && !isApp) {
@@ -296,9 +304,10 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   });
 
   const [notifications, setNotifications] = useState({
-      notify_tasks: profile.settings?.notify_tasks ?? true,
-      notify_logs: profile.settings?.notify_logs ?? true
+      notify_tasks: profile.settings?.notify_tasks ?? true
   });
+  const [pushStatus, setPushStatus] = useState<PushNotificationStatus>('loading');
+  const [notificationSaving, setNotificationSaving] = useState(false);
 
   const [taskCategories, setTaskCategories] = useState<any[]>(profile.settings?.task_categories || [
       { id: '1', label: 'Všeobecné', color: '#f1f5f9' },
@@ -326,6 +335,55 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
           });
       }
   }, [organization]);
+
+  useEffect(() => {
+      if (isApp || isBrowserWebsite) {
+          setPushStatus('unsupported');
+          return;
+      }
+      getPushNotificationStatus().then(setPushStatus).catch(() => setPushStatus('disabled'));
+  }, [isApp, isBrowserWebsite]);
+
+  const calendarNotificationsEnabled = notifications.notify_tasks && (isApp || pushStatus === 'enabled');
+
+  const toggleCalendarNotifications = async () => {
+      const enabled = !calendarNotificationsEnabled;
+      let subscriptionCreated = false;
+      setNotificationSaving(true);
+      try {
+          if (enabled && !isApp && pushStatus !== 'enabled') {
+              await enablePushNotifications();
+              subscriptionCreated = true;
+          }
+
+          const updatedSettings = { ...profile.settings, notify_tasks: enabled };
+          const { error } = await supabase.from('profiles').update({ settings: updatedSettings }).eq('id', profile.id);
+          if (error) throw error;
+
+          if (!enabled && !isApp && pushStatus === 'enabled') {
+              await disablePushNotifications();
+          }
+
+          setPushStatus(isApp ? 'unsupported' : enabled ? 'enabled' : 'disabled');
+          setNotifications(prev => ({ ...prev, notify_tasks: enabled }));
+          if (onUpdateProfile) onUpdateProfile({ ...profile, settings: updatedSettings });
+          setAlertState({
+              open: true,
+              title: enabled ? 'Upozornenia zapnuté' : 'Upozornenia vypnuté',
+              message: enabled
+                  ? 'Upozornenia pre úlohy v kalendári sú aktívne.'
+                  : 'Upozornenia pre úlohy v kalendári sú vypnuté.',
+              type: 'success'
+          });
+      } catch (err: any) {
+          if (subscriptionCreated) await disablePushNotifications().catch(() => undefined);
+          const nextStatus = await getPushNotificationStatus().catch(() => 'disabled' as PushNotificationStatus);
+          setPushStatus(nextStatus);
+          setAlertState({ open: true, title: 'Upozornenia sa nepodarilo zmeniť', message: err.message, type: 'error' });
+      } finally {
+          setNotificationSaving(false);
+      }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
@@ -402,12 +460,8 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
       try {
           const { error: orgError } = await supabase.from('organizations').update(orgData).eq('id', profile.organization_id);
           if (orgError) throw orgError;
-          const updatedSettings = { ...profile.settings, ...notifications };
-          const { error: profError } = await supabase.from('profiles').update({ settings: updatedSettings }).eq('id', profile.id);
-          if (profError) throw profError;
           onUpdateOrg({ ...organization, ...orgData });
-          if(onUpdateProfile) onUpdateProfile({ ...profile, settings: updatedSettings });
-          setAlertState({ open: true, title: 'Uložené', message: 'Nastavenia boli úspešne aktualizované.', type: 'success' });
+          setAlertState({ open: true, title: 'Uložené', message: 'Firemné údaje boli úspešne aktualizované.', type: 'success' });
       } catch (err: any) {
           setAlertState({ open: true, title: 'Chyba', message: err.message, type: 'error' });
       } finally {
@@ -508,6 +562,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
         <div className="bg-white border-b border-slate-200 sticky top-0 z-20 -mx-4 px-4 md:mx-0 md:px-0 md:static">
              <div className="flex overflow-x-auto no-scrollbar pb-1px">
                 <TabButton id="general" label="Všeobecné" icon={Building2} />
+                {profile?.role === 'admin' && <TabButton id="notifications" label="Notifikácie" icon={Bell} />}
                 <TabButton id="categories" label="Kategórie úloh" icon={Tags} />
                 <TabButton id="security" label="Zabezpečenie" icon={Shield} />
                 <TabButton id="team" label="Tím" icon={Users} />
@@ -547,51 +602,105 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
 
                             <form onSubmit={saveGeneralSettings} className="space-y-6">
                                 <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2"><Building2 className="text-orange-600" size={20}/> Firemné údaje</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Input label="Názov Firmy" value={orgData.name} onChange={(e: any) => setOrgData({...orgData, name: e.target.value})} required placeholder="Moja Firma s.r.o." />
-                                    <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 gap-x-4 md:grid-cols-12">
+                                    <div className="md:col-span-6">
+                                        <Input label="Názov firmy" value={orgData.name} onChange={(e: any) => setOrgData({...orgData, name: e.target.value})} required placeholder="Moja Firma s.r.o." />
+                                    </div>
+                                    <div className="md:col-span-3">
                                         <Input label="IČO" value={orgData.ico} onChange={(e: any) => setOrgData({...orgData, ico: e.target.value})} placeholder="12345678" />
+                                    </div>
+                                    <div className="md:col-span-3">
                                         <Input label="DIČ" value={orgData.dic} onChange={(e: any) => setOrgData({...orgData, dic: e.target.value})} placeholder="2021234567" />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-4">
-                                        <div className="flex items-center gap-2 p-4 bg-orange-50 border border-orange-100 rounded-2xl">
-                                            <input 
-                                                type="checkbox" 
-                                                id="is_vat_payer" 
-                                                checked={orgData.is_vat_payer} 
-                                                onChange={(e) => setOrgData({...orgData, is_vat_payer: e.target.checked})} 
-                                                className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500" 
-                                            />
-                                            <label htmlFor="is_vat_payer" className="text-sm font-bold text-slate-800 flex items-center gap-2 cursor-pointer">Som platiteľ DPH</label>
-                                        </div>
-                                        {orgData.is_vat_payer && (
-                                            <div className="animate-in slide-in-from-top-2 duration-300">
-                                                <Input label="IČ DPH" value={orgData.ic_dph} onChange={(e: any) => setOrgData({...orgData, ic_dph: e.target.value})} placeholder="SK2021234567" />
-                                            </div>
-                                        )}
+                                <div className="grid grid-cols-1 gap-x-4 md:grid-cols-12">
+                                    <div className="mb-4 md:col-span-4">
+                                        <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">DPH</span>
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={orgData.is_vat_payer}
+                                            onClick={() => setOrgData({...orgData, is_vat_payer: !orgData.is_vat_payer})}
+                                            className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-orange-500/10 ${orgData.is_vat_payer ? 'border-orange-200 bg-orange-50/70' : 'border-slate-300 bg-white'}`}
+                                        >
+                                            <span className={`text-sm font-bold ${orgData.is_vat_payer ? 'text-slate-800' : 'text-slate-600'}`}>
+                                                {orgData.is_vat_payer ? 'Platiteľ DPH' : 'Neplatiteľ DPH'}
+                                            </span>
+                                            <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${orgData.is_vat_payer ? 'bg-orange-600' : 'bg-slate-300'}`}>
+                                                <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${orgData.is_vat_payer ? 'translate-x-6' : 'translate-x-1'}`}/>
+                                            </span>
+                                        </button>
                                     </div>
-                                    <div className="space-y-4">
+                                    <div className="md:col-span-4">
+                                        <Input label="IČ DPH" value={orgData.ic_dph} onChange={(e: any) => setOrgData({...orgData, ic_dph: e.target.value})} disabled={!orgData.is_vat_payer} placeholder={orgData.is_vat_payer ? 'SK2021234567' : 'Dostupné pre platiteľa DPH'} />
+                                    </div>
+                                    <div className="md:col-span-4">
                                         <Select label="Typ adresy" value={orgData.address_type} onChange={(e: any) => setOrgData({...orgData, address_type: e.target.value})}>
                                             <option value="sidlo">Sídlo firmy</option>
                                             <option value="miesto">Miesto podnikania</option>
                                         </Select>
-                                        <Input label="Adresa" value={orgData.business_address} onChange={(e: any) => setOrgData({...orgData, business_address: e.target.value})} placeholder="Ulica 123, 900 00 Mesto" />
                                     </div>
                                 </div>
 
-                                <div className="pt-4 border-t border-slate-100">
-                                    <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2"><Bell className="text-orange-600" size={20}/> Notifikácie</h4>
-                                    <div className="space-y-3">
-                                        <label className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition"><div className="flex items-center gap-3"><div className="bg-blue-50 text-blue-600 p-2 rounded-lg"><Clock size={18}/></div><div><div className="font-bold text-slate-700 text-sm">Blížiace sa úlohy</div><div className="text-xs text-slate-500">Upozorniť 1 hodinu a 15 minút pred termínom.</div></div></div><input type="checkbox" checked={notifications.notify_tasks} onChange={(e) => setNotifications({...notifications, notify_tasks: e.target.checked})} className="w-6 h-6 text-orange-600 rounded-lg focus:ring-orange-500 border-slate-300"/></label>
-                                        <label className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition"><div className="flex items-center gap-3"><div className="bg-green-50 text-green-600 p-2 rounded-lg"><CheckCircle2 size={18}/></div><div><div className="font-bold text-slate-700 text-sm">Nové výkazy práce</div><div className="text-xs text-slate-500">Upozorniť, kedy zamestnanec nahrá hodiny.</div></div></div><input type="checkbox" checked={notifications.notify_logs} onChange={(e) => setNotifications({...notifications, notify_logs: e.target.checked})} className="w-6 h-6 text-orange-600 rounded-lg focus:ring-orange-500 border-slate-300"/></label>
-                                    </div>
+                                <Input label="Adresa" value={orgData.business_address} onChange={(e: any) => setOrgData({...orgData, business_address: e.target.value})} placeholder="Ulica 123, 900 00 Mesto" />
+
+                                <div className="flex justify-end border-t border-slate-100 pt-5">
+                                    <Button type="submit" loading={loading} size="md" className="w-full px-7 sm:w-auto sm:min-w-56">Uložiť firemné údaje</Button>
                                 </div>
-                                <div className="pt-4"><Button type="submit" loading={loading} fullWidth size="lg">Uložiť všetky nastavenia</Button></div>
                             </form>
                         </Card>
+                    </div>
+                )}
+
+                {profile?.role === 'admin' && activeTab === 'notifications' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        {isBrowserWebsite ? (
+                            <Card>
+                                <p className="py-2 text-sm font-medium text-slate-600">Notifikácie sú dostupné len v aplikácii.</p>
+                            </Card>
+                        ) : (
+                        <Card>
+                            <div className="flex items-start gap-4 border-b border-slate-100 pb-5">
+                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-orange-600">
+                                    <BellRing size={22}/>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-900">Notifikácie kalendára</h3>
+                                    <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+                                        Upozornenia sa týkajú úloh v kalendári a zobrazia sa 1 hodinu pred začiatkom, 15 minút pred začiatkom a bezprostredne pri začiatku úlohy.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-5 flex items-center justify-between gap-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${calendarNotificationsEnabled ? 'bg-orange-100 text-orange-600' : 'bg-white text-slate-400'}`}>
+                                        <Bell size={20}/>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-bold text-slate-800">Zapnúť upozornenia pre kalendár</div>
+                                        <div className={`mt-0.5 text-xs font-semibold ${calendarNotificationsEnabled ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                            {calendarNotificationsEnabled ? 'Zapnuté' : 'Vypnuté'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={calendarNotificationsEnabled}
+                                    aria-label="Zapnúť upozornenia pre kalendár"
+                                    onClick={toggleCalendarNotifications}
+                                    disabled={notificationSaving}
+                                    className={`relative h-8 w-14 shrink-0 rounded-full border-2 shadow-inner transition-all focus:outline-none focus:ring-4 focus:ring-orange-100 disabled:opacity-60 ${calendarNotificationsEnabled ? 'border-orange-600 bg-orange-600' : 'border-slate-300 bg-slate-300'}`}
+                                >
+                                    <span className={`absolute left-0.5 top-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-md transition-transform ${calendarNotificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`}>
+                                        {notificationSaving && <Loader2 className="animate-spin text-slate-400" size={13}/>} 
+                                    </span>
+                                </button>
+                            </div>
+                        </Card>
+                        )}
                     </div>
                 )}
 

@@ -244,12 +244,14 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
   return (
     <div className="min-h-screen bg-[#FDFDFD] flex flex-col pb-12 overflow-y-auto pt-safe-top scroll-container">
       
-      {/* 1. HEADER */}
-      <div className="max-w-7xl mx-auto w-full px-6 pt-6 flex justify-end">
-         <button onClick={onLogout} className="flex items-center gap-2 text-slate-400 hover:text-red-500 transition-all font-black text-[10px] uppercase tracking-widest bg-white border border-slate-100 px-4 py-2 rounded-xl shadow-sm active:scale-95">
-           <LogOut size={14}/> Odhlásiť sa
-         </button>
-      </div>
+      {/* 1. HEADER — logout only shown on step 1 selection screens */}
+      {!(step === 2 && selectedPlan) && (
+        <div className="max-w-7xl mx-auto w-full px-6 pt-6 flex justify-end">
+          <button onClick={onLogout} className="flex items-center gap-1.5 text-slate-300 hover:text-red-400 transition-colors duration-200 font-semibold text-[10px] uppercase tracking-widest active:scale-95">
+            <LogOut size={13}/> Odhlásiť sa
+          </button>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 mt-4 sm:mt-10">
         
@@ -321,12 +323,9 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
         {step === 1 && (showSelection || (!isActive && !isPending)) && (
             <div className="animate-in slide-in-from-bottom-4 duration-500">
                 <div className="text-center mb-9 md:mb-11">
-                    <h1 className="max-w-5xl mx-auto text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight mb-3">
-                        Všetky zákazky <span className="text-orange-600">v jednej aplikácii</span>
+                    <h1 className="max-w-5xl mx-auto text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                        Vaša firma <span className="text-orange-600">v jednej aplikácii</span>
                     </h1>
-                    <p className="text-slate-500 font-semibold text-xs uppercase tracking-[0.18em]">
-                        Riešenie pre moderné firmy
-                    </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch mb-16">
@@ -344,9 +343,11 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
                           }`}
                       >
                         {plan.recommended && (
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-600 text-white px-4 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-[0.14em] shadow-lg flex items-center gap-2">
-                            <Trophy size={10} fill="currentColor"/> Najobľúbenejšie
-                          </div>
+                          <img
+                            src="/najoblubenejsie-peciatka.png"
+                            alt="Najobľúbenejšie"
+                            className="pointer-events-none absolute -bottom-8 -right-3 z-20 h-28 w-28 rotate-[-8deg] object-contain opacity-85 drop-shadow-[0_14px_20px_rgba(249,115,22,0.22)] sm:h-32 sm:w-32"
+                          />
                         )}
 
                         <div className="mb-6 text-center lg:text-left">
@@ -402,8 +403,12 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
         {/* 5. ENHANCED EDITABLE CHECKOUT STEP */}
         {step === 2 && selectedPlan && (
             <div className="max-w-6xl mx-auto animate-in zoom-in-95 duration-500 mb-20">
-                <button onClick={() => setStep(1)} className="flex items-center gap-2 text-slate-400 hover:text-slate-900 transition-all font-black text-[10px] uppercase tracking-widest mb-8">
-                    <ArrowLeft size={16}/> Späť k výberu
+                <button
+                    onClick={() => setStep(1)}
+                    className="group flex items-center gap-1.5 text-slate-400 hover:text-slate-800 transition-colors duration-200 font-semibold text-[10px] uppercase tracking-widest mb-8 active:scale-95"
+                >
+                    <ArrowLeft size={13} className="transition-transform duration-200 group-hover:-translate-x-0.5"/>
+                    Späť k výberu
                 </button>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

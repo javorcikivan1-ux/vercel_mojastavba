@@ -300,7 +300,9 @@ export const App = () => {
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'downloading' | 'applying' | 'installing'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [showPwaUpdateNotice, setShowPwaUpdateNotice] = useState(false);
+  const [showMobileNavScrollHint, setShowMobileNavScrollHint] = useState(true);
   const [forcedLegacyMigrationPreview, setForcedLegacyMigrationPreview] = useState<'mobile' | 'desktop' | null>(null);
+  const [pendingLandingScrollTarget, setPendingLandingScrollTarget] = useState<string | null>(null);
 
   const [isFinanceOpen, setIsFinanceOpen] = useState(() => {
     const active = localStorage.getItem('ms_active_screen');
@@ -310,6 +312,24 @@ export const App = () => {
   const isNative = Capacitor.isNativePlatform();
   const isElectron = !isNative && navigator.userAgent.toLowerCase().includes('electron');
   const isPwa = !isNative && !isElectron && isStandalonePwa();
+
+  useEffect(() => {
+    if (view !== 'landing' || !pendingLandingScrollTarget) return;
+
+    const targetId = pendingLandingScrollTarget;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setPendingLandingScrollTarget(null);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [view, pendingLandingScrollTarget]);
+
+  const navigateLandingSection = (targetId: string) => {
+    window.history.replaceState({ mojastavba: true }, '', '/');
+    setPendingLandingScrollTarget(targetId);
+    setView('landing');
+  };
 
   useEffect(() => {
     profileRef.current = profile;
@@ -796,7 +816,11 @@ export const App = () => {
     <AboutApp
       onStart={() => { setInitialLoginView('onboarding'); setView('login'); }}
       onLogin={() => { setInitialLoginView('login'); setView('login'); }}
-      onBack={() => setView('landing')}
+      onBack={() => {
+        window.history.replaceState({ mojastavba: true }, '', '/');
+        setView('landing');
+      }}
+      onLandingSection={navigateLandingSection}
     />
   );
 
@@ -808,6 +832,10 @@ export const App = () => {
         onTryFree={() => { setInitialLoginView('onboarding'); setView('login'); }}
         onLogin={() => { setInitialLoginView('login'); setView('login'); }} 
         onWorker={() => { setInitialLoginView('register-emp'); setView('login'); }} 
+        onAbout={() => {
+            window.history.pushState({ mojastavba: true }, '', '/o-aplikacii');
+            setView('about');
+        }}
         onSubscriptionClick={() => { 
             setInitialLoginView('login'); 
             setView('login'); 
@@ -842,7 +870,7 @@ export const App = () => {
       // Gating Logic
       const currentPlan = organization.subscription_plan || 'base';
       const hasAnalytics = currentPlan !== 'base' || isSuperAdmin;
-      const hasAI = currentPlan === 'pro' || isSuperAdmin;
+      const hasAI = profile.role !== 'employee' && (currentPlan === 'pro' || isSuperAdmin);
 
       if (isTrialExpired() && activeScreen !== 'subscription') {
            return (
@@ -1035,7 +1063,7 @@ export const App = () => {
              <aside className={`hidden md:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}>
                  <div className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-start'} gap-2.5 transition-all`}>
                      <img 
-                       src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
+                       src="/icon-only.png" 
                        alt="Logo" 
                        className="w-11 h-11 object-contain shrink-0" 
                      />
@@ -1170,7 +1198,7 @@ export const App = () => {
                  <div className="md:hidden bg-white border-b border-slate-200 p-3 px-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
                      <div className="font-bold text-slate-900 flex items-center gap-2">
                         <img 
-                          src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
+                          src="/icon-only.png" 
                           alt="Logo" 
                           className="w-7 h-7 object-contain" 
                         />
@@ -1200,8 +1228,13 @@ export const App = () => {
                      </div>
                  </div>
                  
-                 <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 safe-area-pb shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe-bottom">
-                      <div className="flex overflow-x-auto no-scrollbar w-full">
+                  <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 safe-area-pb shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe-bottom">
+                       <div
+                         className="flex overflow-x-auto no-scrollbar w-full"
+                         onScroll={(event) => {
+                           if (event.currentTarget.scrollLeft > 8) setShowMobileNavScrollHint(false);
+                         }}
+                       >
                           {[
                               ...(isSuperAdmin ? [{ id: 'superadmin', label: 'ADMIN', icon: ShieldAlert }] : []),
                               { id: 'dashboard', label: 'Domov', icon: LayoutGrid },
@@ -1226,22 +1259,30 @@ export const App = () => {
                                             setActiveScreen(item.id);
                                         }
                                     }} 
-                                    className={`flex flex-col items-center justify-center min-w-[80px] flex-shrink-0 py-3 px-1 transition-colors ${activeScreen === item.id ? 'text-orange-600 bg-orange-50' : 'text-slate-400'}`}
+                                    className={`mx-1 my-2 flex h-12 min-w-[76px] flex-shrink-0 flex-col items-center justify-center rounded-2xl px-1 transition-colors ${activeScreen === item.id ? 'text-orange-600 bg-orange-50/50' : 'text-slate-400 hover:bg-slate-50/80'}`}
                                   >
-                                    <div className={activeScreen === item.id ? 'scale-110 transition-transform' : ''}>
+                                    <div>
                                         {item.disabled ? (
                                             <div className="relative">
-                                                <item.icon size={24} className="opacity-40" />
+                                                <item.icon size={22} className="opacity-40" />
                                                 <Lock size={12} className="absolute -top-1 -right-1 text-orange-500" />
                                             </div>
-                                        ) : <item.icon size={24}/>}
+                                        ) : <item.icon size={22}/>}
                                     </div>
-                                    <span className="text-sm mt-1 font-medium truncate w-full text-center">{item.label}</span>
+                                    <span className="mt-0.5 w-full truncate text-center text-[11px] font-semibold">{item.label}</span>
                                   </button>
                               </div>
-                          ))}
-                      </div>
-                 </div>
+                           ))}
+                       </div>
+                       {showMobileNavScrollHint && (
+                         <div aria-hidden="true" className="pointer-events-none absolute bottom-0 right-0 top-0 flex w-9 items-center justify-end bg-gradient-to-l from-white via-white/90 to-transparent pr-1.5">
+                           <div className="flex -space-x-2 text-slate-400/70 animate-pulse">
+                             <ChevronRight size={14} strokeWidth={1.7} />
+                             <ChevronRight size={14} strokeWidth={1.7} />
+                           </div>
+                         </div>
+                       )}
+                  </div>
 
                  <div className="p-4 md:p-8 max-w-7xl mx-auto w-full mb-3 md:mb-0">
                       {activeScreen === 'superadmin' && <SuperAdminScreen />}
@@ -1333,18 +1374,22 @@ export const App = () => {
                         <h3 className="text-xl font-black tracking-tight text-slate-900">
                           Aplikácia bola automaticky aktualizovaná
                         </h3>
-                        <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                          Úprava vizuálnych prvkov pre mobilné zariadenia v sekcii Zákazky
+                        <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                          17. august 2026 · v5.4.4
                         </p>
                         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
                           <ul className="space-y-3 text-sm font-medium leading-relaxed text-slate-700">
                             <li className="flex gap-2.5">
                               <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>Úprava vizuálnych prvkov pre mobilné zariadenia v sekcii Zákazky.</span>
+                              <span>Optimalizácia mobilného rozhrania pre plynulejšie používanie na telefónoch a tabletoch.</span>
                             </li>
                             <li className="flex gap-2.5">
                               <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>Optimalizácia rýchlosti prihlasovania do aplikácie pre zamestnancov.</span>
+                              <span>Vylepšený dizajn rozhrania zamestnanca pre desktop aj mobil.</span>
+                            </li>
+                            <li className="flex gap-2.5">
+                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
+                              <span>Možnosť zapnutia push notifikácií pre kalendár v nastaveniach.</span>
                             </li>
                           </ul>
                         </div>

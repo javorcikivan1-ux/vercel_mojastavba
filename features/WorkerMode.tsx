@@ -826,8 +826,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
         ${isSidebarCollapsed ? 'justify-center px-0' : ''}
       `}
     >
-      <div className={`${activeTab === id ? 'scale-110 transition-transform' : ''}`}>
-          <Icon size={24} className={activeTab === id ? colorClass : `text-slate-400 group-hover:${colorClass}`} />
+      <div className={`flex h-6 w-6 items-center justify-center ${activeTab === id ? 'scale-105 transition-transform' : ''}`}>
+          <Icon size={22} strokeWidth={2.2} className={activeTab === id ? colorClass : `text-slate-400 group-hover:${colorClass}`} />
       </div>
       {!isSidebarCollapsed && <span className="text-sm font-bold">{label}</span>}
       {count !== undefined && count > 0 && (
@@ -836,6 +836,21 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
           </span>
       )}
     </button>
+  );
+
+  const WorkerSectionHeader = ({ icon: Icon, title, subtitle, action, colorClass = 'text-orange-600' }: any) => (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex items-start gap-2.5">
+        <Icon size={25} strokeWidth={2.15} className={`mt-0.5 shrink-0 ${colorClass}`} />
+        <div>
+          <h2 className="text-2xl font-black tracking-tight text-slate-900">{title}</h2>
+          {subtitle && (
+            <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{subtitle}</p>
+          )}
+        </div>
+      </div>
+      {action && <div className="sm:pb-1">{action}</div>}
+    </div>
   );
 
   const TaskItem = ({ task }: any) => {
@@ -1139,7 +1154,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       <aside className={`hidden md:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}>
           <div className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-start'} gap-2.5`}>
               <img 
-                src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
+                src="/icon-only.png" 
                 alt="Logo" 
                 className="w-11 h-11 object-contain shrink-0" 
               />
@@ -1148,7 +1163,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                     <div className="brand-wordmark text-xl">
                         Moja<span className="brand-wordmark-accent">Stavba</span>
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none truncate pr-2">{profile.full_name}</div>
+                    <div className="mt-1.5 text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none truncate pr-2">{profile.full_name}</div>
                   </div>
               )}
           </div>
@@ -1156,8 +1171,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
           <nav className="flex-1 px-3 space-y-1 mt-4">
               <NavItem id="dashboard" label={t('nav_home')} icon={LayoutGrid} colorClass="text-orange-600" />
               <NavItem id="tasks" label={t('nav_tasks')} icon={ListTodo} count={todoTasks.length} colorClass="text-blue-500" />
-              <NavItem id="log" label={t('nav_log')} icon={Zap} colorClass="text-emerald-500" />
-              <NavItem id="advances" label={t('nav_advances')} icon={Banknote} colorClass="text-orange-500" />
+              <NavItem id="log" label={t('nav_log')} icon={ClipboardCheck} colorClass="text-orange-600" />
+              <NavItem id="advances" label={t('nav_advances')} icon={Wallet} colorClass="text-orange-500" />
               <NavItem id="history" label={t('nav_history')} icon={History} colorClass="text-blue-600" />
               {isApp && <NavItem id="updates" label={t('nav_updates')} icon={RefreshCw} colorClass="text-purple-500" />}
               <NavItem id="profile" label={t('nav_profile')} icon={User} colorClass="text-purple-500" />
@@ -1196,24 +1211,19 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
           
           <div className="md:hidden bg-white border-b border-slate-200 p-4 px-6 flex justify-between items-center sticky top-0 z-30 shadow-sm">
                <div className="flex items-center gap-2">
-                  <img src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" alt="Logo" className="w-8 h-8" />
+                  <img src="/icon-only.png" alt="Logo" className="w-8 h-8" />
                   <span className="brand-wordmark text-lg">Moja<span className="brand-wordmark-accent">Stavba</span></span>
                </div>
                <button onClick={() => setShowLogoutConfirm(true)} className="text-slate-400 p-1"><LogOut size={20}/></button>
           </div>
 
-          <div className="p-4 md:p-8 max-w-4xl mx-auto w-full">
+          <div className="p-4 md:p-8 max-w-[1120px] mx-auto w-full">
               
               {activeTab === 'dashboard' && renderDashboardContent()}
 
               {activeTab === 'advances' && (
                   <div className="animate-in slide-in-from-right-2 space-y-6">
-                      <div className="text-center py-4">
-                         <h2 className="text-2xl font-black text-slate-900 flex items-center justify-center gap-2">
-                            <Banknote className="text-orange-600" size={28} /> {t('nav_advances')}
-                         </h2>
-                         <p className="text-xs text-slate-400 font-bold uppercase mt-1">{t('current_debt')}</p>
-                      </div>
+                      <WorkerSectionHeader icon={Wallet} title={t('nav_advances')} subtitle={t('current_debt')} colorClass="text-orange-500" />
 
                       <Card className="bg-white border-orange-100 shadow-sm p-6 text-center relative overflow-hidden">
                           <div className="relative z-10">
@@ -1293,28 +1303,29 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
               )}
 
               {activeTab === 'tasks' && (
-                  <div className="animate-in slide-in-from-right-2 space-y-6">
-                      <div className="flex justify-between items-center">
-                        <div>
-                            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                            <ListTodo className="text-orange-600" size={24}/> {t('nav_tasks')}
-                            </h2>
-                        </div>
-                        <button 
+                  <div className="animate-in slide-in-from-right-2 w-full max-w-[1120px] mx-auto space-y-6">
+                      <WorkerSectionHeader
+                        icon={ListTodo}
+                        title={t('nav_tasks')}
+                        subtitle={showHistory ? t('nav_history') : t('today_agenda')}
+                        colorClass="text-blue-500"
+                        action={(
+                          <button 
                             onClick={() => setShowHistory(!showHistory)}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition shadow-sm border ${showHistory ? 'bg-slate-800 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200'}`}
-                        >
+                          >
                             <History size={14}/> {showHistory ? t('close') : t('nav_history')}
-                        </button>
-                      </div>
+                          </button>
+                        )}
+                      />
                       
-                      <div className="space-y-8">
+                      <div className="w-full space-y-8">
                           {!showHistory && (
-                            <div className="space-y-3">
+                            <div className="w-full space-y-3">
                                 <h3 className="text-[11px] font-black text-orange-600 uppercase tracking-[0.2em] flex items-center gap-2">
                                     <Clock size={14}/> {t('today_agenda')} ({taskGroups.today.length})
                                 </h3>
-                                <div className="flex flex-col gap-2">
+                                <div className="flex w-full flex-col gap-2">
                                     {taskGroups.today.length === 0 ? (
                                         <div className="p-8 text-center bg-white rounded-2xl border-2 border-dashed border-slate-100 italic text-slate-300 text-xs font-bold uppercase">
                                             {t('no_tasks')}
@@ -1325,11 +1336,11 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                           )}
 
                           {showHistory && (
-                              <div className="space-y-3 animate-in slide-in-from-bottom-4">
+                              <div className="w-full space-y-3 animate-in slide-in-from-bottom-4">
                                   <h3 className="text-[11px] font-black text-green-600 uppercase tracking-[0.2em] flex items-center gap-2">
                                       <History size={14}/> {t('nav_history')}
                                   </h3>
-                                  <div className="flex flex-col gap-2">
+                                  <div className="flex w-full flex-col gap-2">
                                       {doneTasks.map(t => <TaskItem key={t.id} task={t} />)}
                                       
                                       {doneTasks.length === 0 && !loadingMoreDone && (
@@ -1345,14 +1356,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
               )}
 
               {activeTab === 'history' && (
-                  <div className="animate-in slide-in-from-bottom-2 space-y-6">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                          <div className="flex-1">
-                            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                            <History className="text-blue-600" size={24}/> {t('nav_history')}
-                            </h2>
-                          </div>
-                      </div>
+                  <div className="animate-in slide-in-from-bottom-2 w-full max-w-[1120px] mx-auto space-y-6">
+                      <WorkerSectionHeader icon={History} title={t('nav_history')} subtitle={t('last_logs')} colorClass="text-blue-600" />
 
                       {/* Filters Section */}
                       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
@@ -1443,7 +1448,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                           )}
                       </div>
 
-                      <div className="space-y-4 pb-12">
+                      <div className="w-full space-y-4 pb-12">
                           {groupedHistory.map(([month, data]) => {
                               const isExpanded = expandedMonths[month];
                               return (
@@ -1546,12 +1551,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
               )}
 
               {activeTab === 'log' && (
-                  <div className="animate-in zoom-in-95 max-w-xl mx-auto space-y-6">
-                      <div className="text-center">
-                        <h2 className="text-xl font-black text-slate-900 flex items-center justify-center gap-2">
-                           <Zap className="text-orange-600" size={24} fill="currentColor"/> {t('nav_log')}
-                        </h2>
-                      </div>
+                  <div className="animate-in zoom-in-95 w-full max-w-[1120px] mx-auto space-y-6">
+                      <WorkerSectionHeader icon={ClipboardCheck} title={t('nav_log')} subtitle={t('write_log')} colorClass="text-orange-600" />
                       
                       {success ? (
                           <div className="py-16 text-center animate-in zoom-in">
@@ -1562,7 +1563,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                               <p className="text-xs text-slate-400 mt-1">{t('success_desc')}</p>
                           </div>
                       ) : (
-                          <form onSubmit={handleLogSubmit} className="space-y-4">
+                          <form onSubmit={handleLogSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                               <Card className="shadow-sm border-slate-200">
                                   <Input 
                                       label={t('date_label')} 
@@ -1638,7 +1639,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                   )}
                               </Card>
 
-                              <Card className="shadow-sm border-slate-200">
+                              <Card className="shadow-sm border-slate-200 lg:col-span-2">
                                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t('work_desc_label')}</label>
                                   <textarea 
                                     value={logForm.description} 
@@ -1648,17 +1649,20 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                   ></textarea>
                               </Card>
 
-                              <Button type="submit" fullWidth size="lg" loading={actionLoading} className="h-14 font-bold shadow-lg shadow-orange-100">
-                                  <Send size={18} className="mr-2"/> {t('send_log')}
-                              </Button>
+                              <div className="lg:col-span-2 flex justify-end">
+                                  <Button type="submit" size="lg" loading={actionLoading} className="h-11 w-full rounded-2xl text-sm font-bold shadow-md shadow-orange-100 sm:h-14 sm:w-auto sm:min-w-[260px] sm:rounded-xl sm:text-base sm:shadow-lg">
+                                      <Send size={16} className="mr-2 sm:size-[18px]"/> {t('send_log')}
+                                  </Button>
+                              </div>
                           </form>
                       )}
                   </div>
               )}
 
               {activeTab === 'profile' && (
-                  <div className="animate-in slide-in-from-right-2 max-w-xl mx-auto space-y-6">
-                      <div className="text-center py-6">
+                  <div className="animate-in slide-in-from-right-2 w-full max-w-[1120px] mx-auto space-y-6">
+                      <WorkerSectionHeader icon={User} title={t('nav_profile')} subtitle={profile?.full_name} colorClass="text-purple-500" />
+                      <div className="rounded-2xl border border-slate-200 bg-white py-6 text-center shadow-sm">
                           <div className="relative inline-block group">
                             <div 
                                 onClick={() => avatarInputRef.current?.click()}
@@ -1677,74 +1681,76 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                           <h2 className="text-xl font-black text-slate-900">{profile?.full_name}</h2>
                       </div>
 
-                      <Card className="border-slate-200 shadow-sm">
-                          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Globe size={14} className="text-blue-500"/> {t('language')}</h3>
-                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                              {[
-                                  { code: 'sk', label: 'SK' },
-                                  { code: 'en', label: 'EN' },
-                                  { code: 'de', label: 'DE' },
-                                  { code: 'hu', label: 'HU' },
-                                  { code: 'pl', label: 'PL' },
-                                  { code: 'ua', label: 'UA' }
-                              ].map(l => (
-                                  <button 
-                                      key={l.code}
-                                      type="button"
-                                      onClick={() => changeLanguage(l.code)}
-                                      className={`py-2 rounded-xl text-xs font-black transition ${lang === l.code ? 'bg-orange-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                                  >
-                                      {l.label}
-                                  </button>
-                              ))}
-                          </div>
-                      </Card>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                        <Card className="border-slate-200 shadow-sm">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Globe size={14} className="text-blue-500"/> {t('language')}</h3>
+                            <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-3 gap-2">
+                                {[
+                                    { code: 'sk', label: 'SK' },
+                                    { code: 'en', label: 'EN' },
+                                    { code: 'de', label: 'DE' },
+                                    { code: 'hu', label: 'HU' },
+                                    { code: 'pl', label: 'PL' },
+                                    { code: 'ua', label: 'UA' }
+                                ].map(l => (
+                                    <button 
+                                        key={l.code}
+                                        type="button"
+                                        onClick={() => changeLanguage(l.code)}
+                                        className={`py-2 rounded-xl text-xs font-black transition ${lang === l.code ? 'bg-orange-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                    >
+                                        {l.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </Card>
 
-                      <form onSubmit={handleUpdateProfile} className="space-y-4">
+                        {showWage && (
+                          <Card className="bg-white border-slate-200 shadow-sm animate-in fade-in">
+                              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Coins size={14} className="text-orange-500"/> {t('wage_info')}</h3>
+                              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                  <div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('hourly')}</span>
+                                    <span className="font-black text-slate-800 text-xl">{formatMoney(profile?.hourly_rate || 0)} / h</span>
+                                  </div>
+                                  <Wallet size={24} className="text-orange-500 opacity-20"/>
+                              </div>
+                          </Card>
+                        )}
+
+                        <form onSubmit={handleUpdateProfile} className="space-y-4">
                           <Card className="border-slate-200 shadow-sm">
                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><User size={14} className="text-purple-500"/> {t('personal_info')}</h3>
                               <div className="space-y-2">
                                   <Input label={t('personal_info_name')} value={profileForm.full_name} onChange={(e:any) => setProfileForm({...profileForm, full_name: e.target.value})} required />
                                   <Input label={t('personal_info_phone')} value={profileForm.phone} onChange={(e:any) => setProfileForm({...profileForm, phone: e.target.value})} placeholder="+421..." />
-                                  <div className="pt-2">
-                                    <Button type="submit" fullWidth loading={actionLoading} variant="secondary" size="sm">
+                                  <div className="pt-2 flex justify-end">
+                                    <Button type="submit" loading={actionLoading} variant="secondary" size="sm" className="w-full sm:w-auto sm:min-w-[190px]">
                                         <Save size={16}/> {t('save_changes')}
                                     </Button>
                                   </div>
                               </div>
                           </Card>
-                      </form>
+                        </form>
 
-                      <form onSubmit={handlePasswordChange} className="space-y-4">
+                        <form onSubmit={handlePasswordChange} className="space-y-4">
                           <Card className="border-slate-200 shadow-sm">
                               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Shield size={14} className="text-blue-500"/> {t('security')}</h3>
                               <div className="space-y-3">
                                   <Input label={t('new_password')} type="password" value={passwordForm.new} onChange={(e:any) => setPasswordForm({...passwordForm, new: e.target.value})} placeholder="••••••••" required />
                                   <Input label={t('confirm_password')} type="password" value={passwordForm.confirm} onChange={(e:any) => setPasswordForm({...passwordForm, confirm: e.target.value})} placeholder="••••••••" required />
-                                  <div className="pt-1">
-                                    <Button type="submit" fullWidth loading={actionLoading} variant="outline" size="sm">
+                                  <div className="pt-1 flex justify-end">
+                                    <Button type="submit" loading={actionLoading} variant="outline" size="sm" className="w-full sm:w-auto sm:min-w-[190px]">
                                         <KeyRound size={16}/> {t('change_password')}
                                     </Button>
                                   </div>
                               </div>
                           </Card>
-                      </form>
+                        </form>
+                      </div>
 
-                      {showWage && (
-                        <Card className="bg-white border-slate-200 shadow-sm animate-in fade-in">
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Coins size={14} className="text-orange-500"/> {t('wage_info')}</h3>
-                            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                <div>
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('hourly')}</span>
-                                  <span className="font-black text-slate-800 text-xl">{formatMoney(profile?.hourly_rate || 0)} / h</span>
-                                </div>
-                                <Wallet size={24} className="text-orange-500 opacity-20"/>
-                            </div>
-                        </Card>
-                      )}
-
-                      <div className="pt-4 space-y-2 pb-12">
-                          <Button variant="danger" fullWidth onClick={() => setShowLogoutConfirm(true)} className="h-11 rounded-xl font-bold text-xs uppercase tracking-widest">
+                      <div className="flex justify-end pt-4 pb-12">
+                          <Button variant="danger" onClick={() => setShowLogoutConfirm(true)} className="h-11 w-full rounded-xl font-bold text-xs uppercase tracking-widest sm:w-auto sm:min-w-[190px]">
                               <LogOut size={16} className="mr-2"/> {t('logout')}
                           </Button>
                       </div>
@@ -1752,13 +1758,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
               )}
 
               {activeTab === 'updates' && isApp && (
-                  <div className="animate-in slide-in-from-right-2 max-w-2xl mx-auto space-y-6">
-                      <div className="text-center py-8">
-                         <h2 className="text-3xl font-extrabold flex items-center justify-center gap-2">
-                            <RefreshCw className="text-orange-600" size={32} /> {t('nav_updates')}
-                         </h2>
-                         <p className="text-sm text-slate-500">Správa verzií aplikácie MojaStavba</p>
-                      </div>
+                  <div className="animate-in slide-in-from-right-2 w-full max-w-[1120px] mx-auto space-y-6">
+                      <WorkerSectionHeader icon={RefreshCw} title={t('nav_updates')} subtitle="Správa verzií aplikácie MojaStavba" colorClass="text-purple-500" />
 
                       <Card className="text-center py-10 shadow-xl border-slate-200">
                         <div className="mb-10">
@@ -1841,13 +1842,13 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       )}
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.1)] pb-safe-bottom">
-          <div className="flex w-full justify-around h-16 items-center">
+          <div className="flex w-full justify-around h-16 items-center px-1.5">
               {(() => {
                 const mobileTabs = [
                   { id: 'dashboard', icon: LayoutGrid, colorClass: 'text-orange-600' },
                   { id: 'tasks', icon: ListTodo, count: todoTasks.length, colorClass: 'text-blue-500' },
-                  { id: 'log', icon: Zap, colorClass: 'text-emerald-500' },
-                  { id: 'advances', icon: Banknote, colorClass: 'text-orange-500' },
+                  { id: 'log', icon: ClipboardCheck, colorClass: 'text-orange-600' },
+                  { id: 'advances', icon: Wallet, colorClass: 'text-orange-500' },
                   { id: 'history', icon: History, colorClass: 'text-blue-600' },
                   ...(isApp ? [{ id: 'updates', icon: RefreshCw, colorClass: 'text-purple-500' }] : []),
                   { id: 'profile', icon: User, colorClass: 'text-purple-500' },
@@ -1857,7 +1858,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                     key={tab.id}
                     onClick={() => { setActiveTab(tab.id as any); setSuccess(false); setActivePrivilege(null); }}
                     /* Fix: replace undefined id with tab.id on line 1597 */
-                    className={`flex flex-col items-center justify-center flex-1 transition-all relative h-full ${activeTab === tab.id ? tab.colorClass + ' scale-110' : 'text-slate-300'}`}
+                    className={`relative mx-0.5 flex h-12 flex-1 flex-col items-center justify-center rounded-2xl transition-colors ${activeTab === tab.id ? `${tab.colorClass} bg-orange-50/45` : 'text-slate-300 hover:bg-slate-50/80'}`}
                   >
                     <tab.icon size={22} className={activeTab === tab.id ? tab.colorClass : 'text-slate-300'} />
                     {tab.count !== undefined && tab.count > 0 && (
@@ -1865,7 +1866,6 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                             {tab.count}
                         </span>
                     )}
-                    {activeTab === tab.id && <div className={`absolute bottom-1 w-1 h-1 ${tab.colorClass.replace('text-', 'bg-')} rounded-full`}></div>}
                   </button>
                 ));
               })()}

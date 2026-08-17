@@ -131,41 +131,41 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
                   </span>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <button onClick={() => onNavigate('calendar')} className="text-left rounded-2xl border border-red-100 bg-red-50/40 p-4 hover:border-red-200 hover:bg-red-50 transition">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <button onClick={() => onNavigate('calendar')} className="min-w-0 text-left rounded-2xl border border-red-100 bg-red-50/40 p-3 sm:p-4 hover:border-red-200 hover:bg-red-50 transition">
                       <div className="flex items-center justify-between mb-3">
                           <AlertCircle size={18} className="text-red-600"/>
                           <span className="text-2xl font-bold text-red-700 tabular-nums">{overdueTasks.length}</span>
                       </div>
-                      <div className="text-sm font-semibold text-slate-900">Po termíne</div>
-                      <div className="text-xs text-slate-500 font-medium mt-0.5">úlohy na riešenie</div>
+                      <div className="whitespace-nowrap text-[13px] font-semibold tracking-tight text-slate-900 sm:text-sm">Po termíne</div>
+                      <div className="mt-0.5 whitespace-nowrap text-[11px] font-medium tracking-tight text-slate-500 sm:text-xs">úlohy na riešenie</div>
                   </button>
 
-                  <button onClick={() => onNavigate('calendar')} className="text-left rounded-2xl border border-blue-100 bg-blue-50/40 p-4 hover:border-blue-200 hover:bg-blue-50 transition">
+                  <button onClick={() => onNavigate('calendar')} className="min-w-0 text-left rounded-2xl border border-blue-100 bg-blue-50/40 p-3 sm:p-4 hover:border-blue-200 hover:bg-blue-50 transition">
                       <div className="flex items-center justify-between mb-3">
                           <Calendar size={18} className="text-blue-600"/>
                           <span className="text-2xl font-bold text-blue-700 tabular-nums">{todaysTasksCount}</span>
                       </div>
-                      <div className="text-sm font-semibold text-slate-900">Dnes v pláne</div>
-                      <div className="text-xs text-slate-500 font-medium mt-0.5">naplánované práce</div>
+                      <div className="whitespace-nowrap text-[13px] font-semibold tracking-tight text-slate-900 sm:text-sm">Dnes v pláne</div>
+                      <div className="mt-0.5 whitespace-nowrap text-[11px] font-medium tracking-tight text-slate-500 sm:text-xs">naplánované práce</div>
                   </button>
 
-                  <button onClick={() => setShowAttendanceModal(true)} className="text-left rounded-2xl border border-orange-100 bg-orange-50/40 p-4 hover:border-orange-200 hover:bg-orange-50 transition">
+                  <button onClick={() => setShowAttendanceModal(true)} className="min-w-0 text-left rounded-2xl border border-orange-100 bg-orange-50/40 p-3 sm:p-4 hover:border-orange-200 hover:bg-orange-50 transition">
                       <div className="flex items-center justify-between mb-3">
                           <Clock size={18} className="text-orange-600"/>
                           <span className="text-2xl font-bold text-orange-700 tabular-nums">{attendancePercent}%</span>
                       </div>
-                      <div className="text-sm font-semibold text-slate-900">Dochádzka</div>
-                      <div className="text-xs text-slate-500 font-medium mt-0.5">{attendanceStatus.logged.length} z {attendanceTotal} zapísaných</div>
+                      <div className="whitespace-nowrap text-[13px] font-semibold tracking-tight text-slate-900 sm:text-sm">Dochádzka</div>
+                      <div className="mt-0.5 whitespace-nowrap text-[11px] font-medium tracking-tight text-slate-500 sm:text-xs">{attendanceStatus.logged.length} z {attendanceTotal} zapísaných</div>
                   </button>
 
-                  <button onClick={() => onNavigate('projects')} className="text-left rounded-2xl border border-slate-200 bg-slate-50/70 p-4 hover:border-orange-200 hover:bg-white transition">
+                  <button onClick={() => onNavigate('projects')} className="min-w-0 text-left rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4 hover:border-orange-200 hover:bg-white transition">
                       <div className="flex items-center justify-between mb-3">
                           <Briefcase size={18} className="text-slate-600"/>
                           <span className="text-2xl font-bold text-slate-900 tabular-nums">{activeSitesCount}</span>
                       </div>
-                      <div className="text-sm font-semibold text-slate-900">Aktívne zákazky</div>
-                      <div className="text-xs text-slate-500 font-medium mt-0.5 whitespace-nowrap">Realizácia & príprava</div>
+                      <div className="whitespace-nowrap text-[13px] font-semibold tracking-tight text-slate-900 sm:text-sm">Aktívne zákazky</div>
+                      <div className="mt-0.5 whitespace-nowrap text-[11px] font-medium tracking-tight text-slate-500 sm:text-xs">Realizácia & príprava</div>
                   </button>
               </div>
           </Card>

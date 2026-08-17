@@ -6,10 +6,10 @@ import { translateAuthError } from '../lib/utils';
 import { 
   Building2, Smartphone, TrendingUp, Users, ArrowRight, ChevronRight, ChevronLeft,
   Monitor, Briefcase, CheckCircle2, AlertCircle, ArrowLeft, Download, X, HelpCircle, Info,
-  FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin, User, Eye, EyeOff, Zap, Trophy, Star, Crown, Menu, MoreVertical, Pause, Play
+  FileCheck, BookOpen, LayoutGrid, Mail, Phone, Clock, Shield, MapPin, User, Eye, EyeOff, Zap, Crown, Menu, MoreVertical, Euro, ClipboardCheck, Calendar, Settings, ChevronDown, ListTodo, FileText, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
-import { PLANS } from './Subscription';
+import { PricingModal } from '../components/PricingModal';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -28,104 +28,6 @@ const getRedirectURL = () => {
     return origin;
   }
   return 'https://www.moja-stavba.sk';
-};
-
-// --- PRICING MODAL FOR LANDING PAGE ---
-const PricingModal = ({ onClose, onSelect }: { onClose: () => void, onSelect: () => void }) => {
-  return (
-    <Modal title="" onClose={onClose} maxWidth="max-w-6xl" hideHeader={true}>
-      <div className="relative px-6 pt-2 pb-8 sm:px-10 sm:pt-4 sm:pb-10 space-y-6">
-        {/* CUSTOM CLOSE BUTTON INSIDE CONTENT */}
-        <button 
-          onClick={onClose} 
-          className="absolute top-4 right-4 sm:top-6 sm:right-6 text-slate-300 hover:text-slate-900 transition-all p-2 rounded-full hover:bg-slate-100 z-50 group"
-        >
-          <X size={24} className="group-hover:rotate-90 transition-transform duration-300"/>
-        </button>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-          {PLANS.map((plan) => {
-            // Určenie špeciálnych štýlov pre Silver a Platinum
-            let borderStyle = 'border-slate-100';
-            let shadowStyle = 'hover:shadow-xl';
-            let bgGradient = 'from-white to-white';
-
-            if (plan.id === 'base') { // SILVER
-                borderStyle = 'border-slate-200';
-                shadowStyle = 'shadow-lg shadow-slate-100';
-                bgGradient = 'from-slate-50/50 to-white';
-            } else if (plan.id === 'standard') { // GOLD
-                borderStyle = 'border-orange-200';
-                shadowStyle = 'shadow-xl shadow-orange-50 ring-4 ring-orange-50';
-                bgGradient = 'from-amber-50/30 to-white';
-            } else if (plan.id === 'pro') { // PLATINUM
-                borderStyle = 'border-slate-300';
-                shadowStyle = 'shadow-xl shadow-blue-50 ring-4 ring-slate-50';
-                bgGradient = 'from-slate-100/50 to-white';
-            }
-
-            return (
-              <div 
-                key={plan.id} 
-                className={`relative flex flex-col bg-gradient-to-b ${bgGradient} rounded-[2.5rem] border-2 p-8 transition-all ${borderStyle} ${shadowStyle}`}
-              >
-                {plan.recommended && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-600 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg">
-                    <Trophy size={10} fill="currentColor"/> Odporúčané
-                  </div>
-                )}
-
-                <div className="mb-6">
-                  <h4 className={`text-2xl font-black uppercase tracking-tighter flex items-center gap-2 ${plan.accent}`}>
-                    {plan.name}
-                    {plan.id === 'pro' && <span className="text-lg">💎</span>}
-                  </h4>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">{plan.desc}</p>
-                </div>
-
-                <div className="flex items-baseline gap-1 mb-8">
-                  <span className="text-4xl font-black text-slate-900 tracking-tighter">{plan.price}€</span>
-                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">/ bez DPH</span>
-                </div>
-
-                <div className="space-y-2.5 flex-1">
-                  {plan.features.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className={`mt-0.5 shrink-0 ${f.included ? 'text-green-600' : 'text-red-500'}`}>
-                        {f.included ? <CheckCircle2 size={16} /> : <X size={16} strokeWidth={3} />}
-                      </div>
-                      <span className={`text-[11px] font-bold leading-tight ${f.included ? 'text-slate-700' : 'text-slate-900 opacity-60'}`}>
-                        {f.text}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                              </div>
-            );
-          })}
-        </div>
-
-        <div className="bg-blue-50 p-4 sm:p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-start sm:items-center gap-3 sm:gap-4">
-                <div className="bg-blue-600 text-white p-2 rounded-xl shrink-0"><Info size={18}/></div>
-                <p className="text-xs text-blue-800 font-medium leading-relaxed">
-                  Vyskúšajte MojaStavba teraz na 30 dní zadarmo a bez zadávania platobných údajov.
-                </p>
-            </div>
-            <button onClick={() => { onClose(); onSelect(); }} className="w-full sm:w-auto px-4 py-2 bg-orange-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-700 transition-all active:scale-95 flex items-center justify-center gap-0 sm:gap-2 shrink-0 flex-col sm:flex-row leading-tight">
-                <span>Vyskúšať zadarmo</span>
-                <span>na 30 dní</span>
-                <ArrowRight size={12} className="hidden sm:block"/>
-            </button>
-        </div>
-        
-        <div className="text-center pb-2">
-            <button onClick={onClose} className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">Zavrieť cenník</button>
-        </div>
-      </div>
-    </Modal>
-  );
 };
 
 // --- PWA INSTALL MODAL COMPONENT ---
@@ -440,12 +342,13 @@ const DownloadModal = ({
           <X size={20} />
         </button>
 
-        <div className="mb-6 flex items-center gap-3 pr-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-lg shadow-orange-100">
-            <Download size={22} />
+        <div className="mb-6 flex items-center gap-3.5 pr-10">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+            <Download size={20} strokeWidth={1.8} aria-hidden="true" />
           </div>
-          <div>
-            <h3 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">Stiahnite si aplikáciu MojaStavba</h3>
+          <div className="min-w-0">
+            <h3 className="text-lg font-bold tracking-[-0.02em] text-slate-900 sm:text-xl">Nainštalujte si aplikáciu MojaStavba</h3>
+            <p className="mt-0.5 text-sm font-medium text-slate-500">Vyberte platformu a pokračujte v inštalácii.</p>
           </div>
         </div>
 
@@ -696,24 +599,27 @@ export const OnboardingCarousel = ({ onFinish }: { onFinish: () => void }) => {
 };
 
 // --- LANDING SCREEN ---
-export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscriptionClick }: { onStart: () => void, onLogin: () => void, onWorker: () => void, onTryFree: () => void, onSubscriptionClick: () => void }) => {
+export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscriptionClick, onAbout }: { onStart: () => void, onLogin: () => void, onWorker: () => void, onTryFree: () => void, onSubscriptionClick: () => void, onAbout: () => void }) => {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showLegal, setShowLegal] = useState<'vop' | 'gdpr' | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(4);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
+  const [carouselCardsPerView, setCarouselCardsPerView] = useState(1);
+  const [featureShowcaseIndex, setFeatureShowcaseIndex] = useState(0);
+  const [showFeaturePreview, setShowFeaturePreview] = useState(false);
+  const [featurePreviewSource, setFeaturePreviewSource] = useState<'main' | 'detail'>('main');
+  const [featurePreviewZoom, setFeaturePreviewZoom] = useState(1);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isPwaInstalled, setIsPwaInstalled] = useState(() => isStandalonePwa());
 
   // Detekcia mobilnej veľkosti
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      setCarouselCardsPerView(window.innerWidth < 768 ? 1 : window.innerWidth < 1280 ? 3 : 4);
     };
     
     checkMobile();
@@ -763,17 +669,17 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           type: "wave",
           title: "ELEKTRONICKÁ",
           subtitle: "DOCHÁDZKA",
-          category: "ZÁPIS HODÍN",
-          description: "Zamestnanci si zapisujú odpracované hodiny priamo z mobilu. Vy vidíte čas, zákazku, činnosť aj mzdové náklady bez papierových hárkov a prepisovania do Excelu.",
+          category: "ZÁPIS HODÍN ZAMESTNANCOV",
+          description: "Zamestnanci si zapisujú odpracované hodiny priamo z mobilu. Vy vidíte čas, zákazku, činnosť zamestnanca aj mzdové náklady bez papierových hárkov a prepisovania do Excelu.",
           icon: <FileCheck size={32} />,
           gradient: ["#ff6b35", "#ff8c42"]
         },
         {
           type: "wave",
-          title: "PREHĽAD",
-          subtitle: "PRÁC",
-          category: "AUTOMATIZOVANÉ PODKLADY",
-          description: "Denný prehľad prác na zákazke viete použiť ako interný podklad pre stavebný denník, históriu realizácie alebo export pre ďalšie spracovanie.",
+          title: "DENNÝ ",
+          subtitle: "PREHĽAD PRÁCE",
+          category: "KTO, ČO, KDE A KEDY",
+          description: "MojaStavba eviduje rozsah práce konkrétnych zamestnancov. Vďaka tomu viete kto, kde, kedy a čo robil. Prehľadná história slúži na absolútny prehľad o všetkých zákazkách",
           icon: <BookOpen size={32} />,
           gradient: ["#ff8c42", "#ffa947"]
         },
@@ -782,7 +688,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           title: "FINANCIE",
           subtitle: "ZÁKAZIEK",
           category: "PRÍJMY, NÁKLADY A ZISK",
-          description: "Sledujte príjmy, výdavky, materiál, mzdy a PHM pri každej zákazke. Rýchlo vidíte priebežný zisk, nákladové položky aj to, kde vám unikajú peniaze.",
+          description: "Sledujte príjmy, výdavky, materiál, mzdy čI PHM pri každej zákazke. Komplexná analytika firmy a zákaziek zabezpečí to, aby ste pri žiadnej zákazke „neskončili v strate“.",
           icon: <TrendingUp size={32} />,
           gradient: ["#ffa947", "#ffc34d"]
         }
@@ -794,8 +700,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           type: "text",
           title: "SPRÁVA",
           subtitle: "TÍMU",
-          category: "PERSONÁL",
-          description: "Pozvite zamestnancov do firmy, nastavte im roly, sadzby a viditeľnosť miezd. Každý pracuje len s tým, čo potrebuje, a vy máte tím pod kontrolou.",
+          category: "ZAMESTNANCI V MOJASTAVBA",
+          description: "Každý zamestnanec má vlastný účet a appku priamo vo svojom mobile. Ako administrátor im môžete prideliť rôzne role na konkrétnych zákazkách, ako vedenie denníka či zápis nákladov.",
           icon: <Users size={32} />,
           gradient: ["#ff8c42", "#ffa947"]
         },
@@ -804,7 +710,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           title: "KALENDÁR",
           subtitle: "A ÚLOHY",
           category: "PLÁNOVANIE A KALENDÁR",
-          description: "Plánujte práce dopredu, priraďujte úlohy zamestnancom a sledujte, čo je hotové. Kalendár pomáha udržať zákazky, termíny aj ľudí v jednom prehľade.",
+          description: "Prehľadný kalendár s notifikáciami a možnosťou priraďovať úlohy konkrétnym zamestnancom zabezpečí maximálny prehľad vo Vašom plánovaní práce.",
           icon: <LayoutGrid size={32} />,
           gradient: ["#ffa947", "#ffc34d"]
         },
@@ -814,17 +720,17 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           title: "CENOVÉ",
           subtitle: "PONUKY",
           category: "OBCHOD A ROZPOČTY",
-          description: "Vytvárajte profesionálne cenové ponuky s položkami, zľavou, DPH a pečiatkou firmy. Opakované texty položiek si viete ukladať a používať znova.",
+          description: "Vytvárajte profesionálne cenové ponuky rýchlo a jednoducho. Uložte si často používané položky a exportujte ponuky v PDF formáte pripravené priamo pre klientov.",
           icon: <Briefcase size={32} />,
           gradient: ["#ffa947", "#ffc34d"]
         },
 
         {
           type: "text",
-          title: "PDF",
-          subtitle: "VÝSTUPY",
-          category: "PODKLADY PRE FIRMU",
-          description: "Exportujte cenové ponuky, výkazy dochádzky, prehľady prác a projektové podklady v jednotnom firemnom dizajne s logom, pečiatkou a podpisom.",
+          title: "DOSTUPNÁ V",
+          subtitle: "(6) JAZYKOCH",
+          category: "JAZYKOVÉ VARIANTY APPKY",
+          description: "Zamestnanecké rozhranie aplikácie MojaStavba je teraz dostupné až v šiestich jazykoch: v slovenčine, angličtine, nemčine, maďarčine, poľštine a v ukrajinčine.",
           icon: <FileCheck size={32} />,
           gradient: ["#ffc34d", "#ffda77"]
         }
@@ -834,9 +740,64 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
   // Všetky karty v jednom poli pre jednoduchšie posúvanie
   const allCards = slides.flatMap(slide => slide.cards);
+
+  const landingBenefits = [
+    {
+      image: '/benefit-zakazky.png',
+      title: 'Prehľad o zákazkách',
+      desc: 'Sledujte priebeh, náklady a ziskovosť každej zákazky.',
+      mobileDesc: 'Sledujte priebeh,\nnáklady a ziskovosť\nkaždej zákazky.'
+    },
+    {
+      image: '/benefit-ulohy.png',
+      title: 'Úlohy a plánovanie',
+      desc: 'Plánujte prácu, prideľujte úlohy a majte všetko pod kontrolou.',
+      mobileDesc: 'Plánujte prácu,\nprideľujte úlohy a\nudržte si prehľad.'
+    },
+    {
+      image: '/benefit-tim.png',
+      title: 'Riadenie tímu',
+      desc: 'Sledujte dochádzku a rozsah práce Vašich zamestnancov.',
+      mobileDesc: 'Sledujte dochádzku\na rozsah práce Vašich\nzamestnancov.'
+    },
+    {
+      image: '/benefit-pdf.png',
+      title: 'PDF export dokumentov',
+      desc: 'Výkazy práce, denník a dochádzka na pár klikov.',
+      mobileDesc: 'Výkazy práce, denník\na dochádzka na pár\nklikov.'
+    },
+    {
+      image: '/benefit-financie.png',
+      title: 'Financie pod kontrolou',
+      desc: 'Sledujte ziskovosť Vašich zákaziek v reálnom čase.',
+      mobileDesc: 'Sledujte ziskovosť\nVašich zákaziek\nv reálnom čase.'
+    },
+    {
+      image: '/benefit-mobil.png',
+      title: 'Mobilná aplikácia',
+      desc: 'Pracujte odkiaľkoľvek. Všetko dôležité máte vo vrecku.',
+      mobileDesc: 'Pracujte odkiaľkoľvek.\nVšetko dôležité máte\nvo vrecku.'
+    }
+  ];
+
+  const featureShowcase = [
+    { title: 'Denník práce', heading: 'Denník', highlight: 'práce', description: 'Elektronický denník práce ponúka automatický import počasia a vykonaných prác z dochádzky, fotodokumentáciu a mnoho ďalšieho.', image: '/about-dennik-wide.png', detail: '/about-dennik-detail.png' },
+    { title: 'Prehľad zákaziek', heading: 'Prehľad', highlight: 'zákaziek', description: 'Získajte okamžitý prehľad o ziskovosti zákaziek, rozsahu a čase prác Vašich zamestnancov, príjmoch, výdavkoch aj rozpočtoch.', image: '/about-zakazky-wide.png', detail: '/about-zakazky-detail.png' },
+    { title: 'Elektronická dochádzka', heading: 'Elektronická', highlight: 'dochádzka', description: 'Zamestnanci si zapisujú dochádzku a rozsah prác priamo cez mobilnú aplikáciu, takže máte úplný prehľad o práci aj mzdových nákladoch.', image: '/about-dochadzka-wide.png', detail: '/about-dochadzka-detail.png' },
+    { title: 'Správa financií', heading: 'Komplexná', highlight: 'analytika', description: 'Sledujte príjmy, výdavky, materiál, PHM aj réžiu firmy v reálnom čase. Prehľadné štatistiky ukážu zdravie firmy aj jednotlivých zákaziek.', image: '/about-financie-wide.png', detail: '/about-financie-detail.png' },
+    { title: 'Správa zamestnancov', heading: 'Správa', highlight: 'zamestnancov', description: 'Každý zamestnanec má vlastný účet a aplikáciu. Prideľte mu roly na konkrétnych zákazkách a majte tím aj kompetencie pod kontrolou.', image: '/about-tim-wide.png', detail: '/about-tim-detail.png' }
+  ];
+  const activeFeatureShowcase = featureShowcase[featureShowcaseIndex];
+  const showNextFeature = () => setFeatureShowcaseIndex(index => (index + 1) % featureShowcase.length);
+  const showPreviousFeature = () => setFeatureShowcaseIndex(index => (index - 1 + featureShowcase.length) % featureShowcase.length);
+
+  useEffect(() => {
+    setFeaturePreviewZoom(1);
+  }, [featureShowcaseIndex, showFeaturePreview]);
   
   // Pridanie klonovaných kariet na začiatok pre plynulý nekonečný cyklus
-  const carouselCards = [...allCards.slice(-2), ...allCards, ...allCards.slice(0, 2)];
+  const carouselOffset = 4;
+  const carouselCards = [...allCards.slice(-carouselOffset), ...allCards, ...allCards.slice(0, carouselOffset)];
 
   // Synchronizácia modalu s reálnymi HTML názvami v URL
   useEffect(() => {
@@ -869,53 +830,29 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                    !(window as any).ipcRenderer &&
                    !isPwaInstalled;
   const landingShellClass = isWebOnly
-    ? "min-h-screen bg-white text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col"
-    : "h-[100dvh] min-h-0 bg-white text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col";
+    ? "landing-shell min-h-screen bg-white text-slate-900 font-sans pt-safe-top overflow-y-auto scroll-container flex flex-col"
+    : "landing-native-shell h-[100dvh] min-h-0 bg-white text-slate-900 font-sans pt-safe-top overflow-hidden flex flex-col";
   const heroSectionClass = isWebOnly
-    ? "flex-1 flex flex-col items-center justify-center px-6 pt-12 pb-12 md:pt-24 md:pb-20 bg-gradient-to-br from-orange-50/30 via-orange-25/20 to-amber-25/10 text-center min-h-[calc(100dvh-80px)]"
-    : "flex-1 min-h-0 flex flex-col items-center justify-center px-6 pt-10 pb-10 md:pt-12 md:pb-12 bg-gradient-to-br from-orange-50/30 via-orange-25/20 to-amber-25/10 text-center";
+    ? "landing-hero-section relative flex-1 flex flex-col items-center justify-start overflow-hidden text-center"
+    : "landing-hero-section flex-1 min-h-0 flex flex-col items-center justify-center px-6 py-8 bg-gradient-to-br from-orange-50/30 via-orange-25/20 to-amber-25/10 text-center";
 
   // Efekt pre animované prechody - LEN PRE WEB
   useEffect(() => {
-    if (!isWebOnly || isCarouselPaused) return;
+    if (!isWebOnly) return;
     
     const interval = setInterval(() => {
       setCurrentTextIndex((prev) => (prev + 1) % textVariants.length);
     }, 6000); // Dlhšie - 6 sekúnd
 
     return () => clearInterval(interval);
-  }, [isWebOnly, isCarouselPaused]);
-
-  // Efekt pre 3D karusel - LEN PRE WEB
-  useEffect(() => {
-    if (!isWebOnly || isCarouselPaused) return;
-    
-    const interval = setInterval(() => {
-      setCurrentSlideIndex((prev) => {
-        const next = prev + 1;
-        // Ak presiahne pôvodné karty, skočiť späť na začiatok (s offsetom)
-        if (next >= allCards.length + 2) {
-          return 2; // Skočiť na prvú pôvodnú kartu
-        }
-        return next;
-      });
-    }, 6000); // Spomalené na 6 sekúnd
-
-    return () => clearInterval(interval);
-  }, [isWebOnly, isCarouselPaused, allCards.length]);
+  }, [isWebOnly, textVariants.length]);
 
   // 3D karusel handlers
-  const goToCard = (index: number) => {
-    // Zabezpečiť, že index je v rozsahu klonovaných kariet
-    const validIndex = Math.max(2, Math.min(index, allCards.length + 1));
-    setCurrentSlideIndex(validIndex);
-  };
-
   const nextCard = () => {
     setCurrentSlideIndex((prev) => {
       const next = prev + 1;
-      if (next >= allCards.length + 2) {
-        return 2; // Skočiť na prvú pôvodnú kartu
+      if (next >= allCards.length + carouselOffset) {
+        return carouselOffset; // Skočiť na prvú pôvodnú kartu
       }
       return next;
     });
@@ -924,8 +861,8 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
   const prevCard = () => {
     setCurrentSlideIndex((prev) => {
       const next = prev - 1;
-      if (next < 2) {
-        return allCards.length + 1; // Skočiť na poslednú pôvodnú kartu
+      if (next < carouselOffset) {
+        return allCards.length + carouselOffset - 1; // Skočiť na poslednú pôvodnú kartu
       }
       return next;
     });
@@ -955,48 +892,46 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
     }
   };
 
+  const scrollToFeatures = () => {
+    const targetId = window.innerWidth < 768 ? 'funkcie-mobile' : 'funkcie-desktop';
+    document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const menuBtnStyle = "inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-600 hover:text-orange-700 rounded-full hover:bg-orange-50 transition-all whitespace-nowrap active:scale-95";
   const menuIconStyle = "text-slate-400 group-hover:text-orange-600 transition-colors";
 
   return (
     <div className={landingShellClass}>
       <header className="relative z-[100]">
-        <nav className="border-y border-slate-200 bg-white/95 backdrop-blur-md sticky top-0">
-          <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between gap-2">
+        <nav className="landing-header-nav sticky top-0 border-b border-slate-100 bg-white/95 backdrop-blur-md">
+          <div className="landing-header-inner mx-auto flex items-center justify-between gap-2">
             <a href="/" className="flex items-center gap-1.5 md:gap-2.5 min-w-0 shrink hover:opacity-80 transition">
-              <img 
-                src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
-                alt="MojaStavba Logo" 
-                className="w-7 h-7 md:w-9 md:h-9 object-contain shrink-0" 
+              <img
+                src="/icon-only.png"
+                alt="MojaStavba Logo"
+                className="landing-header-logo object-contain shrink-0"
               />
-              <span className="brand-wordmark text-sm md:text-xl truncate">Moja<span className="brand-wordmark-accent">Stavba</span></span>
+              <span className="landing-header-wordmark brand-wordmark truncate">Moja<span className="brand-wordmark-accent">Stavba</span></span>
             </a>
 
             {/* DESKTOP NAVIGATION */}
-            <div className="hidden md:flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1.5">
-                 <button 
-                  onClick={() => window.open('/o-aplikacii', '_blank')}
+            {isWebOnly && <div className="landing-header-menu absolute left-1/2 hidden -translate-x-1/2 items-center md:flex">
+                 <button
+                  onClick={onAbout}
                   className={`${menuBtnStyle} group`}
                  >
                    O aplikácii
                  </button>
-                 <span className="h-5 w-px bg-slate-200" aria-hidden="true" />
+                 <button onClick={scrollToFeatures} className={`${menuBtnStyle} group`}>Funkcie</button>
                  <button 
                   onClick={() => setShowPricingModal(true)} 
                   className={`${menuBtnStyle} group`}
                  >
                    Cenník
                  </button>
-              </div>
-              <div className="flex items-center gap-2">
-               <button 
-                  onClick={onTryFree} 
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold leading-none text-white bg-orange-600 hover:bg-orange-700 rounded-full shadow-lg shadow-orange-100 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
-               >
-                  <ArrowRight size={16} strokeWidth={2.5} className="shrink-0"/>
-                  Vyskúšať zadarmo
-               </button>
+                 <button onClick={() => document.getElementById('kontakt')?.scrollIntoView({ behavior: 'smooth' })} className={`${menuBtnStyle} group`}>Kontakt</button>
+            </div>}
+            {isWebOnly ? <div className="hidden items-center gap-2 md:flex">
                <button 
                   onClick={onLogin} 
                   className={`${menuBtnStyle} group`}
@@ -1004,22 +939,28 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                   <User size={16} className={menuIconStyle}/>
                   Prihlásiť sa
                </button>
-              </div>
-            </div>
+               <button
+                  onClick={onTryFree}
+                  className="landing-header-cta inline-flex items-center justify-center gap-2 font-bold leading-none text-white bg-orange-600 hover:bg-orange-700 shadow-lg shadow-orange-100 transition transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
+               >
+                  Vyskúšať zadarmo
+                  <ArrowRight size={16} strokeWidth={2.5} className="shrink-0"/>
+               </button>
+              </div> : <div className="hidden items-center gap-2 md:flex">
+                <button onClick={onStart} className={`${menuBtnStyle} group`}><Building2 size={16} className={menuIconStyle}/>Registrácia firmy</button>
+                <button onClick={onWorker} className={`${menuBtnStyle} group`}><Users size={16} className={menuIconStyle}/>Registrácia zamestnanca</button>
+                <button onClick={onLogin} className={`${menuBtnStyle} group`}><User size={16} className={menuIconStyle}/>Prihlásiť sa</button>
+              </div>}
 
             {/* MOBILE NAVIGATION AREA */}
             <div className="flex md:hidden items-center gap-2 shrink-0">
                <button 
-                  onClick={onTryFree} 
-                  className="inline-flex items-center justify-center px-3 py-2 text-[10px] font-bold leading-none text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-md shadow-orange-100 active:scale-95 whitespace-nowrap"
-               >
-                  Vyskúšať zadarmo
-               </button>
-               <button 
                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                 className="p-2 text-slate-500 hover:text-orange-600 hover:bg-slate-50 rounded-lg transition-colors"
+                 aria-label={isMobileMenuOpen ? 'Zavrieť menu' : 'Otvoriť menu'}
+                 aria-expanded={isMobileMenuOpen}
+                 className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
                >
-                 {isMobileMenuOpen ? <X size={24}/> : <MoreVertical size={24}/>}
+                 {isMobileMenuOpen ? <X size={19} strokeWidth={2.4}/> : <MoreVertical size={20} strokeWidth={2.8}/>}
                </button>
             </div>
           </div>
@@ -1028,20 +969,48 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
           {isMobileMenuOpen && (
             <div className="md:hidden absolute top-full left-0 right-0 bg-white border-b border-slate-200 shadow-2xl animate-in slide-in-from-top-2 duration-200">
                <div className="p-4 space-y-2">
-                 <button 
-                    onClick={() => { window.open('/o-aplikacii', '_blank'); setIsMobileMenuOpen(false); }}
+                 {isWebOnly && <button
+                    onClick={() => { onAbout(); setIsMobileMenuOpen(false); }}
                     className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
                  >
                    <span className="flex items-center gap-3"><Info size={18} className="text-orange-500"/>O aplikácii</span>
                    <ChevronRight size={18} className="text-slate-300"/>
+                 </button>}
+                 <button
+                    onClick={() => { setIsMobileMenuOpen(false); onStart(); }}
+                    className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
+                 >
+                   <span className="flex items-center gap-3"><Building2 size={18} className="text-orange-500"/>Registrácia firmy</span>
+                   <ChevronRight size={18} className="text-slate-300"/>
                  </button>
-                 <button 
-                    onClick={() => { setShowPricingModal(true); setIsMobileMenuOpen(false); }}
+                 <button
+                    onClick={() => { setIsMobileMenuOpen(false); onWorker(); }}
+                    className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
+                 >
+                   <span className="flex items-center gap-3"><Users size={18} className="text-orange-500"/>Registrácia zamestnanca</span>
+                   <ChevronRight size={18} className="text-slate-300"/>
+                 </button>
+                 {isWebOnly && <button
+                    onClick={() => { setIsMobileMenuOpen(false); requestAnimationFrame(scrollToFeatures); }}
+                    className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
+                 >
+                   <span className="flex items-center gap-3"><Zap size={18} className="text-orange-500"/>Funkcie</span>
+                   <ChevronRight size={18} className="text-slate-300"/>
+                 </button>}
+                 {isWebOnly && <button 
+                    onClick={() => { setShowPricingModal(true); setIsMobileMenuOpen(false); }} 
                     className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
                  >
                    <span className="flex items-center gap-3"><Crown size={18} className="text-orange-500"/>Cenník</span>
                    <ChevronRight size={18} className="text-slate-300"/>
-                 </button>
+                 </button>}
+                 {isWebOnly && <button 
+                    onClick={() => { document.getElementById('kontakt')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setIsMobileMenuOpen(false); }}
+                    className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
+                 >
+                   <span className="flex items-center gap-3"><Mail size={18} className="text-orange-500"/>Kontakt</span>
+                   <ChevronRight size={18} className="text-slate-300"/>
+                 </button>}
                  <button 
                     onClick={() => { onLogin(); setIsMobileMenuOpen(false); }}
                     className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
@@ -1055,99 +1024,298 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
         </nav>
       </header>
 
-      <main className="flex-1 flex flex-col bg-white">
+      <main className="min-h-0 flex-1 flex flex-col bg-white">
         <section className={heroSectionClass}>
-          <div className="max-w-6xl mx-auto">
-            {/* TLAČIDLO SŤAHOVANIA - ZOBRAZENÉ LEN NA WEBE */}
-            {isWebOnly && (
-              <div className="mb-8 animate-in fade-in duration-700">
-                <button 
-                  onClick={() => setShowDownloadModal(true)}
-                  className="group inline-flex items-center gap-2.5 bg-white border-2 border-orange-200 hover:border-orange-400 text-orange-600 hover:text-orange-700 px-4 py-3 sm:px-6 rounded-2xl font-black text-sm shadow-sm hover:shadow-md transition-all duration-300 active:scale-95"
-                >
-                  <Download size={16} className="hidden sm:block group-hover:translate-y-0.5 transition-transform duration-200"/>
-                  <span>Nainštalovať aplikáciu MojaStavba</span>
-                  <ArrowRight size={14} className="hidden sm:block opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200"/>
-                </button>
-              </div>
-            )}
-
-            {/* HLAVNÝ SEO NADPIS H1 - dôležitý pre vyhľadávače */}
-            <h1 className="text-3xl md:text-6xl xl:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-[1.08]">
-                {isWebOnly ? (
-                  <div className="relative min-h-[6.5rem] md:min-h-[8.25rem] xl:min-h-[10rem] flex items-center justify-center">
-                    <div className={`transition-all duration-1000 ease-in-out ${
-                      currentTextIndex === 0 
-                        ? 'opacity-100 transform scale-100 rotate-0 translate-y-0' 
-                        : 'opacity-0 transform scale-50 rotate-12 translate-y-4'
-                    }`}>
-                      <span className="block">Stavebný manažment</span>
-                      <span className="text-orange-600 block">pre moderné firmy</span>
-                    </div>
-                    <div className={`absolute inset-0 transition-all duration-1000 ease-in-out ${
-                      currentTextIndex === 1 
-                        ? 'opacity-100 transform scale-100 rotate-0 translate-y-0' 
-                        : 'opacity-0 transform scale-50 -rotate-12 translate-y-4'
-                    } flex flex-col items-center justify-center`}>
-                      <span className="block md:whitespace-nowrap">Vaša stavebná firma v</span>
-                      <span className="text-orange-600 block">jednej aplikácii</span>
+          <div className="landing-desktop-shell relative z-10 hidden w-full md:block">
+            <div className="landing-hero-grid">
+              <div className="landing-hero-copy text-left">
+                <h1 className="landing-hero-title font-extrabold text-slate-900">
+                  Všetko, čo potrebuje<br/>
+                  stavebná firma<br/>
+                  <span className="text-orange-600">v jednej aplikácii</span>
+                </h1>
+                <p className="landing-hero-description text-slate-600">
+                  <span className="block">{isWebOnly ? 'Kompletná správa zákaziek, dochádzky a financií v jednej aplikácii.' : 'Vyberte, ako chcete pokračovať.'}</span>
+                  {isWebOnly && <strong className="block font-semibold text-slate-800">Vyskúšajte na 30 dní bez zadávania platobných údajov.</strong>}
+                </p>
+                <div className={isWebOnly ? "landing-hero-actions flex flex-nowrap items-center" : "landing-hero-actions grid max-w-sm grid-cols-1 gap-3"}>
+                  {isWebOnly ? <>
+                    <button onClick={onStart} className="landing-primary-action inline-flex shrink-0 items-center justify-center bg-orange-600 font-bold text-white shadow-lg shadow-orange-200 transition hover:-translate-y-0.5 hover:bg-orange-700">
+                      Vyskúšať zadarmo na 30 dní
+                    </button>
+                    <button onClick={() => setShowDownloadModal(true)} className="landing-secondary-action inline-flex shrink-0 items-center justify-center border border-orange-300 bg-orange-50/30 font-semibold text-slate-700 shadow-sm shadow-orange-100/60 transition hover:border-orange-400 hover:bg-orange-50 hover:text-orange-700">
+                      <Download className="text-orange-600" aria-hidden="true"/> Stiahnuť aplikáciu
+                    </button>
+                  </> : <>
+                    <button onClick={onStart} className="landing-primary-action inline-flex w-full items-center justify-center bg-orange-600 font-bold text-white shadow-lg shadow-orange-200">Registrácia firmy</button>
+                    <button onClick={onWorker} className="landing-secondary-action inline-flex w-full items-center justify-center border border-slate-200 bg-white font-semibold text-slate-700 shadow-sm">Registrácia zamestnanca</button>
+                    <button onClick={onLogin} className="landing-secondary-action inline-flex w-full items-center justify-center border border-slate-200 bg-white font-semibold text-slate-700 shadow-sm">Prihlásenie</button>
+                  </>}
+                </div>
+                {isWebOnly && <div className="landing-trust-row flex flex-wrap font-medium text-slate-700">
+                  <div className="landing-device-availability">
+                    <Monitor className="landing-trust-platform-icon" aria-hidden="true"/>
+                    <Smartphone className="landing-trust-platform-icon is-phone" aria-hidden="true"/>
+                    <div className="landing-device-availability-copy">
+                      <strong>Dostupné na všetkých zariadeniach</strong>
+                      <small>Windows · macOS · Android · iOS</small>
                     </div>
                   </div>
-                ) : (
-                  <>Stavebný manažment<br/><span className="text-orange-600">pre moderné firmy</span></>
-                )}
+                </div>}
+                {isWebOnly && <img
+                  src="/30dni.png"
+                  alt=""
+                  aria-hidden="true"
+                  className="landing-hero-trial-visual"
+                />}
+              </div>
+
+              <div className="landing-device-showcase relative" aria-label="Ukážka aplikácie MojaStavba na počítači a mobile">
+                <div className="absolute -inset-8 -z-10 rounded-full bg-orange-100/45 blur-3xl" />
+                <div className="landing-laptop-screen border-slate-800 bg-slate-800 shadow-2xl shadow-slate-400/30">
+                  <div className="landing-laptop-display overflow-hidden bg-slate-50 text-left">
+                    <div className="landing-app-shell">
+                      <aside className="landing-app-sidebar">
+                        <div className="landing-app-brand">
+                          <img src="/icon-only.png" alt="" />
+                          <strong>Moja<span>Stavba</span></strong>
+                        </div>
+                        <nav>
+                          {[
+                            [LayoutGrid, 'Nástenka'],
+                            [Building2, 'Zákazky'],
+                            [Clock, 'Dochádzka'],
+                            [BookOpen, 'Denník práce'],
+                            [Calendar, 'Kalendár'],
+                            [Users, 'Tím'],
+                            [Euro, 'Financie'],
+                            [TrendingUp, 'Analytika'],
+                            [Settings, 'Nastavenia']
+                          ].map(([Icon, item]: any, i) => (
+                            <div key={item} className={i === 0 ? 'is-active' : ''}>
+                              <Icon aria-hidden="true"/><span>{item}</span>{item === 'Financie' && <ChevronDown className="landing-app-nav-chevron" aria-hidden="true"/>}
+                            </div>
+                          ))}
+                        </nav>
+                        <div className="landing-app-user"><span>MF</span><div><b>Moja firma</b><small>Administrátor</small></div></div>
+                      </aside>
+
+                      <div className="landing-app-workspace">
+                        <main className="landing-app-dashboard">
+                          <div className="landing-app-heading">
+                            <div><h3>Nástenka</h3><p>Prehľad vašej stavebnej firmy</p></div>
+                            <span>18. marec 2026</span>
+                          </div>
+
+                          <div className="landing-app-kpis">
+                            {[
+                              ['Aktívne zákazky', '18', '+2 tento mesiac', 'orange'],
+                              ['Celkové výnosy', '128 560 €', '+8,4 %', 'blue'],
+                              ['Priebežný zisk', '32 750 €', '+12,5 %', 'green'],
+                              ['Úlohy na dnes', '24', '6 po termíne', 'red']
+                            ].map(([label, value, note, tone]) => (
+                              <article key={label} className={`tone-${tone}`}>
+                                <div><span>{label}</span><i /></div><strong>{value}</strong><small>{note}</small>
+                              </article>
+                            ))}
+                          </div>
+
+                          <div className="landing-app-analytics">
+                            <article className="landing-app-linechart">
+                              <div className="landing-chart-title"><div><b>Výnosy a náklady</b><span>Vývoj za posledných 12 mesiacov</span></div><em>2026⌄</em></div>
+                              <div className="landing-chart-legend"><span className="revenue">Výnosy</span><span className="costs">Náklady</span></div>
+                              <svg viewBox="0 0 300 92" preserveAspectRatio="none" aria-hidden="true">
+                                <defs><linearGradient id="landingRevenueFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fb923c" stopOpacity=".22"/><stop offset="1" stopColor="#fb923c" stopOpacity="0"/></linearGradient></defs>
+                                <g className="grid"><path d="M0 18H300M0 40H300M0 62H300M0 84H300"/><path d="M30 0V92M85 0V92M140 0V92M195 0V92M250 0V92"/></g>
+                                <path className="area" d="M0 78 C22 76 28 68 48 69 S77 58 97 60 S125 49 145 51 S173 34 193 39 S223 22 244 25 S273 10 300 12 L300 92 L0 92Z"/>
+                                <path className="income" d="M0 78 C22 76 28 68 48 69 S77 58 97 60 S125 49 145 51 S173 34 193 39 S223 22 244 25 S273 10 300 12"/>
+                                <path className="expense" d="M0 82 C27 79 35 76 55 77 S87 70 105 72 S132 63 153 65 S183 55 204 58 S235 45 256 49 S281 39 300 42"/>
+                              </svg>
+                              <div className="landing-chart-months"><span>Jan</span><span>Mar</span><span>Máj</span><span>Júl</span><span>Sep</span><span>Nov</span></div>
+                            </article>
+
+                            <article className="landing-app-donut-card">
+                              <div className="landing-chart-title"><div><b>Náklady podľa kategórie</b><span>Tento mesiac</span></div><em>•••</em></div>
+                              <div className="landing-donut-content">
+                                <div className="landing-donut"><div><strong>128 560 €</strong><span>spolu</span></div></div>
+                                <ul><li className="material">Materiál <b>46%</b></li><li className="wages">Mzdy <b>28%</b></li><li className="services">Služby <b>16%</b></li><li className="other">Ostatné <b>10%</b></li></ul>
+                              </div>
+                            </article>
+                          </div>
+
+                          <div className="landing-app-bottom">
+                            <article>
+                              <div className="landing-chart-title"><div><b>Aktuálne zákazky</b><span>Priebeh realizácie</span></div><em>Zobraziť všetky →</em></div>
+                              <div className="landing-project-row"><span>Rodinný dom Kvetná</span><i><b style={{width:'72%'}} /></i><strong>72%</strong></div>
+                              <div className="landing-project-row"><span>Bytový dom Pod Hájom</span><i><b style={{width:'48%'}} /></i><strong>48%</strong></div>
+                              <div className="landing-project-row"><span>Rekonštrukcia kancelárií</span><i><b style={{width:'86%'}} /></i><strong>86%</strong></div>
+                            </article>
+                            <article>
+                              <div className="landing-chart-title"><div><b>Najbližšie úlohy</b><span>Dnes</span></div><em>Kalendár →</em></div>
+                              <div className="landing-task-row"><i className="urgent"/><span><b>Kontrola dodávky materiálu</b><small>08:30 · Kvetná</small></span><em>J. Novák</em></div>
+                              <div className="landing-task-row"><i/><span><b>Odovzdanie výkazu práce</b><small>11:00 · Pod Hájom</small></span><em>P. Malík</em></div>
+                              <div className="landing-task-row"><i className="done"/><span><b>Obhliadka stavby</b><small>14:30 · Centrum</small></span><em>M. Horváth</em></div>
+                            </article>
+                          </div>
+                        </main>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="landing-phone absolute border-slate-900 bg-white shadow-2xl">
+                  <span className="landing-phone-button landing-phone-button-left"/><span className="landing-phone-button landing-phone-button-right"/>
+                  <div className="landing-phone-notch absolute left-1/2 top-0 -translate-x-1/2 bg-slate-900"/>
+                  <div className="landing-mobile-app">
+                    <div className="landing-mobile-status">
+                      <span>9:00</span>
+                      <div className="landing-mobile-status-icons" aria-hidden="true">
+                        <i className="landing-mobile-signal"><b/><b/><b/></i>
+                        <i className="landing-mobile-battery"/>
+                      </div>
+                    </div>
+                    <header>
+                      <div><img src="/icon-only.png" alt=""/><strong>Moja<span>Stavba</span></strong></div>
+                    </header>
+                    <main>
+                      <section className="landing-mobile-shortcuts">
+                        <h4>Pracovné skratky</h4>
+                        <div><i><Building2 aria-hidden="true"/></i><b>Nová zákazka</b><span>›</span></div>
+                        <div><i><ListTodo aria-hidden="true"/></i><b>Nová úloha</b><span>›</span></div>
+                        <div><i><FileText aria-hidden="true"/></i><b>Cenová ponuka</b><span>›</span></div>
+                      </section>
+                      <section className="landing-mobile-attendance">
+                        <div className="landing-mobile-alert-title"><i>↶</i><div><b>Spätný zápis dochádzky</b><span>Dnes boli dopísané hodiny za iné dni.</span></div></div>
+                        <article><i>♙</i><div><b>Zamestnanec č. 1</b><span>Za deň 11. 8. 2026</span></div><em><small>ZAPÍSANÉ</small>06:47</em></article>
+                        <article><i>♙</i><div><b>Zamestnanec č. 2</b><span>Za deň 12. 8. 2026</span></div><em><small>ZAPÍSANÉ</small>06:47</em></article>
+                      </section>
+                    </main>
+                    <nav>
+                      <div className="is-active"><LayoutGrid aria-hidden="true"/><span>Domov</span></div>
+                      <div><Building2 aria-hidden="true"/><span>Zákazky</span></div>
+                      <div><FileCheck aria-hidden="true"/><span>Dochádzky</span></div>
+                      <div><BookOpen aria-hidden="true"/><span>Denník</span></div>
+                    </nav>
+                    <div className="landing-mobile-home-indicator"/>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {isWebOnly && <div id="funkcie-desktop" className="landing-benefits overflow-hidden scroll-mt-6">
+              <h2 className="landing-benefits-title text-center font-bold text-slate-900">Prečo si firmy vyberajú <span>MojaStavba?</span></h2>
+              <div className="landing-benefits-grid grid grid-cols-6">
+                {landingBenefits.map(({ image, title, desc }: any, i) => (
+                  <div key={title} className={`landing-benefit-item text-center ${i ? 'border-l border-slate-100' : ''}`}>
+                    <img src={image} alt={title} className="landing-benefit-icon mx-auto object-contain transition-transform duration-200 hover:scale-110" loading="lazy" />
+                    <h3 className="landing-benefit-heading font-bold text-slate-900">{title}</h3>
+                    <p className="landing-benefit-copy text-slate-500">{desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>}
+          </div>
+
+          <div className={isWebOnly ? "relative z-10 mx-auto w-full max-w-md px-1 text-left md:hidden" : "relative z-10 mx-auto w-full max-w-sm -translate-y-[3vh] px-4 text-center md:hidden"}>
+            <div className="absolute -right-10 top-12 -z-10 h-44 w-44 rounded-full bg-orange-100/70 blur-3xl" />
+            <div className="absolute -left-12 bottom-10 -z-10 h-36 w-36 rounded-full bg-slate-100 blur-3xl" />
+
+            <h1 className={isWebOnly ? "text-[2.65rem] font-black leading-[0.98] tracking-[-0.065em] text-slate-950" : "text-[2.25rem] font-black leading-[1.02] tracking-[-0.05em] text-slate-950 min-[480px]:text-[2.65rem]"}>
+              Stavebná firma<br/>
+              <span className="text-orange-600">v jednej aplikácii</span>
             </h1>
 
-            <p className="text-base md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed px-2">
-              Kompletná správa zákaziek, dochádzky a financií v jednej aplikácii.<br/>
-              <span className="font-semibold text-slate-800">Vyskúšajte na 30 dní bez zadávania platobných údajov.</span>
+            <p className={isWebOnly ? "mt-5 max-w-sm text-[15px] font-medium leading-relaxed text-slate-600" : "mx-auto mt-5 text-sm font-medium leading-relaxed text-slate-500"}>
+              {isWebOnly ? 'Kompletná správa zákaziek, dochádzky a financií v jednej aplikácii.' : 'Vyberte, ako chcete pokračovať.'}
+              {isWebOnly && <span className="mt-1.5 block font-bold text-slate-900">Vyskúšajte na 30 dní bez zadávania platobných údajov.</span>}
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 px-4 md:px-0">
-              <button onClick={onStart} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-orange-600 text-white rounded-2xl font-bold shadow-xl shadow-orange-200 hover:bg-orange-700 transition">
-                Vytvoriť firemný účet <ChevronRight size={20} />
+            <div className={isWebOnly ? "mt-7 grid grid-cols-1 gap-3" : "mx-auto mt-10 grid w-full max-w-[19rem] grid-cols-1 gap-3 min-[480px]:max-w-[21rem]"}>
+              {isWebOnly ? <><button
+                onClick={onStart}
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 text-sm font-black text-white shadow-xl shadow-orange-200 transition active:scale-[0.98]"
+              >
+                Vyskúšať zadarmo na 30 dní
+                <ArrowRight size={18} strokeWidth={2.6} />
               </button>
-               <button onClick={onWorker} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-white border border-slate-100 text-slate-700 rounded-2xl font-bold shadow-md hover:shadow-lg hover:border-orange-200 hover:text-orange-700 transition group">
-                <CustomLogo className="w-5 h-5 text-slate-400 group-hover:text-orange-600 transition-colors" color="text-slate-400"/> Registrácia zamestnanca
+              <button
+                onClick={() => setShowDownloadModal(true)}
+                className="flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-orange-300 bg-orange-50/30 px-5 py-4 text-sm font-bold text-slate-800 shadow-sm shadow-orange-100/60 transition hover:border-orange-400 hover:bg-orange-50 active:scale-[0.98]"
+              >
+                <Download size={18} className="text-orange-600" />
+                Stiahnuť aplikáciu
               </button>
+              </> : <>
+                <button onClick={onStart} className="flex h-12 w-full items-center justify-center rounded-xl bg-orange-600 px-5 text-sm font-bold text-white shadow-lg shadow-orange-200 transition active:scale-[0.98] min-[480px]:h-[52px]">Registrácia firmy</button>
+                <button onClick={onWorker} className="flex h-12 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 shadow-sm transition active:scale-[0.98] min-[480px]:h-[52px]">Registrácia zamestnanca</button>
+                <button onClick={onLogin} className="flex h-12 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 shadow-sm transition active:scale-[0.98] min-[480px]:h-[52px]">Prihlásenie</button>
+              </>}
             </div>
 
-            <div className="mt-16 flex flex-col items-center opacity-40">
-                <div className="flex gap-4 mb-2">
-                    <Monitor size={20} className="text-slate-400"/>
-                    <Smartphone size={20} className="text-slate-400"/>
+            {isWebOnly && <div className="mx-auto mt-8 flex w-full max-w-sm items-center justify-center gap-6 sm:gap-8">
+              <div className="shrink-0">
+                <p className="whitespace-nowrap text-xs font-semibold tracking-tight text-slate-600 sm:text-sm">
+                  Dostupné na všetkých zariadeniach
+                </p>
+                <div className="mt-3 flex items-center justify-center gap-6" aria-label="Android, Windows a Apple">
+                  <PlatformLogo type="android" className="h-5 w-5" />
+                  <PlatformLogo type="windows" className="h-5 w-5" />
+                  <PlatformLogo type="apple" className="h-5 w-5" />
                 </div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dostupné na všetkých zariadeniach</span>
-            </div>
+              </div>
+              <img
+                src="/30dni.png"
+                alt=""
+                aria-hidden="true"
+                className="h-24 w-24 shrink-0 object-contain drop-shadow-md sm:h-28 sm:w-28"
+              />
+            </div>}
           </div>
         </section>
 
         {isWebOnly && (
-            <section className="pt-6 pb-24 px-6 bg-white border-y border-slate-100 animate-in fade-in duration-1000">
-                <div className="max-w-6xl mx-auto">
+          <section id="funkcie-mobile" className="scroll-mt-20 border-t border-slate-200 bg-white px-5 pb-10 pt-7 md:hidden">
+            <div className="mx-auto max-w-md">
+              <h2 className="text-center text-2xl font-black tracking-tight text-slate-900">
+                Prečo si firmy vyberajú <span className="text-orange-600">MojaStavba?</span>
+              </h2>
+              <div className="mx-auto mt-9 grid max-w-xs grid-cols-2 gap-x-2 gap-y-9">
+                {landingBenefits.map(({ image, title, mobileDesc }: any) => (
+                  <article key={title} className="text-center">
+                    <img src={image} alt={title} className="mx-auto h-12 w-12 object-contain" loading="lazy" />
+                    <h3 className="mt-3 text-sm font-bold leading-tight text-slate-900">
+                      {title === 'PDF export dokumentov' ? 'PDF export' : title}
+                    </h3>
+                    <p className="mx-auto mt-2 whitespace-pre-line text-xs leading-relaxed text-slate-500">{mobileDesc}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {isWebOnly && (
+            <section className="border-y border-slate-200 bg-white px-4 pb-10 pt-6 animate-in fade-in duration-1000 sm:px-6 md:border-slate-100 md:pb-14">
+                <div className="mx-auto w-full max-w-[1680px]">
                     {/* Responzívny karusel */}
-                    <div className="relative">
-                        <div className="overflow-hidden">
+                    <div className="relative px-0 md:px-16">
+                        <div className="landing-carousel-track overflow-hidden touch-pan-y">
                             <div 
                                 className="flex transition-all duration-300 ease-in-out"
-                                style={{ transform: `translateX(-${currentSlideIndex * (isMobile ? 100 : 33.333)}%)` }}
+                                style={{ transform: `translateX(-${currentSlideIndex * (100 / carouselCardsPerView)}%)` }}
                                 onTouchStart={handleTouchStart}
                                 onTouchMove={handleTouchMove}
                                 onTouchEnd={handleTouchEnd}
                             >
                                 {carouselCards.map((card, cardIndex) => (
-                                    <div key={`${cardIndex}-${card.title}`} className={`${isMobile ? 'w-full' : 'w-1/3'} flex-shrink-0 px-2`}>
+                                    <div key={`${cardIndex}-${card.title}`} className="flex-shrink-0 px-0.5 sm:px-2" style={{ width: `${100 / carouselCardsPerView}%` }}>
                                         <article 
-                                            className="group relative bg-gradient-to-br from-orange-50/40 via-orange-25/20 to-white p-8 rounded-2xl border border-orange-100/60 hover:border-orange-300/50 hover:shadow-lg hover:shadow-orange-100/30 transition-all duration-300 overflow-hidden"
+                                            className="group relative bg-gradient-to-br from-orange-50/40 via-orange-25/20 to-white p-6 sm:p-8 rounded-2xl border border-orange-100/60 hover:border-orange-300/50 hover:shadow-lg hover:shadow-orange-100/30 transition-all duration-300 overflow-hidden"
                                         >
                                             {/* Hover efekt - oranžová vrstva */}
                                             <div className="absolute inset-0 bg-gradient-to-br from-orange-400/8 via-orange-300/5 to-amber-300/3 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                                         
                                             {/* Obsah karty */}
                                             <div className="relative z-10">
-                                                <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">
-                                                    {card.icon}
-                                                </div>
                                                 <h3 className="text-xl font-bold text-slate-900 mb-1 leading-tight">{card.title}</h3>
                                                 <h4 className="text-lg font-bold text-orange-600 mb-2 leading-tight">{card.subtitle}</h4>
                                                 <div className="flex items-center gap-2 mb-4">
@@ -1168,64 +1336,144 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                             </div>
                         </div>
 
-                        {/* Indikátory a šípky - všetko v jednom riadku */}
-                        <div className="flex justify-center items-center gap-6 mt-8">
-                            {/* Šípka vľavo - grafická */}
-                            <button 
-                                onClick={prevCard}
-                                className="group relative w-10 h-10 flex items-center justify-center transition-all duration-200 hover:scale-110"
-                            >
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-orange-600 group-hover:text-orange-700 transition-colors">
-                                    <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                            </button>
-                            
-                            {/* Indikátory - len pre pôvodné karty */}
-                            <div className="flex justify-center gap-2">
-                                {allCards.map((_, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => goToCard(index + 2)} // Offset pre klonované karty
-                                        className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                                            currentSlideIndex - 2 === index 
-                                                ? 'bg-orange-600 w-8' 
-                                                : 'bg-slate-300 hover:bg-slate-400'
-                                        }`}
-                                    />
-                                ))}
+                        <button
+                            onClick={prevCard}
+                            aria-label="Predchádzajúca výhoda"
+                            className="landing-carousel-side-control group absolute left-0 z-20 hidden -translate-y-1/2 md:block"
+                        >
+                            <span className="landing-carousel-nudge-left flex h-14 w-14 items-center justify-center rounded-full border border-orange-100 bg-white/95 text-orange-600 shadow-xl shadow-slate-300/40 backdrop-blur transition group-hover:border-orange-300 group-hover:bg-orange-50 group-hover:text-orange-700">
+                                <ChevronLeft size={25} strokeWidth={2.1} />
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={nextCard}
+                            aria-label="Nasledujúca výhoda"
+                            className="landing-carousel-side-control group absolute right-0 z-20 hidden -translate-y-1/2 md:block"
+                        >
+                            <span className="landing-carousel-nudge-right flex h-14 w-14 items-center justify-center rounded-full border border-orange-100 bg-white/95 text-orange-600 shadow-xl shadow-slate-300/40 backdrop-blur transition group-hover:border-orange-300 group-hover:bg-orange-50 group-hover:text-orange-700">
+                                <ChevronRight size={25} strokeWidth={2.1} />
+                            </span>
+                        </button>
+
+                        <div className="mt-6 flex flex-col items-center gap-3 md:mt-8">
+                            <div className="flex flex-col items-center gap-2">
+                                <p className="max-w-[17rem] text-center text-xs font-medium leading-relaxed text-slate-400 md:max-w-none md:text-sm md:tracking-wide md:text-slate-500">
+                                    Posuňte do strany a preskúmajte všetky výhody aplikácie
+                                </p>
+                                <span className="h-px w-56 max-w-[75vw] bg-gradient-to-r from-transparent via-orange-200/80 to-transparent" aria-hidden="true" />
                             </div>
 
-                            <button
-                                onClick={() => setIsCarouselPaused((paused) => !paused)}
-                                className="inline-flex items-center gap-2 rounded-full border border-orange-100 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700 transition hover:border-orange-200 hover:bg-orange-100 active:scale-95"
-                                aria-label={isCarouselPaused ? 'Spustiť automatické posúvanie' : 'Pozastaviť automatické posúvanie'}
+                            <div className="flex items-center justify-center gap-3">
+                            <button 
+                                onClick={prevCard}
+                                aria-label="Predchádzajúca výhoda"
+                                className="group flex h-9 w-9 items-center justify-center rounded-full text-orange-500 transition hover:bg-orange-50 hover:text-orange-700 active:scale-90"
                             >
-                                {isCarouselPaused ? <Play size={14} /> : <Pause size={14} />}
-                                <span>{isCarouselPaused ? 'Pustiť' : 'Pauza'}</span>
+                                <ChevronLeft size={19} className="transition-transform group-hover:-translate-x-1" />
                             </button>
-                            
+                            <span className="h-4 w-px bg-slate-200" aria-hidden="true" />
+
                             {/* Šípka vpravo - grafická */}
                             <button 
                                 onClick={nextCard}
-                                className="group relative w-10 h-10 flex items-center justify-center transition-all duration-200 hover:scale-110"
+                                aria-label="Nasledujúca výhoda"
+                                className="group flex h-9 w-9 items-center justify-center rounded-full text-orange-500 transition hover:bg-orange-50 hover:text-orange-700 active:scale-90"
                             >
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-orange-600 group-hover:text-orange-700 transition-colors">
-                                    <path d="M9 18L15 12L9 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
+                                <ChevronRight size={19} className="transition-transform group-hover:translate-x-1" />
                             </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
         )}
+
+        {isWebOnly && (
+          <section className="relative overflow-hidden border-t border-orange-100 bg-gradient-to-b from-orange-50/45 via-white to-white px-5 py-12 sm:px-8 sm:py-16 lg:px-12 lg:py-20 xl:px-16">
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-400/70 to-transparent" />
+            <div className="pointer-events-none absolute left-1/2 top-0 h-40 w-[70vw] -translate-x-1/2 rounded-full bg-orange-100/35 blur-3xl" />
+
+            <div className="relative mx-auto w-full max-w-[1380px]">
+              <div className="grid items-start gap-8 lg:grid-cols-[250px_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[270px_minmax(0,1fr)] xl:gap-12">
+                <div>
+                  <h3 className="text-3xl font-black leading-none tracking-tight text-slate-950 sm:text-4xl">
+                    {activeFeatureShowcase.heading}<br/><span className="text-orange-600">{activeFeatureShowcase.highlight}</span>
+                  </h3>
+                  <p className="mt-6 text-sm font-medium leading-[1.75] text-slate-600">{activeFeatureShowcase.description}</p>
+
+                  <div className="mt-7 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm lg:hidden">
+                    <button type="button" onClick={showPreviousFeature} aria-label="Predchádzajúca funkcia" className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-600 active:scale-90"><ChevronLeft size={20}/></button>
+                    <div className="min-w-0 text-center"><strong className="block truncate text-sm text-slate-900">{activeFeatureShowcase.title}</strong><span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{featureShowcaseIndex + 1} / {featureShowcase.length}</span></div>
+                    <button type="button" onClick={showNextFeature} aria-label="Nasledujúca funkcia" className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-600 text-white shadow-sm active:scale-90"><ChevronRight size={20}/></button>
+                  </div>
+
+                  <div className="mt-8 hidden space-y-2 lg:block">
+                    {featureShowcase.map((feature, index) => (
+                      <button key={feature.title} type="button" onClick={() => setFeatureShowcaseIndex(index)} className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-bold transition ${index === featureShowcaseIndex ? 'border-orange-200 bg-orange-50 text-orange-700 shadow-sm' : 'border-slate-200 bg-white text-slate-500 hover:border-orange-100 hover:bg-orange-50/40'}`}>
+                        <span>{feature.title}</span><span className={index === featureShowcaseIndex ? 'text-orange-500' : 'text-slate-400'}>{String(index + 1).padStart(2, '0')}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="relative min-w-0 pb-10 sm:pb-28 lg:pb-36 lg:pr-24">
+                  <button type="button" onClick={showNextFeature} aria-label="Posunúť na ďalšiu funkciu" className="absolute right-2 top-10 z-30 hidden w-16 flex-col items-center gap-2 text-orange-600 lg:flex">
+                    <span className="landing-carousel-nudge-right flex h-12 w-12 items-center justify-center rounded-full border border-orange-200 bg-white shadow-xl shadow-orange-100"><ChevronRight size={22}/></span>
+                    <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">Posuň ďalej</span>
+                  </button>
+                  <button type="button" onClick={() => { if (window.innerWidth < 768) { setFeaturePreviewSource('main'); setShowFeaturePreview(true); } }} aria-label={`Zväčšiť náhľad: ${activeFeatureShowcase.title}`} className="relative z-10 block w-full overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white p-1.5 text-left shadow-[0_30px_80px_-35px_rgba(15,23,42,0.55)] md:pointer-events-none">
+                    <div className="relative overflow-hidden rounded-[1.15rem] bg-white">
+                      {featureShowcase.map((feature, index) => (
+                        <img key={feature.image} src={feature.image} alt={index === featureShowcaseIndex ? feature.title : ''} aria-hidden={index !== featureShowcaseIndex} className={`${index === 0 ? 'relative' : 'absolute inset-0'} block w-full transition-opacity duration-300 ease-out ${index === featureShowcaseIndex ? 'z-10 opacity-100' : 'z-0 opacity-0'}`} />
+                      ))}
+                    </div>
+                  </button>
+                  <button type="button" onClick={() => { if (window.innerWidth < 768) { setFeaturePreviewSource('detail'); setShowFeaturePreview(true); } }} aria-label={`Zväčšiť detail: ${activeFeatureShowcase.title}`} className="absolute bottom-3 right-1 z-20 hidden w-[68%] origin-top-right scale-[0.94] overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-1.5 text-left shadow-[0_30px_75px_-30px_rgba(15,23,42,0.58)] sm:block md:pointer-events-none lg:bottom-6 lg:right-6">
+                    <div className="relative overflow-hidden rounded-[1.05rem] bg-white">
+                      {featureShowcase.map((feature, index) => (
+                        <img key={feature.detail} src={feature.detail} alt={index === featureShowcaseIndex ? `${feature.title} – detail` : ''} aria-hidden={index !== featureShowcaseIndex} className={`${index === 0 ? 'relative' : 'absolute inset-0'} block w-full transition-opacity duration-300 ease-out ${index === featureShowcaseIndex ? 'z-10 opacity-100' : 'z-0 opacity-0'}`} />
+                      ))}
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {showFeaturePreview && (
+          <div className="fixed inset-0 z-[1000] flex h-[100dvh] items-center justify-center bg-slate-950/95 px-4 py-16 backdrop-blur-sm" onClick={() => setShowFeaturePreview(false)}>
+            <button type="button" onClick={() => setShowFeaturePreview(false)} aria-label="Zavrieť náhľad" className="absolute right-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/30 text-white backdrop-blur">
+              <X size={24}/>
+            </button>
+
+            <div className="flex h-full w-full max-w-6xl flex-col items-center gap-4" onClick={event => event.stopPropagation()}>
+              <div className={`flex min-h-0 w-full flex-1 overflow-auto overscroll-contain rounded-xl ${featurePreviewZoom > 1 ? 'items-start' : 'items-center'}`}>
+                <img
+                  src={featurePreviewSource === 'main' ? activeFeatureShowcase.image : activeFeatureShowcase.detail}
+                  alt={activeFeatureShowcase.title}
+                  style={{ width: `${featurePreviewZoom * 100}%`, maxWidth: 'none' }}
+                  className="mx-auto block rounded-xl border border-white/10 bg-white object-contain shadow-2xl touch-pan-x touch-pan-y"
+                />
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/15 bg-black/35 p-1.5 text-white backdrop-blur">
+                <button type="button" onClick={() => setFeaturePreviewZoom(value => Math.max(1, value - 0.5))} disabled={featurePreviewZoom <= 1} aria-label="Oddialiť obrázok" className="flex h-10 w-10 items-center justify-center rounded-full disabled:opacity-30"><ZoomOut size={20}/></button>
+                <span className="min-w-12 text-center text-xs font-bold">{Math.round(featurePreviewZoom * 100)} %</span>
+                <button type="button" onClick={() => setFeaturePreviewZoom(value => Math.min(3, value + 0.5))} disabled={featurePreviewZoom >= 3} aria-label="Priblížiť obrázok" className="flex h-10 w-10 items-center justify-center rounded-full disabled:opacity-30"><ZoomIn size={20}/></button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {isWebOnly && (
-        <footer className="bg-slate-900 text-white py-14 px-6">
+        <footer id="kontakt" className="bg-slate-900 text-white py-14 px-6">
             <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-12 items-start">
                 <div className="md:col-span-1 space-y-5">
                     <div className="flex items-center gap-2 h-6">
-                      <img src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" alt="Logo" className="w-10 h-10 object-contain" />
+                      <img src="/icon-only.png" alt="Logo" className="w-10 h-10 object-contain" />
                       <span className="brand-wordmark brand-wordmark-light text-xl">Moja<span className="brand-wordmark-accent">Stavba</span></span>
                     </div>
                     <div className="space-y-3 text-sm leading-relaxed max-w-xs pt-1.5">
@@ -1241,7 +1489,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                 <div>
                     <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6 h-6 flex items-center">Dôležité informácie</h4>
                     <ul className="space-y-3">
-                        <li><button onClick={() => window.open('/o-aplikacii', '_blank')} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">O aplikácii</button></li>
+                        <li><button onClick={onAbout} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">O aplikácii</button></li>
                         <li><button onClick={() => setShowPricingModal(true)} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">Cenník a predplatné</button></li>
                         <li>
                           <a 
@@ -1310,7 +1558,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
             </div>
             <div className="max-w-6xl mx-auto mt-14 pt-7 border-t border-slate-700/70 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
                 <div className="text-sm font-medium text-slate-400">
-                    © 2026 Vyvinuté spoločnosťou LORD'S BENISON s.r.o. | Všetky práva vyhradené
+                    © 2026 Vytvorené spoločnosťou LORD'S BENISON s.r.o. | Všetky práva vyhradené
                 </div>
                 <div className="text-sm font-medium text-slate-400">
                     Pozri aj naše weby <a href="https://www.lordsbenison.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.lordsbenison.sk</a> & <a href="https://www.edugdpr.sk" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 transition-colors">www.edugdpr.sk</a>
@@ -1559,16 +1807,25 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const switchToLogin = () => { setView('login'); setError(null); };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-start md:justify-center p-4 relative pt-16 pb-12 overflow-y-auto scroll-container">
+    <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-start p-4 relative overflow-y-auto scroll-container">
       {showLegalModal && <LegalModal type={showLegalModal} onClose={() => setShowLegalModal(null)} />}
-      <div className="absolute top-4 left-4 z-50 pt-safe-top"><button onClick={onBackToLanding} className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm hover:bg-white text-slate-500 hover:text-slate-900 rounded-xl shadow-sm hover:shadow border border-slate-200/50 transition font-bold text-sm"><ArrowLeft size={16} /> <span className="hidden sm:inline">Späť na úvod</span></button></div>
-      <Card className="w-full max-w-md shadow-xl border-slate-200 animate-in zoom-in-95 relative overflow-hidden my-4" padding={view === 'onboarding' ? 'p-0' : 'p-6'}>
-        {view === 'onboarding' ? ( <OnboardingCarousel onFinish={() => setView('selection')} /> ) : (
+      <Card className="my-auto w-full max-w-md shrink-0 shadow-xl border-slate-200 animate-in zoom-in-95 relative overflow-hidden" padding={view === 'onboarding' ? 'p-0' : 'p-6'}>
+        {view === 'onboarding' ? (
+          <>
+            <button onClick={onBackToLanding} aria-label="Späť na úvod" className="absolute left-3 top-3 z-50 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/70 bg-white/90 text-slate-600 shadow-sm backdrop-blur-sm transition hover:text-slate-900">
+              <ArrowLeft size={17} />
+            </button>
+            <OnboardingCarousel onFinish={() => setView('selection')} />
+          </>
+        ) : (
             <>
+                <button onClick={onBackToLanding} type="button" className="mb-4 inline-flex items-center gap-2 rounded-lg text-xs font-bold text-slate-500 transition hover:text-orange-600">
+                  <ArrowLeft size={15} /> Späť na úvod
+                </button>
                 <div className="text-center">
                 <div className="flex justify-center mb-1.5">
                     <img 
-                      src="https://lordsbenison.sk/wp-content/uploads/2025/12/image-1.png" 
+                      src="/icon-only.png" 
                       alt="Logo MojaStavba" 
                       className="w-14 h-14 object-contain" 
                     />

@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button } from '../components/UI';
-import { FileCheck, Calendar, User, Printer, Loader2, Clock, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Pencil, Eye, EyeOff, Briefcase } from 'lucide-react';
+import { FileCheck, Calendar, User, Printer, Loader2, Clock, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Pencil, Eye, EyeOff, Briefcase, Check, X } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 import { exportElementToPdf } from '../lib/pdfExport';
 
@@ -24,8 +24,23 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
       breakStart: '12:00',
       breakDuration: 30
   });
+  const [showTemplatePopover, setShowTemplatePopover] = useState(false);
 
   const printRef = useRef<HTMLDivElement>(null);
+  const templatePopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+      if (!showTemplatePopover) return;
+
+      const handleClickOutside = (event: MouseEvent) => {
+          if (!templatePopoverRef.current?.contains(event.target as Node)) {
+              setShowTemplatePopover(false);
+          }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showTemplatePopover]);
 
   // Funkcia na výpočet hodín z textového reťazca "07:00 - 15:30"
   const parseTimeToHours = (timeStr: string): number | null => {
@@ -257,7 +272,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                             <User size={16} className="text-orange-500"/>
                             Zamestnanec
                         </label>
-                        <select value={selectedEmpId} onChange={(e: any) => setSelectedEmpId(e.target.value)} className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition cursor-pointer text-sm font-semibold text-slate-800">
+                        <select value={selectedEmpId} onChange={(e: any) => setSelectedEmpId(e.target.value)} className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition cursor-pointer text-sm font-normal text-slate-700 sm:font-semibold sm:text-slate-800">
                             <option value="">Vyberte zamestnanca</option>
                             {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
                         </select>
@@ -284,29 +299,61 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                 </h3>
                 <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(280px,1fr)] xl:grid-cols-[260px_minmax(300px,1fr)_260px] gap-3 items-start">
                     <div className="grid grid-cols-2 gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                        <button onClick={() => setExportOptions({...exportOptions, viewMode: 'detailed'})} className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${exportOptions.viewMode === 'detailed' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}><LayoutList size={14}/> Podrobný</button>
-                        <button onClick={() => setExportOptions({...exportOptions, viewMode: 'summarized'})} className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${exportOptions.viewMode === 'summarized' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}><Calculator size={14}/> Súhrnný</button>
+                        <button onClick={() => setExportOptions({...exportOptions, viewMode: 'detailed'})} className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${exportOptions.viewMode === 'detailed' ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-100 shadow-sm' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}><LayoutList size={14}/> Podrobný</button>
+                        <button onClick={() => setExportOptions({...exportOptions, viewMode: 'summarized'})} className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${exportOptions.viewMode === 'summarized' ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-100 shadow-sm' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}><Calculator size={14}/> Súhrnný</button>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
                         <label className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-orange-200 transition group">
-                            <input type="checkbox" checked={exportOptions.showSites} onChange={e => setExportOptions({...exportOptions, showSites: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-slate-300" />
+                            <input type="checkbox" checked={exportOptions.showSites} onChange={e => setExportOptions({...exportOptions, showSites: e.target.checked})} className="peer sr-only" />
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-transparent transition-all peer-checked:border-orange-500 peer-checked:bg-orange-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-orange-200">
+                                <Check size={14} strokeWidth={3} />
+                            </span>
                             <span className="text-xs font-bold text-slate-600 flex items-center gap-2">{exportOptions.showSites ? <Eye size={14} className="text-green-500"/> : <EyeOff size={14} className="text-slate-300"/>} Zákazka</span>
                         </label>
                         <label className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-orange-200 transition group">
-                            <input type="checkbox" checked={exportOptions.showDescription} onChange={e => setExportOptions({...exportOptions, showDescription: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-slate-300" />
+                            <input type="checkbox" checked={exportOptions.showDescription} onChange={e => setExportOptions({...exportOptions, showDescription: e.target.checked})} className="peer sr-only" />
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-transparent transition-all peer-checked:border-orange-500 peer-checked:bg-orange-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-orange-200">
+                                <Check size={14} strokeWidth={3} />
+                            </span>
                             <span className="text-xs font-bold text-slate-600 flex items-center gap-2">{exportOptions.showDescription ? <Eye size={14} className="text-green-500"/> : <EyeOff size={14} className="text-slate-300"/>} Činnosť</span>
                         </label>
                     </div>
 
-                    <div className="relative min-w-0">
+                    <div ref={templatePopoverRef} className="relative min-w-0">
                         <label className="h-11 flex items-center gap-2 px-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-orange-200 transition group">
-                            <input type="checkbox" id="useTemplate" checked={exportOptions.useTemplate} onChange={e => setExportOptions({...exportOptions, useTemplate: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-slate-300" />
-                            <label htmlFor="useTemplate" className="text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Upraviť rozvrhnutie času</label>
+                            <input
+                              type="checkbox"
+                              id="useTemplate"
+                              checked={exportOptions.useTemplate}
+                              onChange={e => {
+                                setExportOptions({...exportOptions, useTemplate: e.target.checked});
+                                setShowTemplatePopover(e.target.checked);
+                              }}
+                              className="peer sr-only"
+                            />
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-transparent transition-all peer-checked:border-orange-500 peer-checked:bg-orange-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-orange-200">
+                                <Check size={14} strokeWidth={3} />
+                            </span>
+                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">Upraviť rozvrhnutie času</span>
                         </label>
                         
-                        {exportOptions.useTemplate && (
+                        {exportOptions.useTemplate && showTemplatePopover && (
                             <div className="absolute right-0 top-full z-40 mt-2 w-[320px] max-w-[calc(100vw-3rem)] grid grid-cols-1 gap-3 p-3 bg-white rounded-xl border border-orange-100 animate-in slide-in-from-top-2 shadow-xl">
+                                <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-600">Rozvrhnutie času</div>
+                                        <div className="mt-0.5 text-[11px] font-semibold text-slate-400">Použije sa pri výpočte prestávky.</div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowTemplatePopover(false)}
+                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                                      aria-label="Zavrieť rozvrhnutie času"
+                                    >
+                                      <X size={16} />
+                                    </button>
+                                </div>
                                 <div>
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Začiatok</label>
                                     <input type="time" value={exportOptions.templateStart} onChange={e => setExportOptions({...exportOptions, templateStart: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm font-bold bg-slate-50" />
@@ -332,32 +379,39 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
         </div>
 
         <Card className="p-0 overflow-hidden shadow-sm border-slate-200 flex flex-col min-h-[600px] bg-white">
-          <div className="px-5 py-4 border-b border-slate-200 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-slate-50/70 sticky top-0 z-20">
+          <div className="sticky top-0 z-20 flex flex-col items-start justify-between gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:gap-4">
              <div className="flex items-center gap-3">
-                 <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-blue-500 shadow-inner"><Pencil size={20}/></div>
+                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-600 sm:h-auto sm:w-auto sm:bg-slate-50 sm:p-2.5 sm:text-blue-500 sm:shadow-inner"><Pencil size={17} className="sm:h-5 sm:w-5"/></div>
                  <div>
-                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">Editor Náhľadu PDF</h3>
-                    <p className="text-xs text-slate-600 font-semibold">{selectedEmployeeName}</p>
+                    <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-700 sm:text-xs sm:font-black sm:tracking-widest">Editor náhľadu PDF</h3>
+                    <div className="mt-1 min-w-0 sm:mt-0">
+                        {selectedEmpId ? (
+                          <p className="truncate text-[13px] font-medium text-slate-600 sm:text-xs sm:font-semibold">{selectedEmployeeName}</p>
+                        ) : (
+                          <p className="text-xs font-normal text-slate-500 sm:font-semibold sm:text-slate-600">Najprv vyberte zamestnanca vyššie</p>
+                        )}
+                    </div>
                  </div>
              </div>
-             
-             <div className="flex flex-wrap sm:flex-nowrap justify-end gap-2 w-full sm:w-auto">
-                <div className="min-w-[190px] h-14 bg-white border border-slate-200 px-3 rounded-xl flex flex-row-reverse items-center justify-end gap-3 shadow-sm transition-colors flex-1 sm:flex-none">
-                    <div className="text-left flex-1 sm:flex-none">
-                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500 block leading-none mb-1">Hodinový fond</span>
-                        <span className="text-xl font-black text-slate-900 leading-none whitespace-nowrap">{stats.hourlyHours.toFixed(1)} <span className="text-xs font-semibold text-slate-500 uppercase">hod</span></span>
+              
+             <div className="relative grid w-full grid-cols-2 py-2 sm:flex sm:w-auto sm:flex-nowrap sm:justify-end sm:gap-2 sm:py-0">
+                <div aria-hidden="true" className="absolute bottom-3 left-1/2 top-3 w-px bg-slate-200 sm:hidden" />
+                <div className="min-w-0 px-2 pr-5 transition-colors sm:flex sm:h-14 sm:min-w-[190px] sm:flex-none sm:flex-row-reverse sm:items-center sm:justify-end sm:gap-3 sm:rounded-xl sm:border sm:border-slate-200 sm:bg-white sm:px-3 sm:py-0 sm:shadow-sm">
+                    <div className="min-w-0 text-left sm:flex-1">
+                        <span className="mb-2 block whitespace-nowrap text-xs font-semibold leading-none text-slate-500 sm:mb-1 sm:text-[10px] sm:font-black sm:uppercase sm:tracking-wide">Hodinový fond</span>
+                        <span className="whitespace-nowrap text-lg font-bold leading-none text-slate-900 sm:text-xl sm:font-black">{stats.hourlyHours.toFixed(1)} <span className="text-[10px] font-semibold uppercase text-slate-500 sm:text-xs">hod</span></span>
                     </div>
-                    <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center text-orange-500 shrink-0">
+                    <div className="hidden w-9 h-9 rounded-lg bg-slate-50 sm:flex items-center justify-center text-orange-500 shrink-0">
                         <Clock size={17}/>
                     </div>
                 </div>
 
-                <div className="min-w-[190px] h-14 bg-orange-50 border border-orange-200 px-3 rounded-xl flex flex-row-reverse items-center justify-end gap-3 shadow-sm transition-colors flex-1 sm:flex-none">
-                    <div className="text-left flex-1 sm:flex-none">
-                        <span className="text-[10px] font-black uppercase tracking-wide text-orange-700 block leading-none mb-1">Úkolové práce</span>
-                        <span className="text-xl font-black text-orange-700 leading-none whitespace-nowrap">{stats.fixedCount} <span className="text-xs font-semibold text-orange-600/70 uppercase">ks</span></span>
+                <div className="min-w-0 px-2 pl-5 transition-colors sm:flex sm:h-14 sm:min-w-[190px] sm:flex-none sm:flex-row-reverse sm:items-center sm:justify-end sm:gap-3 sm:rounded-xl sm:border sm:border-orange-200 sm:bg-orange-50 sm:px-3 sm:py-0 sm:shadow-sm">
+                    <div className="min-w-0 text-left sm:flex-1">
+                        <span className="mb-2 block whitespace-nowrap text-xs font-semibold leading-none text-orange-700 sm:mb-1 sm:text-[10px] sm:font-black sm:uppercase sm:tracking-wide">Úkolové práce</span>
+                        <span className="whitespace-nowrap text-lg font-bold leading-none text-orange-700 sm:text-xl sm:font-black">{stats.fixedCount} <span className="text-[10px] font-semibold uppercase text-orange-600/70 sm:text-xs">ks</span></span>
                     </div>
-                    <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-orange-600 shrink-0">
+                    <div className="hidden w-9 h-9 rounded-lg bg-white sm:flex items-center justify-center text-orange-600 shrink-0">
                         <Briefcase size={17}/>
                     </div>
                 </div>
@@ -368,7 +422,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
             <table className="w-full text-sm text-left border-separate border-spacing-0 min-w-[760px]">
               <thead className="bg-slate-100/80 text-slate-600 font-black border-y border-slate-200 uppercase text-[10px] tracking-wider sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-3 w-[110px]">Dátum</th>
+                  <th className="w-[145px] px-3 py-3 sm:w-[110px] sm:px-4">Dátum</th>
                   {exportOptions.showSites && <th className="px-4 py-3 w-[210px]">Zákazka</th>}
                   <th className="px-4 py-3 text-center min-w-[230px]">Čas Od - Do</th>
                   {exportOptions.showDescription && <th className="px-4 py-3 min-w-[220px]">Činnosť / Popis</th>}
@@ -379,22 +433,23 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                 {loading ? (
                   <tr><td colSpan={5} className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" size={32} /></td></tr>
                 ) : editableLogs.map((log, idx) => (
-                  <tr key={`${log.id}-${idx}`} className="hover:bg-orange-50/60 transition-colors group">
-                    <td className="px-4 py-3 align-middle">
-                        <div className="font-bold text-slate-800 text-xs flex items-center gap-1 whitespace-nowrap overflow-hidden">
+                  <tr key={`${log.id}-${idx}`} className="group transition-shadow odd:bg-white even:bg-orange-50/40 md:hover:relative md:hover:z-[1] md:hover:shadow-[inset_0_0_0_1px_rgba(249,115,22,0.38)]">
+                    <td className="w-[145px] min-w-[145px] px-3 py-3 align-middle sm:w-[110px] sm:min-w-[110px] sm:px-4">
+                        <div className="flex items-center gap-1 overflow-hidden whitespace-nowrap text-[13px] font-semibold text-slate-800 sm:text-xs sm:font-bold">
                             {log.isFixed && <Briefcase size={12} className="text-orange-500 shrink-0"/>}
                             {formatDate(log.date)}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-semibold">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'short'})}</div>
+                        <div className="mt-0.5 text-[11px] font-medium text-slate-500 sm:text-[10px] sm:font-semibold sm:text-slate-400">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'long'})}</div>
                     </td>
                     {exportOptions.showSites && (
-                        <td className="px-3 py-2 align-middle">
-                            <textarea 
-                              rows={1}
+                        <td className="w-[210px] min-w-[210px] px-3 py-2 align-middle">
+                            <input
+                              type="text"
                               value={log.siteName || ''} 
                               onChange={(e) => handleRowChange(idx, 'siteName', e.target.value)}
-                              className="w-full min-h-10 px-3 py-2 bg-slate-50/70 border border-transparent rounded-lg hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-semibold text-slate-800 text-sm transition resize-none custom-scrollbar"
-                              placeholder="Z�kazka..."
+                              title={log.siteName || ''}
+                              className="block h-10 w-full min-w-0 truncate rounded-lg border border-transparent bg-slate-50/70 px-3 py-2 text-[13px] font-medium text-slate-700 outline-none transition hover:border-slate-200 focus:border-orange-500 focus:bg-white sm:text-sm sm:font-semibold"
+                              placeholder="Zákazka..."
                             />
                         </td>
                     )}
@@ -403,7 +458,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                           type="text" 
                           value={log.displayTime} 
                           onChange={(e) => handleRowChange(idx, 'displayTime', e.target.value)}
-                          className="w-full h-10 text-center px-3 bg-slate-50/70 border border-transparent rounded-lg hover:border-orange-200 focus:border-orange-500 focus:bg-white outline-none font-semibold text-slate-700 text-sm transition"
+                          className="h-10 w-full rounded-lg border border-transparent bg-slate-50/70 px-3 text-center text-[13px] font-medium text-slate-700 outline-none transition hover:border-orange-200 focus:border-orange-500 focus:bg-white sm:text-sm sm:font-semibold"
                           placeholder="07:00 - 15:30"
                         />
                     </td>
@@ -413,7 +468,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                               rows={1}
                               value={log.description || ''} 
                               onChange={(e) => handleRowChange(idx, 'description', e.target.value)}
-                              className="w-full min-h-10 px-3 py-2 bg-slate-50/70 border border-transparent rounded-lg hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none italic text-sm text-slate-700 transition resize-none leading-relaxed custom-scrollbar"
+                              className="min-h-10 w-full resize-none rounded-lg border border-transparent bg-slate-50/70 px-3 py-2 text-[13px] font-medium leading-relaxed text-slate-700 outline-none transition hover:border-slate-200 focus:border-orange-500 focus:bg-white sm:text-sm sm:font-normal sm:italic custom-scrollbar"
                               placeholder="Popis činnosti..."
                             />
                         </td>
@@ -424,7 +479,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                           step="0.1"
                           value={log.hours} 
                           onChange={(e) => handleRowChange(idx, 'hours', e.target.value)}
-                          className={`w-full h-10 text-right px-3 bg-slate-50 border border-transparent rounded-lg hover:border-slate-200 focus:border-orange-500 focus:bg-white outline-none font-black text-base transition ${log.isFixed ? 'text-orange-600' : 'text-slate-900'}`}
+                          className={`h-10 w-full rounded-lg border border-transparent bg-slate-50 px-3 text-right text-[13px] font-semibold outline-none transition hover:border-slate-200 focus:border-orange-500 focus:bg-white sm:text-base sm:font-black ${log.isFixed ? 'text-orange-600' : 'text-slate-900'}`}
                         />
                     </td>
                   </tr>
@@ -509,7 +564,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                   <tr key={`${log.id}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
                     <td className="border-b border-slate-100 p-2.5 align-top">
                         <div className="font-semibold text-slate-800 whitespace-nowrap tabular-nums">{formatDate(log.date)}</div>
-                        <div className="text-[9px] text-slate-500 uppercase font-semibold">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'short'})}</div>
+                        <div className="text-[9px] text-slate-500 font-semibold">{new Date(log.date).toLocaleDateString('sk-SK', {weekday: 'long'})}</div>
                     </td>
                     {exportOptions.showSites && <td className="border-b border-slate-100 p-2.5 font-semibold text-slate-800 leading-tight align-top">{log.siteName || '-'}</td>}
                     <td className="border-b border-slate-100 p-2.5 text-center text-[10px] align-top tabular-nums text-slate-700">
