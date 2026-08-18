@@ -21,6 +21,73 @@ const isStandalonePwa = () => {
   return window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true;
 };
 
+const CookieNotice = () => {
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('ms_cookie_info_seen') !== 'true';
+  });
+  const [showDetails, setShowDetails] = useState(false);
+
+  const closeNotice = () => {
+    window.localStorage.setItem('ms_cookie_info_seen', 'true');
+    setIsOpen(false);
+  };
+
+  return (
+    <>
+      <div className="cookie-widget">
+        {isOpen && (
+          <aside className="cookie-notice" role="region" aria-label="Informácia o cookies">
+            <p>
+              Táto webová stránka nepoužíva cookies<br />ani sledovacie nástroje.{' '}
+              <button type="button" className="cookie-more-button" onClick={() => setShowDetails(true)}>
+                Dozvedieť sa viac
+              </button>
+            </p>
+            <button type="button" onClick={closeNotice}>Rozumiem</button>
+          </aside>
+        )}
+        <button
+          type="button"
+          className="cookie-widget-trigger"
+          aria-label="Informácia o cookies"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen(open => !open)}
+        >
+          <span aria-hidden="true">🍪</span>
+        </button>
+      </div>
+
+      {showDetails && (
+        <div className="cookie-details-backdrop" role="presentation" onMouseDown={() => setShowDetails(false)}>
+          <section
+            className="cookie-details-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cookie-details-title"
+            onMouseDown={event => event.stopPropagation()}
+          >
+            <button type="button" className="cookie-details-close" aria-label="Zavrieť" onClick={() => setShowDetails(false)}>
+              <X size={18} aria-hidden="true" />
+            </button>
+            <div className="cookie-details-icon" aria-hidden="true">🍪</div>
+            <h3 id="cookie-details-title">O cookies na našej stránke</h3>
+            <p className="cookie-details-lead">Vaše súkromie je chránené</p>
+            <p>Web www.moja-stavba.sk nepoužíva reklamné ani analytické cookies. To znamená:</p>
+            <ul>
+              <li><CheckCircle2 size={17} aria-hidden="true" /><span><strong>Žiadne reklamné cookies</strong> ani personalizované reklamy</span></li>
+              <li><CheckCircle2 size={17} aria-hidden="true" /><span><strong>Žiadne analytické cookies</strong> tretích strán</span></li>
+              <li><CheckCircle2 size={17} aria-hidden="true" /><span><strong>Žiadne sledovanie</strong> vášho správania na reklamné účely</span></li>
+            </ul>
+            <p className="cookie-details-note">Používa sa iba nevyhnutné lokálne úložisko pre bezpečné prihlásenie, nastavenia a fungovanie služby.</p>
+            <button type="button" className="cookie-details-confirm" onClick={() => setShowDetails(false)}>Rozumiem</button>
+          </section>
+        </div>
+      )}
+    </>
+  );
+};
+
 // Pomocná funkcia pre získanie bezpečnej návratovej URL
 const getRedirectURL = () => {
   const origin = window.location.origin;
@@ -906,6 +973,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
   return (
     <div className={landingShellClass}>
+      {isWebOnly && <CookieNotice />}
       <header className="relative z-[100]">
         <nav className="landing-header-nav sticky top-0 border-b border-slate-100 bg-white/95 backdrop-blur-md">
           <div className="landing-header-inner mx-auto flex items-center justify-between gap-2">
