@@ -897,6 +897,10 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
     document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const scrollToContact = () => {
+    document.getElementById('kontakt')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const menuBtnStyle = "inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-600 hover:text-orange-700 rounded-full hover:bg-orange-50 transition-all whitespace-nowrap active:scale-95";
   const menuIconStyle = "text-slate-400 group-hover:text-orange-600 transition-colors";
 
@@ -929,7 +933,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                  >
                    Cenník
                  </button>
-                 <button onClick={() => document.getElementById('kontakt')?.scrollIntoView({ behavior: 'smooth' })} className={`${menuBtnStyle} group`}>Kontakt</button>
+                 <button onClick={scrollToContact} className={`${menuBtnStyle} group`}>Kontakt</button>
             </div>}
             {isWebOnly ? <div className="hidden items-center gap-2 md:flex">
                <button 
@@ -1005,7 +1009,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                    <ChevronRight size={18} className="text-slate-300"/>
                  </button>}
                  {isWebOnly && <button 
-                    onClick={() => { document.getElementById('kontakt')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setIsMobileMenuOpen(false); }}
+                    onClick={() => { setIsMobileMenuOpen(false); requestAnimationFrame(scrollToContact); }}
                     className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-orange-50 font-semibold text-slate-700 transition-colors"
                  >
                    <span className="flex items-center gap-3"><Mail size={18} className="text-orange-500"/>Kontakt</span>
