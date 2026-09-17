@@ -459,11 +459,11 @@ BEGIN
     VALUES (COALESCE(new.raw_user_meta_data->>'company_name', 'Moja Firma'))
     RETURNING id INTO new_org_id;
     
-    INSERT INTO public.profiles (id, organization_id, email, full_name, nickname, role, is_active)
-    VALUES (new.id, new_org_id, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'nickname', 'admin', true);
+    INSERT INTO public.profiles (id, organization_id, email, full_name, nickname, phone, role, is_active)
+    VALUES (new.id, new_org_id, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'nickname', NULLIF(new.raw_user_meta_data->>'phone', ''), 'admin', true);
   ELSE
-    INSERT INTO public.profiles (id, organization_id, email, full_name, nickname, role, is_active)
-    VALUES (new.id, (new.raw_user_meta_data->>'company_id')::UUID, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'nickname', 'employee', true);
+    INSERT INTO public.profiles (id, organization_id, email, full_name, nickname, phone, role, is_active)
+    VALUES (new.id, (new.raw_user_meta_data->>'company_id')::UUID, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'nickname', NULLIF(new.raw_user_meta_data->>'phone', ''), 'employee', true);
   END IF;
   RETURN new;
 END;

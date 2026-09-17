@@ -316,7 +316,9 @@ export const App = () => {
   useEffect(() => {
     if (view !== 'landing' || !pendingLandingScrollTarget) return;
 
-    const targetId = pendingLandingScrollTarget;
+    const targetId = pendingLandingScrollTarget === 'funkcie'
+      ? (window.innerWidth < 768 ? 'funkcie-mobile' : 'funkcie-desktop')
+      : pendingLandingScrollTarget;
     const frame = window.requestAnimationFrame(() => {
       document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setPendingLandingScrollTarget(null);
@@ -330,6 +332,18 @@ export const App = () => {
     setPendingLandingScrollTarget(targetId);
     setView('landing');
   };
+
+  useEffect(() => {
+    if (view !== 'about') return;
+
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [view]);
 
   useEffect(() => {
     profileRef.current = profile;
@@ -1375,21 +1389,13 @@ export const App = () => {
                           Aplikácia bola automaticky aktualizovaná
                         </h3>
                         <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                          17. august 2026 · v5.4.4
+                          17. september 2026 · v5.4.5
                         </p>
                         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
                           <ul className="space-y-3 text-sm font-medium leading-relaxed text-slate-700">
                             <li className="flex gap-2.5">
                               <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>Optimalizácia mobilného rozhrania pre plynulejšie používanie na telefónoch a tabletoch.</span>
-                            </li>
-                            <li className="flex gap-2.5">
-                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>Vylepšený dizajn rozhrania zamestnanca pre desktop aj mobil.</span>
-                            </li>
-                            <li className="flex gap-2.5">
-                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>Možnosť zapnutia push notifikácií pre kalendár v nastaveniach.</span>
+                              <span>Optimalizovali sme rýchlosť aplikácie pri spracovaní väčšieho množstva dát zákazky.</span>
                             </li>
                           </ul>
                         </div>

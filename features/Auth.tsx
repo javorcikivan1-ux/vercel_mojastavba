@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { PricingModal } from '../components/PricingModal';
+import { LandingContactModal } from '../components/LandingContactModal';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -449,12 +450,18 @@ const DownloadModal = ({
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 ring-1 ring-slate-200 transition group-hover:bg-white sm:h-12 sm:w-12 sm:rounded-2xl">
                   {platform.platformIcon}
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="font-black text-slate-900">{platform.label}</div>
                   <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
                     {platform.sublabel}
                   </div>
                 </div>
+                <ChevronRight
+                  size={18}
+                  strokeWidth={2.2}
+                  aria-hidden="true"
+                  className={`shrink-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-orange-600 ${selectedPlatform === platform.id ? 'text-orange-600' : 'text-slate-400'}`}
+                />
               </div>
             </button>
           ))}
@@ -564,42 +571,26 @@ export const OnboardingCarousel = ({ onFinish }: { onFinish: () => void }) => {
     {
       title: "Kompletný prehľad",
       highlight: "zákaziek",
-      icon: <Building2 size={44} className="text-orange-600"/>,
-      dot: "bg-orange-500 shadow-orange-100",
-      accent: "bg-orange-50/80",
-      buttonColor: "from-orange-600 to-orange-500",
-      glow: "bg-orange-400/20",
-      textGradient: "from-orange-600 to-orange-400"
+      description: "Zákazky, rozpočty a priebeh prác na jednom mieste.",
+      icon: <img src="/onboarding-projects.webp" alt="Prehľad zákaziek" className="h-20 w-20 object-contain" />
     },
     {
       title: "Elektronická",
       highlight: "dochádzka",
-      icon: <Smartphone size={44} className="text-blue-600"/>,
-      dot: "bg-blue-600 shadow-blue-100",
-      accent: "bg-blue-50/80",
-      buttonColor: "from-blue-600 to-blue-500",
-      glow: "bg-blue-400/20",
-      textGradient: "from-blue-600 to-blue-400"
+      description: "Odpracované hodiny a dochádzka bez zbytočného papierovania.",
+      icon: <img src="/onboarding-attendance.webp" alt="Elektronická dochádzka" className="h-20 w-20 object-contain" />
     },
     {
       title: "Prehľad firemnej",
       highlight: "výkonnosti",
-      icon: <TrendingUp size={44} className="text-emerald-600"/>,
-      dot: "bg-emerald-600 shadow-emerald-100",
-      accent: "bg-blue-50/80",
-      buttonColor: "from-emerald-600 to-emerald-500",
-      glow: "bg-emerald-400/20",
-      textGradient: "from-emerald-600 to-emerald-400"
+      description: "Náklady, výnosy a výsledky firmy vždy poruke.",
+      icon: <img src="/onboarding-performance.webp" alt="Firemná výkonnosť" className="h-20 w-20 object-contain" />
     },
     {
       title: "Komplexná správa",
       highlight: "zamestnancov",
-      icon: <Users size={44} className="text-purple-600"/>,
-      dot: "bg-purple-600 shadow-purple-100",
-      accent: "bg-blue-50/80",
-      buttonColor: "from-purple-600 to-purple-500",
-      glow: "bg-purple-400/20",
-      textGradient: "from-purple-600 to-purple-400"
+      description: "Tím, oprávnenia a pracovné úlohy pod kontrolou.",
+      icon: <img src="/onboarding-team.webp" alt="Správa zamestnancov" className="h-20 w-20 object-contain" />
     }
   ];
 
@@ -609,55 +600,59 @@ export const OnboardingCarousel = ({ onFinish }: { onFinish: () => void }) => {
   };
 
   return (
-    <div className="flex flex-col min-h-[540px] w-full overflow-hidden bg-white relative">
+    <div className="relative flex min-h-[540px] w-full flex-col overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#fffaf6_100%)]">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 opacity-[0.015]" style={{backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '24px 24px'}}></div>
-          <div className={`absolute top-[-5%] left-[-5%] w-[110%] h-[110%] rounded-full blur-[140px] transition-all duration-1000 opacity-20 ${slide === 0 ? 'bg-orange-200' : slide === 1 ? 'bg-blue-200' : slide === 2 ? 'bg-emerald-200' : 'bg-purple-200'}`}></div>
+          <div className="absolute inset-0 opacity-[0.035]" style={{backgroundImage: 'radial-gradient(#f97316 1px, transparent 1px)', backgroundSize: '22px 22px'}}></div>
+          <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full border border-orange-200/60" />
+          <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full border border-dashed border-orange-300/70" />
+          <div className="absolute bottom-[-90px] left-[-70px] h-56 w-56 rounded-full bg-orange-100/45 blur-2xl" />
       </div>
 
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-8 text-center py-12">
-          <div className="absolute top-6 left-0 right-0 flex justify-center">
-              <div className="flex gap-2">
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-8 pb-8 pt-16 text-center">
+          <div className="absolute left-0 right-0 top-6 flex justify-center">
+              <div className="flex gap-1.5" aria-label={`Krok ${slide + 1} zo ${slides.length}`}>
                   {slides.map((_, i) => (
-                      <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i === slide ? `w-7 ${slides[slide].dot}` : 'w-1.5 bg-slate-100'}`} />
+                      <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i === slide ? 'w-8 bg-orange-600' : i < slide ? 'w-4 bg-orange-300' : 'w-4 bg-orange-100'}`} />
                   ))}
               </div>
           </div>
 
           <div className="absolute top-5 right-6">
-              <button onClick={onFinish} className="text-slate-300 hover:text-slate-900 text-[10px] font-black uppercase tracking-[0.2em] transition-all">Preskočiť</button>
+              <button onClick={onFinish} className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 transition-colors hover:text-orange-600">Preskočiť</button>
           </div>
 
-          <div className="mb-14 relative group">
-              <div key={`icon-${slide}`} className={`w-36 h-36 rounded-[54px] transition-all duration-1000 flex items-center justify-center relative z-20 border border-white/80 shadow-2xl backdrop-blur-xl animate-in zoom-in-75 fade-in ${slides[slide].accent}`}>
+          <div className="relative mb-9">
+              <div key={`icon-${slide}`} className="relative z-20 flex h-28 w-28 animate-in items-center justify-center rounded-[30px] bg-white shadow-[0_18px_45px_-24px_rgba(234,88,12,0.65)] duration-500 fade-in zoom-in-95">
                   {slides[slide].icon}
+                  <span className="absolute -right-2 -top-2 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-white bg-orange-600 px-1 text-[10px] font-extrabold text-white shadow-sm">
+                    {String(slide + 1).padStart(2, '0')}
+                  </span>
               </div>
-              <div className={`absolute -inset-8 ${slides[slide].glow} rounded-full blur-3xl opacity-50 -z-10 animate-pulse duration-[3000ms]`}></div>
+              <div className="absolute inset-x-3 -bottom-3 h-8 rounded-full bg-orange-200/45 blur-xl" />
           </div>
 
-          <div className="max-w-[300px]">
-              <div key={`content-${slide}`} className="animate-in slide-in-from-bottom-4 fade-in duration-700">
-                <h2 className="text-3xl md:text-4xl font-extralight text-slate-800 tracking-tight leading-[1.2]">
-                    {slides[slide].title} <br/>
-                    <span className={`font-black bg-gradient-to-r ${slides[slide].textGradient} bg-clip-text text-transparent`}>
-                        {slides[slide].highlight}
-                    </span>
+          <div className="max-w-[330px]">
+              <div key={`content-${slide}`} className="animate-in fade-in slide-in-from-bottom-3 duration-500">
+                <p className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.22em] text-orange-600">MojaStavba v skratke</p>
+                <h2 className="text-[30px] font-extrabold leading-[1.12] tracking-[-0.035em] text-slate-900 md:text-[34px]">
+                    {slides[slide].title}<br/>
+                    <span className="text-orange-600">{slides[slide].highlight}</span>
                 </h2>
+                <p className="mx-auto mt-4 max-w-[290px] text-sm font-medium leading-6 text-slate-500">{slides[slide].description}</p>
               </div>
           </div>
       </div>
 
-      <div className="relative z-10 px-10 pb-12">
+      <div className="relative z-10 px-10 pb-10">
           <div className="flex justify-center">
             <button 
                 onClick={nextSlide} 
-                className={`group relative w-full max-w-[280px] flex items-center justify-center gap-3 px-8 py-5 bg-gradient-to-r ${slides[slide].buttonColor} text-white rounded-[22px] font-bold text-sm shadow-xl shadow-slate-200 active:scale-[0.92] transition-all duration-300 overflow-hidden tracking-[0.05em] border-b-4 border-black/20`}
+                className="group flex h-[52px] w-full max-w-[300px] items-center justify-center gap-3 rounded-xl bg-orange-600 px-8 text-sm font-bold text-white shadow-[0_12px_26px_-12px_rgba(234,88,12,0.8)] transition-all duration-200 hover:bg-orange-700 hover:shadow-[0_14px_30px_-12px_rgba(234,88,12,0.9)] active:scale-[0.98]"
             >
-                <span className="relative z-10">
+                <span>
                   {slide === slides.length - 1 ? "Začať teraz" : "Ďalší krok"}
                 </span>
-                <ArrowRight size={18} className="relative z-10 transition-transform group-hover:translate-x-1.5" />
-                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-12"></div>
+                <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
             </button>
           </div>
       </div>
@@ -669,17 +664,24 @@ export const OnboardingCarousel = ({ onFinish }: { onFinish: () => void }) => {
 export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscriptionClick, onAbout }: { onStart: () => void, onLogin: () => void, onWorker: () => void, onTryFree: () => void, onSubscriptionClick: () => void, onAbout: () => void }) => {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
   const [showLegal, setShowLegal] = useState<'vop' | 'gdpr' | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(4);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
-  const [carouselCardsPerView, setCarouselCardsPerView] = useState(1);
+  const [carouselCardsPerView, setCarouselCardsPerView] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    return window.innerWidth < 768 ? 1 : window.innerWidth < 1280 ? 3 : 4;
+  });
   const [featureShowcaseIndex, setFeatureShowcaseIndex] = useState(0);
   const [showFeaturePreview, setShowFeaturePreview] = useState(false);
   const [featurePreviewSource, setFeaturePreviewSource] = useState<'main' | 'detail'>('main');
   const [featurePreviewZoom, setFeaturePreviewZoom] = useState(1);
+  const [desktopFeatureZoom, setDesktopFeatureZoom] = useState({ main: 1, detail: 1 });
+  const [desktopZoomOrigin, setDesktopZoomOrigin] = useState({ main: '50% 50%', detail: '50% 50%' });
+  const [desktopZoomPointer, setDesktopZoomPointer] = useState({ source: null as 'main' | 'detail' | null, x: 0, y: 0 });
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isPwaInstalled, setIsPwaInstalled] = useState(() => isStandalonePwa());
 
@@ -860,8 +862,28 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
 
   useEffect(() => {
     setFeaturePreviewZoom(1);
+    setDesktopFeatureZoom({ main: 1, detail: 1 });
   }, [featureShowcaseIndex, showFeaturePreview]);
-  
+
+  const updateDesktopZoomPointer = (event: React.MouseEvent<HTMLElement>, source: 'main' | 'detail') => {
+    if (window.innerWidth < 768) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+    const y = Math.max(0, Math.min(bounds.height, event.clientY - bounds.top));
+    const origin = `${(x / bounds.width) * 100}% ${(y / bounds.height) * 100}%`;
+    setDesktopZoomOrigin(current => ({ ...current, [source]: origin }));
+    setDesktopZoomPointer({ source, x, y });
+  };
+
+  const handleFeatureImageClick = (source: 'main' | 'detail') => {
+    if (window.innerWidth < 768) {
+      setFeaturePreviewSource(source);
+      setShowFeaturePreview(true);
+      return;
+    }
+    setDesktopFeatureZoom(current => ({ ...current, [source]: current[source] > 1 ? 1 : 2 }));
+  };
+
   // Pridanie klonovaných kariet na začiatok pre plynulý nekonečný cyklus
   const carouselOffset = 4;
   const carouselCards = [...allCards.slice(-carouselOffset), ...allCards, ...allCards.slice(0, carouselOffset)];
@@ -965,7 +987,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
   };
 
   const scrollToContact = () => {
-    document.getElementById('kontakt')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setShowContactModal(true);
   };
 
   const menuBtnStyle = "inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-600 hover:text-orange-700 rounded-full hover:bg-orange-50 transition-all whitespace-nowrap active:scale-95";
@@ -1494,19 +1516,45 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
                     <span className="landing-carousel-nudge-right flex h-12 w-12 items-center justify-center rounded-full border border-orange-200 bg-white shadow-xl shadow-orange-100"><ChevronRight size={22}/></span>
                     <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">Posuň ďalej</span>
                   </button>
-                  <button type="button" onClick={() => { if (window.innerWidth < 768) { setFeaturePreviewSource('main'); setShowFeaturePreview(true); } }} aria-label={`Zväčšiť náhľad: ${activeFeatureShowcase.title}`} className="relative z-10 block w-full overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white p-1.5 text-left shadow-[0_30px_80px_-35px_rgba(15,23,42,0.55)] md:pointer-events-none">
+                  <button
+                    type="button"
+                    onClick={() => handleFeatureImageClick('main')}
+                    onMouseMove={event => updateDesktopZoomPointer(event, 'main')}
+                    onMouseEnter={event => updateDesktopZoomPointer(event, 'main')}
+                    onMouseLeave={() => setDesktopZoomPointer(pointer => pointer.source === 'main' ? { ...pointer, source: null } : pointer)}
+                    aria-label={`${desktopFeatureZoom.main > 1 ? 'Oddialiť' : 'Priblížiť'} náhľad: ${activeFeatureShowcase.title}`}
+                    className="relative z-10 block w-full overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white p-1.5 text-left shadow-[0_30px_80px_-35px_rgba(15,23,42,0.55)] md:cursor-none"
+                  >
                     <div className="relative overflow-hidden rounded-[1.15rem] bg-white">
                       {featureShowcase.map((feature, index) => (
-                        <img key={feature.image} src={feature.image} alt={index === featureShowcaseIndex ? feature.title : ''} aria-hidden={index !== featureShowcaseIndex} className={`${index === 0 ? 'relative' : 'absolute inset-0'} block w-full transition-opacity duration-300 ease-out ${index === featureShowcaseIndex ? 'z-10 opacity-100' : 'z-0 opacity-0'}`} />
+                        <img key={feature.image} src={feature.image} alt={index === featureShowcaseIndex ? feature.title : ''} aria-hidden={index !== featureShowcaseIndex} style={{ transform: `scale(${desktopFeatureZoom.main})`, transformOrigin: desktopZoomOrigin.main }} className={`${index === 0 ? 'relative' : 'absolute inset-0'} block w-full transition-[transform,opacity] duration-300 ease-out ${index === featureShowcaseIndex ? 'z-10 opacity-100' : 'z-0 opacity-0'}`} />
                       ))}
                     </div>
+                    {desktopZoomPointer.source === 'main' && (
+                      <span aria-hidden="true" style={{ left: desktopZoomPointer.x, top: desktopZoomPointer.y }} className="pointer-events-none absolute z-30 hidden h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/90 bg-slate-950/75 text-white shadow-2xl backdrop-blur-sm md:flex">
+                        {desktopFeatureZoom.main > 1 ? <ZoomOut size={27}/> : <ZoomIn size={27}/>}
+                      </span>
+                    )}
                   </button>
-                  <button type="button" onClick={() => { if (window.innerWidth < 768) { setFeaturePreviewSource('detail'); setShowFeaturePreview(true); } }} aria-label={`Zväčšiť detail: ${activeFeatureShowcase.title}`} className="absolute bottom-3 right-1 z-20 hidden w-[68%] origin-top-right scale-[0.94] overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-1.5 text-left shadow-[0_30px_75px_-30px_rgba(15,23,42,0.58)] sm:block md:pointer-events-none lg:bottom-6 lg:right-6">
+                  <button
+                    type="button"
+                    onClick={() => handleFeatureImageClick('detail')}
+                    onMouseMove={event => updateDesktopZoomPointer(event, 'detail')}
+                    onMouseEnter={event => updateDesktopZoomPointer(event, 'detail')}
+                    onMouseLeave={() => setDesktopZoomPointer(pointer => pointer.source === 'detail' ? { ...pointer, source: null } : pointer)}
+                    aria-label={`${desktopFeatureZoom.detail > 1 ? 'Oddialiť' : 'Priblížiť'} detail: ${activeFeatureShowcase.title}`}
+                    className="absolute bottom-3 right-1 z-20 hidden w-[68%] origin-top-right scale-[0.94] overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-1.5 text-left shadow-[0_30px_75px_-30px_rgba(15,23,42,0.58)] sm:block md:cursor-none lg:bottom-6 lg:right-6"
+                  >
                     <div className="relative overflow-hidden rounded-[1.05rem] bg-white">
                       {featureShowcase.map((feature, index) => (
-                        <img key={feature.detail} src={feature.detail} alt={index === featureShowcaseIndex ? `${feature.title} – detail` : ''} aria-hidden={index !== featureShowcaseIndex} className={`${index === 0 ? 'relative' : 'absolute inset-0'} block w-full transition-opacity duration-300 ease-out ${index === featureShowcaseIndex ? 'z-10 opacity-100' : 'z-0 opacity-0'}`} />
+                        <img key={feature.detail} src={feature.detail} alt={index === featureShowcaseIndex ? `${feature.title} – detail` : ''} aria-hidden={index !== featureShowcaseIndex} style={{ transform: `scale(${desktopFeatureZoom.detail})`, transformOrigin: desktopZoomOrigin.detail }} className={`${index === 0 ? 'relative' : 'absolute inset-0'} block w-full transition-[transform,opacity] duration-300 ease-out ${index === featureShowcaseIndex ? 'z-10 opacity-100' : 'z-0 opacity-0'}`} />
                       ))}
                     </div>
+                    {desktopZoomPointer.source === 'detail' && (
+                      <span aria-hidden="true" style={{ left: desktopZoomPointer.x, top: desktopZoomPointer.y }} className="pointer-events-none absolute z-30 hidden h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/90 bg-slate-950/75 text-white shadow-2xl backdrop-blur-sm md:flex">
+                        {desktopFeatureZoom.detail > 1 ? <ZoomOut size={27}/> : <ZoomIn size={27}/>}
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1541,7 +1589,11 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
       </main>
 
       {isWebOnly && (
-        <footer id="kontakt" className="bg-slate-900 text-white py-14 px-6">
+        <footer
+          id="kontakt"
+          className="relative isolate overflow-hidden bg-slate-950 bg-cover bg-center bg-no-repeat px-6 py-14 text-white before:absolute before:inset-0 before:-z-10 before:bg-slate-950/45"
+          style={{ backgroundImage: "url('/footer-mojastavba-background.webp')" }}
+        >
             <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-12 items-start">
                 <div className="md:col-span-1 space-y-5">
                     <div className="flex items-center gap-2 h-6">
@@ -1648,6 +1700,7 @@ export const LandingScreen = ({ onStart, onLogin, onWorker, onTryFree, onSubscri
         />
       )}
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} onSelect={() => { setShowPricingModal(false); onStart(); }} />}
+      {showContactModal && <LandingContactModal onClose={() => setShowContactModal(false)} />}
       {showLegal && <LegalModal type={showLegal} onClose={handleCloseLegal} />}
     </div>
   );
@@ -1663,6 +1716,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [inviteToken, setInviteToken] = useState("");
@@ -1833,6 +1887,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
             data: { 
                 full_name: fullName, 
                 company_name: companyName, 
+                phone: phone.trim() || null,
                 role: 'admin',
                 nickname: useNickname ? nickname.trim() : null,
                 registration_notification_token: notificationToken
@@ -1856,6 +1911,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
             options: { 
               data: { 
                   full_name: fullName, 
+                  phone: phone.trim() || null,
                   company_id: cleanId, 
                   role: 'employee',
                   nickname: useNickname ? nickname.trim() : null
@@ -1879,9 +1935,15 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
   const switchToLogin = () => { setView('login'); setError(null); };
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-start p-4 relative overflow-y-auto scroll-container">
+    <div
+      className="auth-page-background relative flex h-[100dvh] items-center justify-center overflow-hidden bg-white bg-center bg-no-repeat p-3 sm:p-8"
+      style={{ backgroundImage: "url('/auth-mojastavba-background.webp')" }}
+    >
       {showLegalModal && <LegalModal type={showLegalModal} onClose={() => setShowLegalModal(null)} />}
-      <Card className="my-auto w-full max-w-md shrink-0 shadow-xl border-slate-200 animate-in zoom-in-95 relative overflow-hidden" padding={view === 'onboarding' ? 'p-0' : 'p-6'}>
+      <Card
+        className={`relative w-full shrink-0 overflow-hidden border-slate-200 shadow-xl animate-in zoom-in-95 ${view.startsWith('register') ? 'max-w-xl' : 'max-w-md'}`}
+        padding="p-0"
+      >
         {view === 'onboarding' ? (
           <>
             <button onClick={onBackToLanding} aria-label="Späť na úvod" className="absolute left-3 top-3 z-50 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/70 bg-white/90 text-slate-600 shadow-sm backdrop-blur-sm transition hover:text-slate-900">
@@ -1890,12 +1952,12 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
             <OnboardingCarousel onFinish={() => setView('selection')} />
           </>
         ) : (
-            <>
+            <div className="auth-card-scroll max-h-[calc(100dvh-1.5rem)] overflow-y-auto p-5 sm:max-h-[calc(100dvh-4rem)] sm:p-7">
                 <button onClick={onBackToLanding} type="button" className="mb-4 inline-flex items-center gap-2 rounded-lg text-xs font-bold text-slate-500 transition hover:text-orange-600">
                   <ArrowLeft size={15} /> Späť na úvod
                 </button>
                 <div className="text-center">
-                <div className="flex justify-center mb-1.5">
+                <div className="mb-1 flex justify-center">
                     <img 
                       src="/icon-only.png" 
                       alt="Logo MojaStavba" 
@@ -1905,7 +1967,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                 <h2 className="brand-wordmark text-2xl mb-2">
                     Moja<span className="brand-wordmark-accent">Stavba</span>
                 </h2>
-                <p className="text-slate-500 text-sm mb-6">
+                <p className={`text-sm text-slate-500 ${view.startsWith('register') ? 'mb-5' : 'mb-6'}`}>
                     {view === 'login' && 'Prihlásenie do systému'}
                     {view === 'forgot-password' && 'Obnova prístupového hesla'}
                     {view === 'selection' && 'Vyberte typ registrácie'}
@@ -1971,10 +2033,10 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                     <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
                     
                     {view === 'register-admin' && (
-                        <>
+                        <div className="grid gap-x-4 sm:grid-cols-2">
                         <Input label="Názov organizácie" value={companyName} onChange={(e: any) => setCompanyName(e.target.value)} required placeholder="Moja Stavebná s.r.o." />
                         <Input label="Meno a priezvisko" value={fullName} onChange={(e: any) => setFullName(e.target.value)} required placeholder="Ján Staviteľ" />
-                        </>
+                        </div>
                     )}
 
                     {view === 'register-emp' && (
@@ -1996,6 +2058,19 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                         </div>
                         <Input label="Vaše Meno" value={fullName} onChange={(e: any) => setFullName(e.target.value)} required placeholder="Ján Novák" />
                         </>
+                    )}
+
+                    {view.startsWith('register') && (
+                        <Input
+                            label="Telefónne číslo (nepovinné)"
+                            type="tel"
+                            name="phone"
+                            autoComplete="tel"
+                            inputMode="tel"
+                            value={phone}
+                            onChange={(e: any) => setPhone(e.target.value)}
+                            placeholder="+421 900 000 000"
+                        />
                     )}
 
                     {view !== 'forgot-password' && (
@@ -2140,7 +2215,7 @@ export const LoginScreen = ({ onLogin, initialView = 'login', initialCompanyId =
                         )}
                     </div>
                 )}
-            </>
+            </div>
         )}
       </Card>
 

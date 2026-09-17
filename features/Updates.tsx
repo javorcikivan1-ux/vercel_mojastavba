@@ -20,6 +20,14 @@ const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mo
 
 const pwaUpdates = [
   {
+    date: '17. september 2026',
+    version: 'v5.4.5',
+    title: 'Rýchlejšie spracovanie dát zákazky',
+    items: [
+      'Optimalizovali sme rýchlosť aplikácie pri spracovaní väčšieho množstva dát zákazky.'
+    ]
+  },
+  {
     date: '17. august 2026',
     version: 'v5.4.4',
     title: 'Mobilné rozhranie, rozhranie zamestnanca a notifikácie',

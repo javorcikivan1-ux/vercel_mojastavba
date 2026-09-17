@@ -10,6 +10,7 @@ import {
   FileCheck, Shield, MapPin, User, HardHat, Info, PieChart, MoreVertical, ZoomIn, ZoomOut, Heart, Crosshair
 } from 'lucide-react';
 import { PricingModal } from '../components/PricingModal';
+import { LandingContactModal } from '../components/LandingContactModal';
 
 const REASONS = [
   {
@@ -629,6 +630,7 @@ const ABOUT_FEATURE_PILLARS = [
 export const AboutApp = ({ onStart, onLogin, onBack, onLandingSection }: { onStart: () => void; onLogin: () => void; onBack: () => void; onLandingSection: (sectionId: string) => void }) => {
   const [showLegal, setShowLegal] = useState<'vop' | 'gdpr' | null>(null);
   const [showPricing, setShowPricing] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [isFeatureSwitching, setIsFeatureSwitching] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
@@ -641,9 +643,12 @@ export const AboutApp = ({ onStart, onLogin, onBack, onLandingSection }: { onSta
   const useLayeredPreview = true;
   const menuBtnStyle = "inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-600 hover:text-orange-700 rounded-full hover:bg-orange-50 transition-all whitespace-nowrap active:scale-95";
   const menuIconStyle = "text-slate-400 group-hover:text-orange-600 transition-colors";
-  const scrollMainToTop = () => mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  const scrollMainToTop = () => {
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+  };
   const scrollToFeatureSection = () => onLandingSection('funkcie');
-  const scrollToContact = () => onLandingSection('kontakt');
+  const scrollToContact = () => setShowContact(true);
 
   const handlePrev = (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -1040,7 +1045,11 @@ export const AboutApp = ({ onStart, onLogin, onBack, onLandingSection }: { onSta
         </section>
 
         {/* --- FOOTER --- */}
-        <footer id="kontakt" className="bg-slate-900 text-white py-14 px-6 shrink-0">
+        <footer
+          id="kontakt"
+          className="relative isolate shrink-0 overflow-hidden bg-slate-950 bg-cover bg-center bg-no-repeat px-6 py-14 text-white before:absolute before:inset-0 before:-z-10 before:bg-slate-950/45"
+          style={{ backgroundImage: "url('/footer-mojastavba-background.webp')" }}
+        >
             <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-12 items-start">
                 <div className="md:col-span-1 space-y-5">
                     <div className="flex items-center gap-2 h-6">
@@ -1065,7 +1074,7 @@ export const AboutApp = ({ onStart, onLogin, onBack, onLandingSection }: { onSta
                 <div>
                     <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-orange-500 mb-6 h-6 flex items-center">Dôležité informácie</h4>
                     <ul className="space-y-3">
-                        <li><button onClick={onBack} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">O aplikácii</button></li>
+                        <li><button onClick={scrollMainToTop} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">O aplikácii</button></li>
                         <li><button onClick={() => setShowPricing(true)} className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">Cenník a predplatné</button></li>
                         <li><a href="/vseobecne-obchodne-podmienky.html" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">Obchodné podmienky (VOP)</a></li>
                         <li><a href="/zasady-ochrany-osobnych-udajov-gdpr.html" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-200 hover:text-orange-300 transition font-medium">Ochrana údajov (GDPR)</a></li>
@@ -1125,6 +1134,7 @@ export const AboutApp = ({ onStart, onLogin, onBack, onLandingSection }: { onSta
 
       {showLegal && <LegalModal type={showLegal} onClose={() => setShowLegal(null)} />}
       {showPricing && <PricingModal onClose={() => setShowPricing(false)} onSelect={() => { setShowPricing(false); onStart(); }} />}
+      {showContact && <LandingContactModal onClose={() => setShowContact(false)} />}
     </div>
   );
 };

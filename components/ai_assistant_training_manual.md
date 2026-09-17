@@ -332,7 +332,8 @@ Pre každú zákazku vidíš:
 - Po 30 dňoch musíš aktivovať predplatné
 
 **Platené predplatné**
-- **15 € s DPH / mesiac**
+- Predplatné sa účtuje **mesačne**.
+- Aktuálna cena závisí od zvoleného balíka SILVER, GOLD alebo PLATINUM a je uvedená v cenníku aplikácie.
 - Jeden firemný účet
 - **Neobmedzený počet zamestnancov**
 - Bez viazanosti (môžeš kedykoľvek zrušiť)

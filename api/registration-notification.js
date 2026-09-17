@@ -74,6 +74,7 @@ export default async function handler(req, res) {
 
   const role = 'admin';
   const fullName = normalize(metadata.full_name) || 'Nezadane';
+  const phone = normalize(metadata.phone);
   let companyName = normalize(metadata.company_name);
   const companyId = normalize(metadata.company_id);
 
@@ -89,6 +90,7 @@ export default async function handler(req, res) {
   const email = normalize(user.email).toLowerCase();
   const safe = {
     fullName: escapeHtml(fullName),
+    phone: escapeHtml(phone || 'Nezadany'),
     email: escapeHtml(email || 'Nezadany'),
     role: role === 'admin' ? 'Majitel / administrator' : 'Zamestnanec',
     companyName: escapeHtml(companyName || 'Nezadana'),
@@ -96,6 +98,15 @@ export default async function handler(req, res) {
     userId: escapeHtml(user.id),
     createdAt: escapeHtml(new Date(user.created_at).toLocaleString('sk-SK', { timeZone: 'Europe/Bratislava' }))
   };
+
+  // Keep the profile contact usable even before the database trigger update is deployed.
+  if (phone) {
+    const { error: phoneUpdateError } = await supabase
+      .from('profiles')
+      .update({ phone })
+      .eq('id', user.id);
+    if (phoneUpdateError) console.error('Registration phone sync failed:', phoneUpdateError);
+  }
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const result = await resend.emails.send({
@@ -120,6 +131,7 @@ export default async function handler(req, res) {
                 <table role="presentation" style="width:100%;border-collapse:collapse;">
                   <tr><td style="padding:9px 0;color:#64748b;font-size:13px;font-weight:700;">Meno</td><td style="padding:9px 0;color:#0f172a;font-size:14px;font-weight:700;">${safe.fullName}</td></tr>
                   <tr><td style="padding:9px 0;color:#64748b;font-size:13px;font-weight:700;">E-mail</td><td style="padding:9px 0;color:#0f172a;font-size:14px;"><a href="mailto:${safe.email}" style="color:#ea580c;">${safe.email}</a></td></tr>
+                  <tr><td style="padding:9px 0;color:#64748b;font-size:13px;font-weight:700;">Telefon</td><td style="padding:9px 0;color:#0f172a;font-size:14px;">${safe.phone}</td></tr>
                   <tr><td style="padding:9px 0;color:#64748b;font-size:13px;font-weight:700;">Typ uctu</td><td style="padding:9px 0;color:#0f172a;font-size:14px;">${safe.role}</td></tr>
                   <tr><td style="padding:9px 0;color:#64748b;font-size:13px;font-weight:700;">Firma</td><td style="padding:9px 0;color:#0f172a;font-size:14px;">${safe.companyName}</td></tr>
                   <tr><td style="padding:9px 0;color:#64748b;font-size:13px;font-weight:700;">ID firmy</td><td style="padding:9px 0;color:#475569;font-size:13px;font-family:Consolas,monospace;">${safe.companyId}</td></tr>

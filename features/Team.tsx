@@ -659,7 +659,6 @@ const TeamList = ({ profile, onSelect }: any) => {
                                       <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
                                           <Zap size={15} className="text-orange-600 fill-orange-600"/> Záložný link
                                       </span>
-                                      {linkCopied && <span className="text-green-700 text-[10px] font-black uppercase">Skopírované</span>}
                                   </div>
                                   <div className="flex items-center gap-2 min-w-0">
                                       <div className="min-w-0 flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-600 truncate">
@@ -667,30 +666,31 @@ const TeamList = ({ profile, onSelect }: any) => {
                                       </div>
                                       <button 
                                           onClick={copyInviteLink}
-                                          className={`h-11 w-11 rounded-xl flex items-center justify-center transition-all shrink-0 ${linkCopied ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-orange-600'}`}
+                                          className={`flex h-11 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black uppercase transition-all ${linkCopied ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-orange-600'}`}
                                           title="Kopírovať registračný link"
                                       >
                                           {linkCopied ? <ClipboardCheck size={19}/> : <Copy size={19}/>}
+                                          {linkCopied ? 'Hotovo' : 'Kopírovať'}
                                       </button>
                                   </div>
                               </div>
                           </div>
 
                           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm min-w-0">
-                              <div className="flex items-center justify-between gap-3 mb-3">
-                                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                                      <Hash size={15}/> ID firmy
-                                  </span>
-                                  {idCopied && <span className="text-green-700 text-[10px] font-black uppercase">Skopírované</span>}
-                              </div>
+                                  <div className="flex items-center justify-between gap-3 mb-3">
+                                      <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                          <Hash size={15}/> ID firmy
+                                      </span>
+                                  </div>
                               <div className="flex items-center gap-2 min-w-0">
                                   <code className="min-w-0 flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm font-black text-slate-800 truncate">
                                       {profile.organization_id}
                                   </code>
                                   <button
                                       onClick={copyCompanyId}
-                                      className={`h-11 px-4 rounded-xl text-xs font-black uppercase transition-all ${idCopied ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                                      className={`flex h-11 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black uppercase transition-all ${idCopied ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-orange-600'}`}
                                   >
+                                      {idCopied ? <ClipboardCheck size={19}/> : <Copy size={19}/>}
                                       {idCopied ? 'Hotovo' : 'Kopírovať'}
                                   </button>
                               </div>

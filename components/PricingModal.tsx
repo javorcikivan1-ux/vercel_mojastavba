@@ -53,7 +53,7 @@ export const PricingModal = ({ onClose, onSelect }: PricingModalProps) => {
 
                 <div className="mb-5 flex items-baseline gap-1">
                   <span className="text-4xl font-black text-slate-900 tracking-tighter">{plan.price}€</span>
-                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">/ bez DPH</span>
+                  <span className="text-slate-400 font-bold text-[10px]">/ bez DPH, mesačne</span>
                 </div>
 
                 <div className="flex-1 space-y-2">

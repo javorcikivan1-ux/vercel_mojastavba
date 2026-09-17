@@ -534,6 +534,44 @@ body:has(.landing-shell) {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* The auth artwork is 2070 × 941 (about 2.20:1). Keep it complete on
+   similarly wide screens; zoom only when a taller viewport would create
+   horizontal white bands. Cover applies only the minimum required crop. */
+.auth-page-background {
+  background-size: contain;
+}
+
+/* Keep long registration forms inside the card so the auth artwork always
+   remains fitted to the viewport. */
+.auth-card-scroll {
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.auth-card-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.auth-card-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.auth-card-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.auth-card-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+@media (max-aspect-ratio: 11/5) {
+  .auth-page-background {
+    background-size: cover;
+  }
+}
+
 @media (max-width: 640px) {
   .cookie-widget {
     left: 10px;

@@ -359,7 +359,7 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
 
                         <div className="flex items-baseline gap-1 mb-7 pb-7 border-b border-slate-50">
                           <span className="text-4xl font-extrabold text-slate-900 tracking-tight">{plan.price}€</span>
-                          <span className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">/ bez DPH</span>
+                          <span className="text-slate-400 font-bold text-[10px]">/ bez DPH, mesačne</span>
                         </div>
 
                         <div className="space-y-3.5 mb-10 flex-1">
@@ -570,8 +570,8 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
 
                                 <div className="space-y-2 pt-4 border-t border-slate-50">
                                     <div className="flex justify-between items-center text-xs">
-                                        <span className="text-slate-500 font-semibold">Cena bez DPH</span>
-                                        <span className="font-bold text-slate-700">{selectedPlan.price}€</span>
+                                        <span className="text-slate-500 font-semibold">Cena bez DPH za mesiac</span>
+                                        <span className="font-bold text-slate-700">{selectedPlan.price}€ / mesiac</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-slate-500 font-semibold">DPH (23%)</span>
@@ -581,8 +581,8 @@ export const SubscriptionScreen: React.FC<SubscriptionProps> = ({
                                 
                                 <div className="flex justify-between items-end pt-4 border-t-2 border-slate-100">
                                     <div>
-                                        <p className="text-xs font-semibold text-slate-500 mb-0.5">Celkovo k úhrade</p>
-                                        <p className="text-5xl font-black text-orange-600 tracking-tighter">{(parseFloat(selectedPlan.price) * 1.23).toFixed(2)}€</p>
+                                        <p className="text-xs font-semibold text-slate-500 mb-0.5">Celkovo k úhrade mesačne</p>
+                                        <p className="text-5xl font-black text-orange-600 tracking-tighter">{(parseFloat(selectedPlan.price) * 1.23).toFixed(2)}€<span className="ml-1 text-sm font-bold tracking-normal text-orange-500">/ mesiac</span></p>
                                     </div>
                                     <p className="text-xs font-semibold text-slate-400 mb-1 text-right">Platba<br/>bankovým prevodom</p>
                                 </div>

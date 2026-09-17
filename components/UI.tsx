@@ -95,21 +95,21 @@ export const Badge = ({ status, variant = 'default' }: { status: string; variant
   );
 };
 
-export const Modal = ({ title, onClose, children, maxWidth = 'max-w-lg', hideHeader = false }: any) => {
+export const Modal = ({ title, onClose, children, maxWidth = 'max-w-lg', hideHeader = false, overlayClassName = '', panelClassName = '', contentClassName = '', disableDefaultAnimation = false }: any) => {
   if (typeof document === 'undefined') return null;
   const modalRoot = document.getElementById('modal-root');
   if (!modalRoot) return null;
 
   return createPortal(
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 transition-all animate-in fade-in duration-200">
-      <div className={`bg-white w-full ${maxWidth} rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200`}>
+    <div className={`fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 transition-all ${disableDefaultAnimation ? '' : 'animate-in fade-in duration-200'} ${overlayClassName}`}>
+      <div className={`bg-white w-full ${maxWidth} rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] ${disableDefaultAnimation ? '' : 'animate-in zoom-in-95 duration-200'} ${panelClassName}`}>
         {!hideHeader && (
           <div className="flex justify-between items-center p-3 border-b border-slate-100 bg-slate-50/50">
             <h3 className="font-bold text-lg text-slate-900 px-2">{title}</h3>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition hover:bg-slate-100 p-2 rounded-full"><X size={20}/></button>
           </div>
         )}
-        <div className={`overflow-y-auto custom-scrollbar ${hideHeader ? 'p-0' : 'p-6'}`}>
+        <div className={`overflow-y-auto custom-scrollbar ${hideHeader ? 'p-0' : 'p-6'} ${contentClassName}`}>
           {children}
         </div>
       </div>
@@ -212,7 +212,7 @@ export const LegalModal = ({ type, onClose }: { type: 'vop' | 'gdpr', onClose: (
                         <h2>4. Platobné podmienky</h2>
                         <ul>
                             <li><strong>Trial:</strong> Nový užívateľ má právo na 30-dňovú bezplatnú verziu.</li>
-                            <li><strong>Cena:</strong> Aktuálna cena predplatného je 15 € mesačne (vrátane DPH) za firemný účet.</li>
+                            <li><strong>Cena:</strong> Predplatné sa účtuje mesačne. Aktuálna mesačná cena závisí od zvoleného balíka a je uvedená v cenníku a v súhrne objednávky.</li>
                             <li><strong>Fakturácia:</strong> Platba prebieha vopred na nasledujúce 30-dňové obdobie cez platobnú bránu Stripe.</li>
                             <li><strong>Zrušenie:</strong> Predplatné je možné kedykoľvek zrušiť. Služba ostane aktívna do konca predplateného obdobia.</li>
                         </ul>

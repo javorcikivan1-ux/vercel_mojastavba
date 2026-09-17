@@ -3,8 +3,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, AlertModal, LegalModal, ConfirmModal, Select, Modal } from '../components/UI';
 import { 
-  Lock, Save, Settings, Copy, CheckCircle2, Building2, KeyRound, 
-  Bell, BellRing, Image as ImageIcon, Shield, Users, LogOut, Clock, 
+  Lock, Save, Settings, CheckCircle2, Building2, KeyRound,
+  Bell, BellRing, Image as ImageIcon, Shield, LogOut, Clock,
   RefreshCw, FileText, Tags, Trash2, Plus, Palette, Check, 
   Camera, Loader2, FileSignature, AlertTriangle, MapPin, CreditCard,
 } from 'lucide-react';
@@ -270,7 +270,6 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   const [uploading, setUploading] = useState(false);
   const [uploadingStamp, setUploadingStamp] = useState(false);
   const [alertState, setAlertState] = useState({ open: false, title: '', message: '', type: 'success' });
-  const [copied, setCopied] = useState(false);
   const [showLegalModal, setShowLegalModal] = useState<'vop' | 'gdpr' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
@@ -284,7 +283,7 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
   const isBrowserWebsite = !isApp && !isStandalonePwa;
 
   useEffect(() => {
-      if (initialTab === 'updates' && !isApp) {
+      if (initialTab === 'team' || (initialTab === 'updates' && !isApp)) {
           setActiveTab('general');
       } else {
           setActiveTab(initialTab);
@@ -539,12 +538,6 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
       }
   };
 
-  const copyOrgId = () => {
-      navigator.clipboard.writeText(profile.organization_id);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-  };
-
   const TabButton = ({ id, label, icon: Icon }: any) => (
       <button onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0 ${activeTab === id ? 'border-orange-500 text-orange-600 bg-orange-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
           <Icon size={18} className={activeTab === id ? 'text-orange-600' : 'text-slate-400'}/> {label}
@@ -565,7 +558,6 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                 {profile?.role === 'admin' && <TabButton id="notifications" label="Notifikácie" icon={Bell} />}
                 <TabButton id="categories" label="Kategórie úloh" icon={Tags} />
                 <TabButton id="security" label="Zabezpečenie" icon={Shield} />
-                <TabButton id="team" label="Tím" icon={Users} />
                 {isApp && <TabButton id="updates" label="Aktualizácie" icon={RefreshCw} />}
              </div>
         </div>
@@ -645,7 +637,11 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
 
                                 <Input label="Adresa" value={orgData.business_address} onChange={(e: any) => setOrgData({...orgData, business_address: e.target.value})} placeholder="Ulica 123, 900 00 Mesto" />
 
-                                <div className="flex justify-end border-t border-slate-100 pt-5">
+                                <div className="flex flex-col gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="min-w-0 text-left">
+                                        <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">ID firmy</span>
+                                        <code className="mt-1 block truncate text-xs font-semibold text-slate-500">{profile.organization_id}</code>
+                                    </div>
                                     <Button type="submit" loading={loading} size="md" className="w-full px-7 sm:w-auto sm:min-w-56">Uložiť firemné údaje</Button>
                                 </div>
                             </form>
@@ -728,14 +724,6 @@ export const SettingsScreen = ({ profile, organization, onUpdateOrg, onUpdatePro
                             <h3 className="text-lg font-bold text-red-800 mb-2 flex items-center gap-2"><Trash2 size={20}/> Zmazanie účtu</h3>
                             <p className="text-sm text-slate-600 mb-6">Ak si prajete zmazať váš účet a všetky súvisiace dáta firmy (zákazky, dochádzku, fotky), môžete o to požiadať tu. Tento proces je nevratný.</p>
                             <Button variant="danger" onClick={() => setShowDeleteConfirm(true)} className="bg-red-600 text-white hover:bg-red-700 border-none">Zmazať účet a všetky dáta</Button>
-                        </Card>
-                    </div>
-                )}
-
-                {activeTab === 'team' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <Card className="border-l-4 border-l-blue-500 bg-blue-50/30">
-                            <div className="flex flex-col md:flex-row items-center md:items-start gap-4 text-center md:text-left"><div className="bg-blue-100 p-3 rounded-xl text-blue-600 shrink-0"><Users size={24}/></div><div className="flex-1 w-full"><h3 className="font-bold text-lg text-slate-900 mb-1">Pripojenie zamestnancov</h3><p className="text-sm text-slate-600 mb-4">Aby sa vaši zamestnanci mohli zaregistrovať do vašej firmy, musia pri registrácii zadať toto <strong>ID Firmy</strong>.</p><div className="flex items-center gap-2 bg-white border border-blue-200 p-2 rounded-xl shadow-sm w-full md:max-w-md mx-auto md:mx-0"><code className="flex-1 font-mono text-sm font-bold text-slate-700 px-2 truncate text-center md:text-left">{profile.organization_id}</code><button onClick={copyOrgId} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition shrink-0 ${copied ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{copied ? <CheckCircle2 size={16}/> : <Copy size={16}/>}{copied ? 'Hotovo' : 'Kopírovať'}</button></div></div></div>
                         </Card>
                     </div>
                 )}
