@@ -2658,15 +2658,82 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
         <div>
             {selectedQuote ? (
                 <div className="animate-in fade-in slide-in-from-right-8">
-                    <div className="flex justify-between items-center mb-6">
-                        <button onClick={() => setSelectedQuote(null)} className="h-10 px-3 rounded-xl text-slate-600 hover:text-slate-950 hover:bg-white border border-transparent hover:border-slate-200 font-semibold text-sm flex items-center gap-2 transition group"><ArrowLeft size={17} className="group-hover:-translate-x-0.5 transition-transform"/> Späť na zoznam</button>
-                        <div className="flex gap-2">
-                            <Button variant="secondary" onClick={() => setEditingQuote(selectedQuote)}><Pencil size={16}/> Upraviť</Button>
-                            <Button variant="secondary" onClick={handleDelete} className="text-red-600 border-red-200 hover:bg-red-50"><Trash2 size={16}/> Zmazať</Button>
-                            <Button onClick={generatePDF}><Printer size={16}/> Stiahnuť PDF</Button>
+                    <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <button onClick={() => setSelectedQuote(null)} className="group flex h-10 w-fit items-center gap-2 rounded-xl border border-transparent px-2 text-sm font-semibold text-slate-600 transition hover:border-slate-200 hover:bg-white hover:text-slate-950 md:px-3"><ArrowLeft size={17} className="transition-transform group-hover:-translate-x-0.5"/> Späť na zoznam</button>
+                        <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto">
+                            <Button fullWidth variant="secondary" onClick={() => setEditingQuote(selectedQuote)}><Pencil size={16}/> Upraviť</Button>
+                            <Button fullWidth variant="secondary" onClick={handleDelete} className="border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={16}/> Zmazať</Button>
+                            <Button fullWidth onClick={generatePDF} className="col-span-2"><Printer size={16}/> Stiahnuť PDF</Button>
                         </div>
                     </div>
-                    <div className="bg-slate-500/10 p-4 md:p-8 rounded-2xl overflow-auto flex justify-center custom-scrollbar">
+
+                    <div className="space-y-4 md:hidden">
+                        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <div className="border-b border-orange-100 bg-gradient-to-br from-orange-50 to-white p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-600">Cenová ponuka</div>
+                                        <h2 className="mt-1 break-words text-xl font-extrabold text-slate-950">{selectedQuote.quote_number}</h2>
+                                    </div>
+                                    {organization.logo_url && <img src={organization.logo_url} className="h-11 w-16 shrink-0 object-contain" alt="Logo"/>}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 p-4 text-sm">
+                                <div className="col-span-2">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Odberateľ</div>
+                                    <div className="mt-1 font-bold text-slate-900">{selectedQuote.client_name || 'Nezadaný klient'}</div>
+                                    {selectedQuote.client_address && <div className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-slate-500">{selectedQuote.client_address}</div>}
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Vystavená</div>
+                                    <div className="mt-1 font-semibold text-slate-700">{formatDate(selectedQuote.issue_date)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Platná do</div>
+                                    <div className="mt-1 font-semibold text-slate-700">{selectedQuote.valid_until ? formatDate(selectedQuote.valid_until) : 'Nezadané'}</div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="space-y-3">
+                            <h3 className="px-1 text-xs font-black uppercase tracking-wider text-slate-500">Položky ponuky</h3>
+                            {items.map((item, i) => {
+                                const itemSub = roundFin(Number(item.quantity) * Number(item.unit_price));
+                                const itemVat = roundFin(itemSub * ((item.vat_rate || 0) / 100));
+                                return (
+                                    <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                        <div className="break-words text-sm font-bold leading-relaxed text-slate-900">{item.description || `Položka ${i + 1}`}</div>
+                                        <div className={`mt-3 grid gap-2 ${quoteVatTotal > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                                            <div className="rounded-xl bg-slate-50 p-2.5">
+                                                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Množstvo</div>
+                                                <div className="mt-1 text-xs font-bold text-slate-700">{item.quantity} {item.unit}</div>
+                                            </div>
+                                            <div className="rounded-xl bg-slate-50 p-2.5 text-right">
+                                                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Cena</div>
+                                                <div className="mt-1 whitespace-nowrap text-xs font-bold tabular-nums text-slate-700">{formatMoney(item.unit_price)}</div>
+                                            </div>
+                                            {quoteVatTotal > 0 && <div className="rounded-xl bg-orange-50 p-2.5 text-right"><div className="text-[9px] font-bold uppercase tracking-wider text-orange-500">DPH</div><div className="mt-1 text-xs font-bold text-orange-700">{item.vat_rate}%</div></div>}
+                                        </div>
+                                        <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-sm"><span className="font-semibold text-slate-500">Celkom</span><strong className="whitespace-nowrap tabular-nums text-slate-950">{formatMoney(itemSub + itemVat)}</strong></div>
+                                    </div>
+                                );
+                            })}
+                        </section>
+
+                        <section className="rounded-2xl border border-orange-100 bg-orange-50/60 p-4 shadow-sm">
+                            <div className="space-y-2 text-sm text-slate-600">
+                                <div className="flex justify-between gap-4"><span>Základ bez DPH</span><strong className="whitespace-nowrap tabular-nums text-slate-900">{formatMoney(quoteSubtotal)}</strong></div>
+                                {quoteDiscountAmount > 0 && <div className="flex justify-between gap-4 text-red-700"><span>Zľava</span><strong className="whitespace-nowrap tabular-nums">-{formatMoney(quoteDiscountAmount)}</strong></div>}
+                                {quoteVatTotal > 0 && <div className="flex justify-between gap-4"><span>DPH spolu</span><strong className="whitespace-nowrap tabular-nums text-slate-900">{formatMoney(quoteVatTotal)}</strong></div>}
+                            </div>
+                            <div className="mt-4 flex items-end justify-between gap-3 border-t border-orange-200 pt-4">
+                                <div><div className="font-extrabold text-slate-950">Spolu k úhrade</div><div className="text-[10px] font-semibold text-slate-500">{quoteVatTotal > 0 ? 'vrátane DPH' : 'bez DPH'}</div></div>
+                                <strong className="whitespace-nowrap text-2xl font-black tabular-nums text-slate-950">{formatMoney(quoteGrandTotal)}</strong>
+                            </div>
+                        </section>
+                    </div>
+
+                    <div className="fixed left-[-10000px] top-0 z-[-1] flex justify-center bg-slate-500/10 p-8 md:static md:z-auto md:rounded-2xl md:overflow-auto custom-scrollbar">
                         <div 
                             ref={printRef} 
                             className="bg-white text-slate-900 relative shadow-2xl mx-auto flex flex-col"
