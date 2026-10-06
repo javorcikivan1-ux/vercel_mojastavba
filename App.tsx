@@ -1392,13 +1392,25 @@ export const App = () => {
                           Aplikácia bola automaticky aktualizovaná
                         </h3>
                         <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                          17. september 2026 · v5.4.5
+                          6. október 2026 · v5.4.6
                         </p>
                         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
                           <ul className="space-y-3 text-sm font-medium leading-relaxed text-slate-700">
                             <li className="flex gap-2.5">
                               <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>Optimalizovali sme rýchlosť aplikácie pri spracovaní väčšieho množstva dát zákazky.</span>
+                              <span>Opravili sme kalkulačku pri príprave cenových ponúk.</span>
+                            </li>
+                            <li className="flex gap-2.5">
+                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
+                              <span>Zlepšili sme dizajn a prehľadnosť cenových ponúk.</span>
+                            </li>
+                            <li className="flex gap-2.5">
+                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
+                              <span>Cenové ponuky vytvoríte v Zákazky → Obchod po pridaní nového dopytu a následne ich môžete exportovať ako PDF.</span>
+                            </li>
+                            <li className="flex gap-2.5">
+                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
+                              <span>AI asistent je spoľahlivejší a lepšie pozná aktuálne funkcie aplikácie.</span>
                             </li>
                           </ul>
                         </div>

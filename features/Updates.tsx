@@ -20,6 +20,17 @@ const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mo
 
 const pwaUpdates = [
   {
+    date: '6. október 2026',
+    version: 'v5.4.6',
+    title: 'Cenové ponuky a kalkulačka',
+    items: [
+      'Opravili sme kalkulačku pri príprave cenových ponúk.',
+      'Zlepšili sme dizajn a prehľadnosť cenových ponúk.',
+      'Cenové ponuky vytvoríte v sekcii Zákazky → Obchod po pridaní nového dopytu a následne ich môžete exportovať ako PDF.',
+      'AI asistent je spoľahlivejší a lepšie pozná aktuálne funkcie aplikácie.'
+    ]
+  },
+  {
     date: '17. september 2026',
     version: 'v5.4.5',
     title: 'Rýchlejšie spracovanie dát zákazky',

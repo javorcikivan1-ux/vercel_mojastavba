@@ -9,12 +9,21 @@ import FULL_MANUAL from './ai_assistant_training_manual.md?raw';
 const CURRENT_APP_GUIDE = `
 AKTUÁLNE FUNGOVANIE APLIKÁCIE:
 
+Ak sa starší manuál dostane do konfliktu s týmto aktuálnym prehľadom, vždy použi tento prehľad.
+
+Prístup a balíky:
+- AI asistent je dostupný administrátorovi firmy v balíku PLATINUM. Zamestnanci ho nevidia.
+- Aplikácia sa používa najmä ako webová/PWA aplikácia, ktorú možno nainštalovať z podporovaného prehliadača.
+
 Nástenka:
 - Zobrazuje dnešný prehľad: úlohy po termíne, dnešný plán, stav dochádzky a počet aktívnych zákaziek.
 - Pracovné skratky sú len doplnok.
 
 Zákazky:
 - Používaj termín zákazka, nie stavba ani projekt.
+- Sekcia má hlavné časti Realizácia, Obchod a Archív.
+- Obchod slúži na dopyty. Stav dopytu sa prepína medzi Nový, Kontakt, Obhliadka a Ponuka.
+- Po kliknutí na Začať realizáciu sa dopyt presunie do Realizácie. Údaje zákazky sa pritom nemažú.
 - Detail zákazky má záložky: Prehľad, Dochádzka, Sadzby tímu, Príjmy & výdavky, PHM, Prístupy.
 - Prehľad ukazuje financie zákazky, dochádzku a náklady.
 - Príjmy sú hlavne uhradené faktúry alebo platby.
@@ -35,7 +44,17 @@ Tím:
 
 Dochádzka:
 - Dochádzka slúži na evidenciu odpracovaných hodín alebo fixnej úkolovej práce.
+- Administrátor môže doplniť záznam za zamestnanca aj spätne.
+- Nesprávny záznam opraví v Dochádzkach: vyberie zamestnanca a obdobie, pri zázname klikne na ceruzku, upraví údaje a uloží ich.
 - Pri výkaze PDF sa dá nastaviť podrobný alebo súhrnný export a voliteľná prestávka.
+
+Obchod a cenové ponuky:
+- Cenové ponuky sa vytvárajú v Zákazky → Obchod.
+- Najprv treba pridať alebo otvoriť Nový dopyt. V jeho detaile je karta Cenové ponuky a tlačidlo Vytvoriť cenovú ponuku.
+- Cenovú ponuku je možné vytvoriť aj prenesením položiek z rozpočtového hárka.
+- Ponuka podporuje položky, množstvo, mernú jednotku, cenu, DPH a zľavu.
+- Hotovú cenovú ponuku možno otvoriť, upraviť a exportovať ako PDF.
+- Kalkulačka v rozpočte podporuje základné operácie, percentá, odmocninu, druhú mocninu a lokálnu históriu výpočtov.
 
 Analytika:
 - Firemná analytika pri všetkých zákazkách má filter obdobia: Tento rok, Minulý rok, 12 mesiacov, Celé obdobie.
@@ -54,13 +73,35 @@ Technická podpora:
 const cleanAssistantText = (value = '') => String(value)
     .replace(/\r/g, '')
     .replace(/^#{1,6}\s*/gm, '')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/\*(.*?)\*/g, '$1')
     .replace(/__(.*?)__/g, '$1')
     .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
     .replace(/^\s*[-*]\s+/gm, '- ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+const wait = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
+
+const isTransientAIError = (error: any) => {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('503') || message.includes('unavailable') || message.includes('high demand') || message.includes('429') || message.includes('resource_exhausted') || message.includes('timeout');
+};
+
+const AssistantMessage = ({ text }: { text: string }) => {
+    const renderInline = (line: string) => line.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part, index) =>
+        part.startsWith('**') && part.endsWith('**')
+            ? <strong key={index} className="font-extrabold text-slate-900">{part.slice(2, -2)}</strong>
+            : <React.Fragment key={index}>{part}</React.Fragment>
+    );
+
+    return (
+        <div className="space-y-1.5 text-xs font-medium leading-relaxed">
+            {text.split('\n').filter(line => line.trim()).map((line, index) => line.trim().startsWith('- ')
+                ? <div key={index} className="flex items-start gap-2"><span className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-orange-500"/><span>{renderInline(line.trim().slice(2))}</span></div>
+                : <p key={index}>{renderInline(line)}</p>
+            )}
+        </div>
+    );
+};
 
 export const AIAssistantWidget = ({ profile, organization }: any) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -105,20 +146,42 @@ export const AIAssistantWidget = ({ profile, organization }: any) => {
 
                 --- ŠTÝL ODPOVEDE ---
                 Odpovedaj po slovensky, stručne a prakticky.
-                Nepoužívaj markdown syntax: žiadne hviezdičky, žiadne mriežky, žiadne ###, žiadne tabuľky.
+                Dôležité slová môžeš zvýrazniť pomocou **tučného textu** a kroky môžeš uviesť ako krátky odrážkový zoznam.
+                Nepoužívaj nadpisy s mriežkami, tabuľky ani komplikovaný markdown.
                 Nepíš dlhé manuálové bloky. Radšej odpovedz v krátkych vetách alebo jednoduchom zozname.
                 Ak si nie si istý aktuálnou funkciou, povedz to opatrne a odporuč kontaktovať technickú podporu.
             `;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: userMsg,
-                config: { 
-                    systemInstruction,
-                    temperature: 0.1,
-                    topP: 0.8
+            const contents = [
+                ...messages.slice(-8).map(message => ({
+                    role: message.role === 'ai' ? 'model' : 'user',
+                    parts: [{ text: message.text }]
+                })),
+                { role: 'user', parts: [{ text: userMsg }] }
+            ];
+            const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+            let response: any = null;
+            let lastError: any = null;
+
+            for (const model of models) {
+                for (let attempt = 0; attempt < 2; attempt += 1) {
+                    try {
+                        response = await ai.models.generateContent({
+                            model,
+                            contents,
+                            config: { systemInstruction, temperature: 0.15, topP: 0.85 }
+                        });
+                        break;
+                    } catch (error) {
+                        lastError = error;
+                        if (!isTransientAIError(error)) throw error;
+                        if (attempt === 0) await wait(model === models[0] ? 900 : 1400);
+                    }
                 }
-            });
+                if (response) break;
+            }
+
+            if (!response) throw lastError;
 
             setMessages(prev => [...prev, { role: 'ai', text: cleanAssistantText(response.text || "Prepáč, stratil som spojenie s manuálom OS. Skús to znova.") }]);
         } catch (err) {
@@ -159,7 +222,7 @@ export const AIAssistantWidget = ({ profile, organization }: any) => {
                         {messages.map((m, i) => (
                             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[85%] ${m.role === 'user' ? 'bg-orange-600 text-white rounded-2xl rounded-tr-none' : 'bg-slate-100 text-slate-700 rounded-2xl rounded-tl-none'} p-3 shadow-sm`}>
-                                    <p className="text-xs font-medium leading-relaxed">{m.text}</p>
+                                    {m.role === 'ai' ? <AssistantMessage text={m.text}/> : <p className="whitespace-pre-wrap text-xs font-medium leading-relaxed">{m.text}</p>}
                                 </div>
                             </div>
                         ))}
