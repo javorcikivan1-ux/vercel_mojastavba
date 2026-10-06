@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mojastavba-pwa-v2';
+const CACHE_NAME = 'mojastavba-pwa-v3';
 const APP_SHELL = ['/', '/manifest.webmanifest', '/icon-only.png'];
 
 self.addEventListener('install', (event) => {
@@ -20,6 +20,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
+  // Externé zdroje (napríklad Google Fonts) necháva service worker na
+  // prehliadač. Ne patria do lokálnej aplikačnej cache a ich zachytenie
+  // spôsobovalo CSP chybu aj neplatný fallback bez Response objektu.
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -28,7 +34,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put('/', copy));
           return response;
         })
-        .catch(() => caches.match('/'))
+        .catch(async () => (await caches.match('/')) || Response.error())
     );
     return;
   }
@@ -42,7 +48,7 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(async () => (await caches.match(event.request)) || Response.error())
   );
 });
 

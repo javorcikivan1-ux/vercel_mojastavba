@@ -383,7 +383,7 @@ export const AdvancesScreen = ({ profile }: any) => {
 
             {/* MODAL: NOVÁ ZÁLOHA */}
             {showModal && (
-                <Modal title={editingAdvance ? "Upraviť Zálohu" : "Nová Záloha"} onClose={() => setShowModal(false)}>
+                <Modal title={editingAdvance ? "Upraviť zálohu" : "Nová záloha"} onClose={() => setShowModal(false)}>
                     <form onSubmit={handleSave} className="space-y-4">
                         <Select 
                             label="Zamestnanec" 

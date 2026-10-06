@@ -404,7 +404,7 @@ export const CalendarScreen = ({ profile, onNavigate, initialAction, onInitialAc
       </div>
 
       {showModal && (
-        <Modal title={newTask.id ? "Upraviť Úlohu" : "Nová Úloha"} onClose={() => setShowModal(false)}>
+        <Modal title={newTask.id ? "Upraviť úlohu" : "Nová úloha"} onClose={() => setShowModal(false)}>
           <form onSubmit={handleSave} className="space-y-4">
             <Input label="Názov úlohy" value={newTask.title || ''} onChange={(e: any) => setNewTask({...newTask, title: e.target.value})} required autoFocus />
             

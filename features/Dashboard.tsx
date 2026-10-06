@@ -263,7 +263,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
       </Card>
 
       {showAttendanceModal && (
-          <Modal title="Detail dochádzky (Dnes)" onClose={() => setShowAttendanceModal(false)} maxWidth="max-w-2xl">
+          <Modal title="Detail dochádzky (dnes)" onClose={() => setShowAttendanceModal(false)} maxWidth="max-w-2xl">
               <div className="space-y-6">
                   {hasAnyFixedToday && (
                       <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-[11px] text-orange-800 font-bold flex items-center gap-2 animate-in slide-in-from-top-2">

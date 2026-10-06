@@ -1202,9 +1202,12 @@ export const App = () => {
 
                  <button 
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
-                    className="flex items-center justify-center p-2 text-slate-400 hover:text-slate-600 border-t border-slate-200 hover:bg-slate-50 transition"
+                    aria-label={isSidebarCollapsed ? 'Zobraziť bočné menu' : 'Skryť bočné menu'}
+                    title={isSidebarCollapsed ? 'Zobraziť bočné menu' : 'Skryť bočné menu'}
+                    className="flex min-h-10 items-center justify-center gap-2 border-t border-slate-200 p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
                  >
                      {isSidebarCollapsed ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}
+                     {!isSidebarCollapsed && <span className="text-[11px] font-semibold">Skryť bočné menu</span>}
                  </button>
              </aside>
 

@@ -567,7 +567,7 @@ export const FinanceScreen = ({ profile }: any) => {
       </div>
 
       {showUnpaidModal && (
-          <Modal title="Nezaplatené faktúry (Dlžníci)" onClose={() => setShowUnpaidModal(false)} maxWidth="max-w-2xl">
+          <Modal title="Nezaplatené faktúry (dlžníci)" onClose={() => setShowUnpaidModal(false)} maxWidth="max-w-2xl">
               <div className="space-y-6">
                   <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-red-50/50 p-4 rounded-2xl border border-red-100">
                       <div className="flex items-center gap-3">

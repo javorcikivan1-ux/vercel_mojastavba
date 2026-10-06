@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, CustomLogo } from '../components/UI';
 // Added BookOpen to lucide-react imports to fix line 162 error
-import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus, Fuel, Users, Settings2, Save, Shield, BookOpen, Star } from 'lucide-react';
+import { MapPin, BarChart3, ClipboardList, Euro, Package, HardHat, Plus, FileDown, Trash2, ArrowLeft, Loader2, User, Clock, Calendar, Pencil, Building2, ChevronDown, ChevronRight, Check, CheckCircle2, Archive, RefreshCcw, FolderOpen, AlertCircle, FileText, Send, X, Printer, Phone, Briefcase, Calculator, Percent, LayoutList, GripVertical, TrendingUp, TrendingDown, Search, Filter, Info, Activity, FileCheck, ShieldCheck, ListPlus, Fuel, Users, Settings2, Save, Shield, BookOpen, Star, Delete, Smile } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 import { exportElementToPdf } from '../lib/pdfExport';
 import { ProjectPHM } from './ProjectPHM';
@@ -762,12 +762,12 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
   };
 
   const getStatusButtonClass = (isActive: boolean, stage: string) => {
-      const base = "px-3 py-1.5 rounded-md transition text-xs font-bold border";
+      const base = "min-w-0 whitespace-nowrap rounded-xl border px-2 py-2.5 text-xs font-bold shadow-sm transition md:rounded-md md:px-3 md:py-1.5 md:shadow-none";
       const colors: any = {
-          new: { active: "bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-200", inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50" },
-          contacted: { active: "bg-yellow-50 text-yellow-700 border-yellow-200 ring-1 ring-yellow-200", inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50" },
-          meeting: { active: "bg-purple-50 text-purple-700 border-purple-200 ring-1 ring-purple-200", inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50" },
-          pricing: { active: "bg-orange-50 text-orange-700 border-orange-200 ring-1 ring-orange-200", inactive: "bg-white text-slate-500 border-transparent hover:bg-slate-50" }
+          new: { active: "bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-200", inactive: "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 md:border-transparent" },
+          contacted: { active: "bg-yellow-50 text-yellow-700 border-yellow-200 ring-1 ring-yellow-200", inactive: "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 md:border-transparent" },
+          meeting: { active: "bg-purple-50 text-purple-700 border-purple-200 ring-1 ring-purple-200", inactive: "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 md:border-transparent" },
+          pricing: { active: "bg-orange-50 text-orange-700 border-orange-200 ring-1 ring-orange-200", inactive: "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 md:border-transparent" }
       };
       const style = colors[stage] || colors['new'];
       return `${base} ${isActive ? style.active : style.inactive}`;
@@ -822,14 +822,16 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                 <button 
                     key={tab.id}
                     onClick={() => handleTabChange(tab.id as any)}
-                    className={`min-h-[42px] flex-1 lg:flex-none min-w-0 lg:min-w-max py-2.5 px-2.5 sm:px-3 lg:px-4 text-[13px] sm:text-sm font-semibold text-center rounded-2xl transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 lg:gap-2 ${
+                    aria-label={tab.id === 'archive' ? 'Archív' : undefined}
+                    title={tab.id === 'archive' ? 'Archív' : undefined}
+                    className={`min-h-[42px] min-w-0 py-2.5 text-[13px] sm:text-sm font-semibold text-center rounded-2xl transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 lg:gap-2 ${tab.id === 'archive' ? 'w-11 shrink-0 px-0 lg:w-auto lg:px-4' : 'flex-1 px-2.5 sm:px-3 lg:flex-none lg:min-w-max lg:px-4'} ${
                         activeTab === tab.id 
                         ? 'bg-orange-50 text-orange-700 border border-orange-100 shadow-sm' 
                         : 'text-slate-700 border border-transparent hover:bg-slate-50 hover:text-slate-950'
                     }`}
                 >
                     <tab.icon size={15} className="text-orange-600 shrink-0 lg:w-4 lg:h-4"/> 
-                    <span className="truncate">{tab.label}</span>
+                    <span className={tab.id === 'archive' ? 'hidden lg:inline' : ''}>{tab.label}</span>
                 </button>
             ))}
         </div>
@@ -859,21 +861,25 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                                     const stage = lead.lead_stage || 'new';
                                     return (
                                         <div key={lead.id} onClick={() => onSelectLead(lead.id)} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col md:flex-row gap-4 items-start md:items-center group">
+                                            <div className={`h-1 w-12 rounded-full md:hidden ${stage === 'new' ? 'bg-blue-500' : stage === 'contacted' ? 'bg-yellow-500' : stage === 'meeting' ? 'bg-purple-500' : 'bg-orange-500'}`} aria-hidden="true"></div>
                                             <div className={`hidden md:block w-2 h-16 rounded-full self-stretch ${stage === 'new' ? 'bg-blue-500' : stage === 'contacted' ? 'bg-yellow-500' : stage === 'meeting' ? 'bg-purple-500' : 'bg-orange-500'}`}></div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h3 className={`font-bold text-lg transition ${getLeadNameColor(stage)}`}>{lead.name}</h3>
-                                                    <Badge status={stage} />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="mb-1 flex min-w-0 items-start gap-2">
+                                                    <h3 className={`min-w-0 flex-1 break-words font-bold text-lg leading-snug transition ${getLeadNameColor(stage)}`}>{lead.name}</h3>
+                                                    <span className="hidden shrink-0 md:block"><Badge status={stage} variant="subtle" /></span>
                                                 </div>
-                                                <div className="flex gap-4 text-sm text-slate-500">
-                                                    <span className="flex items-center gap-1"><User size={14}/> {lead.client_name || 'Neznámy'}</span>
-                                                    <span className="flex items-center gap-1"><MapPin size={14}/> {lead.address || '-'}</span>
+                                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+                                                    <span className="flex min-w-0 items-center gap-1"><User className="shrink-0" size={14}/> <span className="break-words">{lead.client_name || 'Neznámy'}</span></span>
+                                                    <span className="flex min-w-0 items-center gap-1"><MapPin className="shrink-0" size={14}/> <span className="break-words">{lead.address || '-'}</span></span>
                                                 </div>
                                             </div>
-                                            <div className="bg-slate-50 p-1 rounded-lg flex text-xs font-medium border border-slate-100 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
-                                                {[ { id: 'new', label: 'Nový' }, { id: 'contacted', label: 'Kontakt' }, { id: 'meeting', label: 'Obhliadka' }, { id: 'pricing', label: 'Ponuka' } ].map(s => (
-                                                    <button key={s.id} onClick={() => updateLeadStage(lead.id, s.id)} className={getStatusButtonClass(stage === s.id, s.id)}>{s.label}</button>
-                                                ))}
+                                            <div className="flex w-full flex-col items-start gap-1.5 md:w-auto" onClick={(e) => e.stopPropagation()}>
+                                                <span className="pl-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Prepnúť stav dopytu</span>
+                                                <div className="grid w-full grid-cols-2 gap-2 text-xs font-medium md:flex md:w-auto md:gap-0 md:rounded-lg md:border md:border-slate-100 md:bg-slate-50 md:p-1">
+                                                    {[ { id: 'new', label: 'Nový' }, { id: 'contacted', label: 'Kontakt' }, { id: 'meeting', label: 'Obhliadka' }, { id: 'pricing', label: 'Ponuka' } ].map(s => (
+                                                        <button key={s.id} onClick={() => updateLeadStage(lead.id, s.id)} className={getStatusButtonClass(stage === s.id, s.id)}>{s.label}</button>
+                                                    ))}
+                                                </div>
                                             </div>
                                             <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
                                                 <button onClick={() => handleEditSite(lead)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={18}/></button>
@@ -929,7 +935,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                                 </div>
                             </Card>
                         ))}
-                        {sites.length === 0 && <EmptyState message={searchQuery ? "Nenašli sa žiadne projekty." : "Zoznam je prázvny."} />}
+                        {sites.length === 0 && <EmptyState message={searchQuery ? "Nenašli sa žiadne projekty." : "Zoznam je prázdny."} />}
                     </div>
                 )}
                 
@@ -943,7 +949,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
       </div>
 
       {showModal && (
-        <Modal title={editingSite ? "Upraviť" : (activeTab === 'leads' ? "Nový Dopyt" : "Nový Projekt")} onClose={() => setShowModal(false)}>
+        <Modal title={editingSite ? "Upraviť" : (activeTab === 'leads' ? "Nový dopyt" : "Nový projekt")} onClose={() => setShowModal(false)}>
           <form onSubmit={handleSaveSite}>
             <Input label="Názov" value={formData.name} onChange={(e: any) => setFormData({...formData, name: e.target.value})} required autoFocus placeholder={activeTab === 'leads' ? "Napr. Rekonštrukcia bytu" : "Napr. Rodinný dom Záhorská"} />
             <Input label="Adresa" value={formData.address} readOnly disabled placeholder="Adresa sa doplní po vyplnení polí nižšie" className="bg-slate-100 text-slate-600 cursor-not-allowed" />
@@ -1327,9 +1333,120 @@ interface CalcRow {
     margin: number;
 }
 
+interface CalculatorHistoryItem {
+    id: string;
+    expression: string;
+    result: string;
+    createdAt: string;
+}
+
+const CALCULATOR_HISTORY_KEY = 'mojastavba_calculator_history_v1';
+
 const IntegratedCalculator = () => {
     const [display, setDisplay] = useState('0');
     const [equation, setEquation] = useState('');
+    const [history, setHistory] = useState<CalculatorHistoryItem[]>(() => {
+        try {
+            const stored = window.localStorage.getItem(CALCULATOR_HISTORY_KEY);
+            const parsed = stored ? JSON.parse(stored) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    });
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(CALCULATOR_HISTORY_KEY, JSON.stringify(history));
+        } catch {
+            // Kalkulačka funguje aj v režime, v ktorom prehliadač blokuje localStorage.
+        }
+    }, [history]);
+
+    const evaluateExpression = (expression: string) => {
+        const tokens = expression.match(/\d+(?:\.\d+)?|[+\-*/]/g);
+        if (!tokens || tokens.join('') !== expression || tokens.length % 2 === 0) {
+            throw new Error('Neplatný výraz');
+        }
+
+        const values: number[] = [];
+        const operators: string[] = [];
+        const precedence: Record<string, number> = { '+': 1, '-': 1, '*': 2, '/': 2 };
+
+        const applyOperator = () => {
+            const operator = operators.pop();
+            const right = values.pop();
+            const left = values.pop();
+            if (!operator || left === undefined || right === undefined) throw new Error('Neplatný výraz');
+            if (operator === '/' && right === 0) throw new Error('Delenie nulou');
+
+            if (operator === '+') values.push(left + right);
+            else if (operator === '-') values.push(left - right);
+            else if (operator === '*') values.push(left * right);
+            else values.push(left / right);
+        };
+
+        tokens.forEach((token, index) => {
+            if (index % 2 === 0) {
+                const value = Number(token);
+                if (!Number.isFinite(value)) throw new Error('Neplatné číslo');
+                values.push(value);
+                return;
+            }
+
+            while (operators.length && precedence[operators[operators.length - 1]] >= precedence[token]) {
+                applyOperator();
+            }
+            operators.push(token);
+        });
+
+        while (operators.length) applyOperator();
+        if (values.length !== 1 || !Number.isFinite(values[0])) throw new Error('Neplatný výsledok');
+        return values[0];
+    };
+
+    const formatExpression = (value: string) => value.replace(/\*/g, ' × ').replace(/\//g, ' ÷ ').replace(/\+/g, ' + ').replace(/-/g, ' − ');
+
+    const applyUnaryOperation = (operation: 'sqrt' | 'square' | 'percent' | 'reciprocal' | 'backspace') => {
+        if (display === 'Chyba') {
+            setDisplay('0');
+            setEquation('');
+            return;
+        }
+
+        if (operation === 'backspace') {
+            setDisplay(value => value.length <= 1 ? '0' : value.slice(0, -1));
+            return;
+        }
+
+        const current = Number(display);
+        if (!Number.isFinite(current) || (operation === 'sqrt' && current < 0) || (operation === 'reciprocal' && current === 0)) {
+            setDisplay('Chyba');
+            setEquation('');
+            return;
+        }
+
+        let result: number;
+        if (operation === 'sqrt') {
+            result = Math.sqrt(current);
+        } else if (operation === 'square') {
+            result = current * current;
+        } else if (operation === 'reciprocal') {
+            result = 1 / current;
+        } else {
+            const pendingOperator = equation.slice(-1);
+            const baseExpression = equation.slice(0, -1);
+
+            if ((pendingOperator === '+' || pendingOperator === '-') && baseExpression) {
+                const baseValue = evaluateExpression(baseExpression);
+                result = baseValue * current / 100;
+            } else {
+                // Pri násobení a delení je percento pomer: 23 % = 0,23.
+                result = current / 100;
+            }
+        }
+        setDisplay(String(roundFin(result)));
+    };
 
     const handlePress = (val: string) => {
         if (val === 'C') {
@@ -1338,18 +1455,36 @@ const IntegratedCalculator = () => {
         } else if (val === '=') {
             try {
                 const fullEquation = (equation + display).replace(/[^0-9+\-*/.]/g, '');
-                const calculate = new Function(`return ${fullEquation}`);
-                const res = calculate();
-                setDisplay(String(roundFin(Number(res))));
+                const result = evaluateExpression(fullEquation);
+                const roundedResult = String(roundFin(result));
+                setDisplay(roundedResult);
                 setEquation('');
+                setHistory(current => [{
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    expression: formatExpression(fullEquation),
+                    result: roundedResult,
+                    createdAt: new Date().toISOString()
+                }, ...current].slice(0, 40));
             } catch {
                 setDisplay('Chyba');
+                setEquation('');
             }
         } else if (['+', '-', '*', '/'].includes(val)) {
+            if (display === 'Chyba') {
+                setDisplay('0');
+                setEquation('');
+                return;
+            }
             setEquation(equation + display + val);
             setDisplay('0');
         } else {
-            setDisplay(display === '0' ? val : display + val);
+            if (val === '.' && display.includes('.')) return;
+            if (display === 'Chyba') {
+                setEquation('');
+                setDisplay(val === '.' ? '0.' : val);
+                return;
+            }
+            setDisplay(display === '0' ? (val === '.' ? '0.' : val) : display + val);
         }
     };
 
@@ -1359,32 +1494,78 @@ const IntegratedCalculator = () => {
     const eqBtn = `${btnClass} bg-orange-600 text-white hover:bg-orange-700 shadow-orange-200`;
 
     return (
-        <Card className="bg-slate-100 border-slate-200 w-full" padding="p-4">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1"><Calculator size={12}/> Príručná kalkulačka</div>
-            <div className="bg-white border border-slate-300 rounded-xl p-3 mb-4 text-right">
-                <div className="text-xs text-slate-400 h-4 mb-1 truncate">{equation}</div>
-                <div className="text-2xl font-mono font-bold text-slate-800 overflow-hidden">{display}</div>
+      <div className="grid w-full grid-cols-1 items-stretch gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <Card className="w-full border-slate-200 bg-slate-100" padding="p-4">
+            <div className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-slate-500"><Calculator size={12}/> Kalkulačka</div>
+            <div className="relative mb-3 rounded-xl border border-slate-300 bg-white p-3 text-right shadow-inner">
+                <button type="button" onClick={() => applyUnaryOperation('backspace')} className="absolute left-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Vymazať poslednú číslicu"><Delete size={17}/></button>
+                <div className="mb-1 h-4 truncate text-xs font-medium text-slate-400">{formatExpression(equation)}</div>
+                <div className={`overflow-hidden font-mono text-2xl font-bold ${display === 'Chyba' ? 'text-red-600' : 'text-slate-800'}`}>{display}</div>
+            </div>
+            <div className="mb-2 grid grid-cols-4 gap-2">
+                <button type="button" onClick={() => applyUnaryOperation('sqrt')} className={`${btnClass} h-10 bg-slate-200 text-sm text-slate-700 hover:bg-slate-300`}>√x</button>
+                <button type="button" onClick={() => applyUnaryOperation('square')} className={`${btnClass} h-10 bg-slate-200 text-sm text-slate-700 hover:bg-slate-300`}>x²</button>
+                <button type="button" onClick={() => applyUnaryOperation('reciprocal')} className={`${btnClass} h-10 bg-slate-200 text-sm text-slate-700 hover:bg-slate-300`}>1/x</button>
+                <button type="button" onClick={() => applyUnaryOperation('percent')} className={`${btnClass} h-10 bg-slate-200 text-sm text-slate-700 hover:bg-slate-300`}>%</button>
             </div>
             <div className="grid grid-cols-4 gap-2">
-                <button onClick={() => handlePress('7')} className={numBtn}>7</button>
-                <button onClick={() => handlePress('8')} className={numBtn}>8</button>
-                <button onClick={() => handlePress('9')} className={numBtn}>9</button>
-                <button onClick={() => handlePress('/')} className={opBtn}>÷</button>
-                <button onClick={() => handlePress('4')} className={numBtn}>4</button>
-                <button onClick={() => handlePress('5')} className={numBtn}>5</button>
-                <button onClick={() => handlePress('6')} className={numBtn}>6</button>
-                <button onClick={() => handlePress('*')} className={opBtn}>×</button>
-                <button onClick={() => handlePress('1')} className={numBtn}>1</button>
-                <button onClick={() => handlePress('2')} className={numBtn}>2</button>
-                <button onClick={() => handlePress('3')} className={numBtn}>3</button>
-                <button onClick={() => handlePress('-')} className={opBtn}>-</button>
-                <button onClick={() => handlePress('C')} className={`${btnClass} bg-red-100 text-red-600 border border-red-200`}>C</button>
-                <button onClick={() => handlePress('0')} className={numBtn}>0</button>
-                <button onClick={() => handlePress('.')} className={numBtn}>.</button>
-                <button onClick={() => handlePress('+')} className={opBtn}>+</button>
-                <button onClick={() => handlePress('=')} className={`${eqBtn} col-span-4 mt-1`}>=</button>
+                <button type="button" onClick={() => handlePress('7')} className={numBtn}>7</button>
+                <button type="button" onClick={() => handlePress('8')} className={numBtn}>8</button>
+                <button type="button" onClick={() => handlePress('9')} className={numBtn}>9</button>
+                <button type="button" onClick={() => handlePress('/')} className={opBtn}>÷</button>
+                <button type="button" onClick={() => handlePress('4')} className={numBtn}>4</button>
+                <button type="button" onClick={() => handlePress('5')} className={numBtn}>5</button>
+                <button type="button" onClick={() => handlePress('6')} className={numBtn}>6</button>
+                <button type="button" onClick={() => handlePress('*')} className={opBtn}>×</button>
+                <button type="button" onClick={() => handlePress('1')} className={numBtn}>1</button>
+                <button type="button" onClick={() => handlePress('2')} className={numBtn}>2</button>
+                <button type="button" onClick={() => handlePress('3')} className={numBtn}>3</button>
+                <button type="button" onClick={() => handlePress('-')} className={opBtn}>-</button>
+                <button type="button" onClick={() => handlePress('C')} className={`${btnClass} bg-red-100 text-red-600 border border-red-200`}>AC</button>
+                <button type="button" onClick={() => handlePress('0')} className={numBtn}>0</button>
+                <button type="button" onClick={() => handlePress('.')} className={numBtn} aria-label="Desatinná čiarka">,</button>
+                <button type="button" onClick={() => handlePress('+')} className={opBtn}>+</button>
+                <button type="button" onClick={() => handlePress('=')} className={`${eqBtn} col-span-4 mt-1`}>=</button>
             </div>
         </Card>
+
+        <section
+          className="relative min-h-[420px] overflow-hidden rounded-xl border border-amber-200/80 bg-[#fffdf7] p-5 shadow-[0_14px_35px_-26px_rgba(15,23,42,0.55)] sm:p-6"
+          style={{ backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(148,163,184,0.17) 32px)' }}
+        >
+          <div className="absolute bottom-0 left-8 top-0 w-px bg-red-200/60" aria-hidden="true" />
+          <div className="relative ml-5 flex items-center justify-between gap-3 border-b-2 border-slate-800/80 pb-3">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-extrabold text-slate-800"><FileText size={17} className="text-orange-600"/> História kalkulačky</div>
+            </div>
+            {history.length > 0 && (
+              <button type="button" onClick={() => setHistory([])} className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-400 transition hover:bg-red-50 hover:text-red-600">Vymazať</button>
+            )}
+          </div>
+
+          <div className="relative ml-5 mt-3 max-h-[330px] space-y-1 overflow-y-auto pr-2 custom-scrollbar">
+            {history.length === 0 ? (
+              <div className="flex min-h-[220px] flex-col items-center justify-center text-center text-slate-400">
+                <Calculator size={27} strokeWidth={1.5}/>
+                <p className="mt-3 text-sm font-semibold">Výpočty sa zobrazia na tomto hárku</p>
+              </div>
+            ) : history.map(item => (
+              <div key={item.id} className="group flex min-h-14 items-center justify-between gap-4 rounded-lg px-2 py-2 transition hover:bg-white/70">
+                <div className="min-w-0">
+                  <div className="truncate font-mono text-xs font-semibold text-slate-500">{item.expression}</div>
+                  <div className="mt-0.5 font-mono text-lg font-extrabold text-slate-900">= {item.result}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <time className="hidden text-[10px] font-medium text-slate-400 sm:block">
+                    {new Date(item.createdAt).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })}
+                  </time>
+                  <button type="button" onClick={() => setHistory(current => current.filter(entry => entry.id !== item.id))} aria-label="Odstrániť výpočet" className="p-1 text-slate-300 opacity-0 transition hover:text-red-500 group-hover:opacity-100 focus:opacity-100"><X size={14}/></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     );
 };
 
@@ -1467,31 +1648,34 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                             <span className="flex items-center gap-1"><MapPin size={14}/> {lead.address}</span>
                         </div>
                     </div>
-                    <Badge status={lead.lead_stage || 'new'} />
+                    <div className="hidden md:block">
+                        <Badge status={lead.lead_stage || 'new'} />
+                    </div>
                 </div>
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mt-4 mb-6">
-                    <div className="bg-slate-100 p-1 rounded-xl inline-flex gap-1 border border-slate-200 overflow-x-auto max-w-full w-full md:w-auto">
+                    <div className="grid w-full grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 md:inline-flex md:w-auto">
                         {[
-                            { id: 'info', label: 'Prehľad & Poznámky', icon: ClipboardList },
-                            { id: 'calculator', label: 'Rozpočet & Kalkulácia', icon: Calculator },
-                            { id: 'quotes', label: `Cenové ponuky (${quotes.length})`, icon: FileText }
+                            { id: 'info', label: 'Prehľad & Poznámky', mobileLabel: 'Prehľad', icon: ClipboardList },
+                            { id: 'calculator', label: 'Rozpočet & Kalkulácia', mobileLabel: 'Rozpočet', icon: Calculator },
+                            { id: 'quotes', label: `Cenové ponuky (${quotes.length})`, mobileLabel: `Ponuky${quotes.length ? ` (${quotes.length})` : ''}`, icon: FileText }
                         ].map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as any)}
-                                className={`px-4 py-2 text-sm font-bold flex items-center gap-2 rounded-lg transition whitespace-nowrap flex-1 md:flex-none justify-center ${activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                                className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2.5 text-[11px] font-bold transition md:flex-none md:gap-2 md:px-4 md:py-2 md:text-sm ${activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
                             >
-                                <tab.icon size={16}/> {tab.label}
+                                <tab.icon size={15} className="hidden shrink-0 md:block md:h-4 md:w-4"/>
+                                <span className="md:hidden">{tab.mobileLabel}</span>
+                                <span className="hidden whitespace-nowrap md:inline">{tab.label}</span>
                             </button>
                         ))}
                     </div>
                     
                     {activeTab === 'calculator' && (
-                        <Button 
-                            fullWidth
-                            size="sm" 
-                            className="bg-orange-600 hover:bg-orange-700 shadow-orange-200 md:w-auto" 
+                        <button
+                            type="button"
+                            className="flex min-h-11 w-full items-center justify-between rounded-xl border border-orange-200 bg-orange-50 px-4 text-sm font-bold text-orange-700 transition active:scale-[0.99] md:min-h-0 md:w-auto md:justify-center md:gap-2 md:border-transparent md:bg-orange-600 md:px-4 md:py-2 md:text-white md:shadow-lg md:shadow-orange-200 md:hover:bg-orange-700"
                             onClick={() => {
                                 setShowQuoteModal(true);
                                 const quoteItems = calcRows.filter(row => row.description && row.qty > 0).map(row => {
@@ -1508,29 +1692,30 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                 window.quoteItemsFromCalc = quoteItems;
                             }}
                         >
-                            <Send size={16}/> Preniesť do Cenovej Ponuky
-                        </Button>
+                            <span className="flex items-center gap-2"><FileText size={17}/><span className="md:hidden">Vytvoriť ponuku z rozpočtu</span><span className="hidden md:inline">Preniesť do Cenovej Ponuky</span></span>
+                            <ChevronRight size={17} className="md:hidden"/>
+                        </button>
                     )}
                     {activeTab === 'quotes' && (
-                        <Button 
-                            fullWidth
-                            size="sm" 
-                            className="md:w-auto" 
+                        <button
+                            type="button"
+                            className="flex min-h-11 w-full items-center justify-between rounded-xl border border-orange-200 bg-orange-50 px-4 text-sm font-bold text-orange-700 transition active:scale-[0.99] md:min-h-0 md:w-auto md:justify-center md:gap-2 md:border-transparent md:bg-orange-600 md:px-4 md:py-2 md:text-white md:shadow-lg md:shadow-orange-200 md:hover:bg-orange-700"
                             onClick={() => setShowQuoteModal(true)}
                         >
-                            <Plus size={16}/> Vytvoriť Cenovú Ponuku
-                        </Button>
+                            <span className="flex items-center gap-2"><FileText size={17}/> Vytvoriť cenovú ponuku</span>
+                            <ChevronRight size={17} className="md:hidden"/>
+                        </button>
                     )}
                 </div>
 
                 <div>
                     {activeTab === 'info' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in">
-                            <div className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Poznámky k dopytu</label>
+                        <div className="grid grid-cols-1 items-stretch gap-8 animate-in fade-in md:grid-cols-2">
+                            <div className="h-full min-h-[360px]">
+                                <div className="h-full">
                                     <textarea 
-                                        className="w-full h-64 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 resize-none font-medium text-slate-700 leading-relaxed"
+                                        className="h-full min-h-[360px] w-full resize-none rounded-2xl border border-amber-200/80 bg-[#fffdf7] py-5 pl-12 pr-5 font-medium leading-8 text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:ring-4 focus:ring-orange-100/60"
+                                        style={{ backgroundImage: 'linear-gradient(to right, transparent 0, transparent 31px, rgba(248,113,113,0.28) 32px, transparent 33px), repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(148,163,184,0.18) 32px)' }}
                                         placeholder="Sem si napíšte detaily, čo treba spraviť, odhady, telefonáty..."
                                         value={cleanNotes}
                                         onChange={(e) => {
@@ -1555,23 +1740,51 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                     </div>
                                 )}
                             </div>
-                            <div className="space-y-6">
-                                <Card className="bg-blue-50/50 border-blue-100">
-                                    <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2"><Briefcase size={18}/> Detaily</h3>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-blue-700/60 uppercase tracking-wider mb-1">Odhadovaný rozpočet (€)</label>
-                                            <input 
-                                                type="number"
-                                                className="w-full bg-white border border-blue-200 rounded-lg p-2 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-300 transition"
-                                                defaultValue={lead.budget === 0 ? '' : lead.budget}
-                                                onFocus={(e) => e.target.select()}
-                                                onBlur={(e) => handleUpdateBudget(Math.max(0, parseFloat(e.target.value) || 0))}
-                                                placeholder="0.00"
-                                            />
-                                        </div>
-                                        <div className="flex justify-between text-sm"><span className="text-slate-500">Vytvorené:</span> <span className="font-bold">{formatDate(lead.created_at)}</span></div>
+                            <div className="space-y-4">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTab('quotes');
+                                    setShowQuoteModal(true);
+                                  }}
+                                  className="group flex w-full items-center justify-between gap-4 rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md active:translate-y-0"
+                                >
+                                  <span className="flex items-center gap-3">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-600 text-white shadow-lg shadow-orange-200"><FileText size={21}/></span>
+                                    <span>
+                                      <strong className="block text-base text-slate-900">Vytvoriť cenovú ponuku</strong>
+                                      <span className="mt-0.5 block text-xs font-medium text-slate-500">Otvoriť formulár novej ponuky</span>
+                                    </span>
+                                  </span>
+                                  <ArrowLeft size={19} className="rotate-180 text-orange-500 transition-transform group-hover:translate-x-1"/>
+                                </button>
+
+                                <Card className="border-slate-200 bg-white" padding="p-0">
+                                  <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                                    <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800"><FileCheck size={17} className="text-orange-600"/> Cenové ponuky</h3>
+                                    {quotes.length > 0 && (
+                                      <button type="button" onClick={() => setActiveTab('quotes')} className="text-xs font-bold text-orange-600 transition hover:text-orange-700">Zobraziť všetky</button>
+                                    )}
+                                  </div>
+
+                                  {quotes.length > 0 ? (
+                                    <div className="divide-y divide-slate-100">
+                                      {quotes.slice(0, 3).map((quote: any) => (
+                                        <button key={quote.id} type="button" onClick={() => setActiveTab('quotes')} className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-slate-50">
+                                          <div className="min-w-0">
+                                            <div className="truncate text-sm font-bold text-slate-800">{quote.quote_number || 'Cenová ponuka'}</div>
+                                            <div className="mt-0.5 text-[11px] font-medium text-slate-400">{formatDate(quote.issue_date)}</div>
+                                          </div>
+                                          <div className="shrink-0 text-sm font-extrabold text-slate-900">{formatMoney(Number(quote.total_amount || 0))}</div>
+                                        </button>
+                                      ))}
                                     </div>
+                                  ) : (
+                                    <div className="flex min-h-40 flex-col items-center justify-center px-5 py-8 text-center">
+                                      <span className="text-3xl" aria-hidden="true">☹</span>
+                                      <p className="mt-3 max-w-xs text-sm font-semibold leading-relaxed text-slate-500">Ešte nemáte k tejto zákazke žiadnu cenovú ponuku.</p>
+                                    </div>
+                                  )}
                                 </Card>
                             </div>
                         </div>
@@ -1579,22 +1792,62 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
 
                     {activeTab === 'calculator' && (
                         <div className="animate-in fade-in space-y-6">
-                            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                                <div className="bg-slate-50 border-b border-slate-200 p-3 flex justify-between items-center">
-                                    <div className="font-bold text-slate-700 text-sm flex items-center gap-2"><LayoutList size={16}/> Rozpočtový Hárok</div>
-                                    <Button variant="secondary" size="sm" onClick={addCalcRow}><Plus size={14}/> Pridať položku</Button>
+                            <div className="-mx-4 overflow-hidden border-y border-slate-200 bg-white shadow-sm sm:mx-0 sm:rounded-xl sm:border">
+                                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-3">
+                                    <div className="flex min-w-0 items-center gap-2 text-sm font-bold text-slate-700"><LayoutList size={16} className="shrink-0"/> <span className="md:hidden">Rozpočet</span><span className="hidden md:inline">Rozpočtový hárok</span></div>
+                                    <button type="button" onClick={addCalcRow} className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-orange-700"><Plus size={14}/> Položka</button>
                                 </div>
-                                <div className="w-full overflow-x-auto lg:overflow-visible custom-scrollbar">
-                                  <table className="w-full text-sm text-left min-w-[800px] lg:min-w-0">
+
+                                <div className="divide-y divide-slate-100 md:hidden">
+                                  {calcRows.map((row, i) => {
+                                    const rowCost = roundFin(row.qty * row.unit_cost);
+                                    const rowPrice = roundFin(rowCost / ((100 - row.margin) / 100));
+                                    return (
+                                      <div key={row.id} className="space-y-3 p-4">
+                                        <div className="flex items-center justify-between gap-3">
+                                          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 font-mono text-xs font-bold text-slate-500">{i + 1}</span>
+                                          <button type="button" onClick={() => removeCalcRow(row.id)} aria-label="Odstrániť položku" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-500"><Trash2 size={16}/></button>
+                                        </div>
+                                        <input list="quote-desc-suggestions" className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-800 outline-none placeholder:text-slate-400 focus:border-orange-300 focus:bg-white" value={row.description} onChange={e => updateRow(row.id, 'description', e.target.value)} placeholder="Názov položky..." />
+                                        <div className="grid grid-cols-2 gap-3">
+                                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Merná jednotka
+                                            <select className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-700 outline-none" value={row.unit} onChange={e => updateRow(row.id, 'unit', e.target.value)}>
+                                              {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                                            </select>
+                                          </label>
+                                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Množstvo
+                                            <input type="number" min="0" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-right font-mono text-sm text-slate-800 outline-none" value={row.qty === 0 ? '' : row.qty} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'qty', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" />
+                                          </label>
+                                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cena
+                                            <input type="number" min="0" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-right font-mono text-sm text-slate-800 outline-none" value={row.unit_cost === 0 ? '' : row.unit_cost} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'unit_cost', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" />
+                                          </label>
+                                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Marža %
+                                            <input type="number" min="0" className="mt-1.5 h-10 w-full rounded-xl border border-orange-100 bg-orange-50/50 px-3 text-right text-sm font-bold text-orange-600 outline-none" value={row.margin === 0 ? '' : row.margin} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'margin', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" />
+                                          </label>
+                                        </div>
+                                        <div className="flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-white">
+                                          <span className="text-xs font-semibold text-slate-300">Predajná cena</span>
+                                          <strong className="text-base tabular-nums">{formatMoney(rowPrice)}</strong>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  <div className="p-3">
+                                    <button type="button" onClick={addCalcRow} className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-orange-200 bg-orange-50/50 px-4 py-3 text-sm font-bold text-orange-700"><Plus size={16}/> Pridať ďalšiu položku</button>
+                                  </div>
+                                </div>
+
+                                <div className="hidden w-full overflow-x-auto custom-scrollbar md:block lg:overflow-visible">
+                                  <table className="w-full table-fixed text-sm text-left min-w-[800px] lg:min-w-0">
                                       <thead className="bg-white text-slate-500 font-bold text-xs uppercase tracking-wider border-b border-slate-100">
                                           <tr>
-                                              <th className="p-3 w-8">#</th>
-                                              <th className="p-3 min-w-[200px]">Popis</th>
-                                              <th className="p-3 w-24 text-center px-6">MJ</th>
-                                              <th className="p-3 w-20 text-right px-6">Mn.</th>
-                                              <th className="p-3 w-24 text-right px-6">Cena</th>
-                                              <th className="p-3 w-28 text-right px-6">Marža %</th>
-                                              <th className="p-3 w-32 text-right px-6">Predajná Cena</th>
+                                              <th className="w-8 whitespace-nowrap p-3">#</th>
+                                              <th className="w-[46%] whitespace-nowrap p-3">Popis</th>
+                                              <th className="w-[8%] whitespace-nowrap px-2 py-3 text-center">MJ</th>
+                                              <th className="w-[8%] whitespace-nowrap px-2 py-3 text-right">Mn.</th>
+                                              <th className="w-[10%] whitespace-nowrap px-2 py-3 text-right">Cena</th>
+                                              <th className="w-[10%] whitespace-nowrap px-2 py-3 text-right">Marža %</th>
+                                              <th className="w-[14%] whitespace-nowrap px-3 py-3 text-right">Predajná cena</th>
                                               <th className="p-3 w-10"></th>
                                           </tr>
                                       </thead>
@@ -1606,20 +1859,34 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                                       <tr key={row.id} className="group hover:bg-slate-50 transition">
                                                           <td className="p-3 text-center text-slate-300 font-mono">{i+1}</td>
                                                           <td className="p-3"><input list="quote-desc-suggestions" className="w-full bg-transparent outline-none font-bold text-slate-700 placeholder:text-slate-300 min-h-[40px]" value={row.description} onChange={e => updateRow(row.id, 'description', e.target.value)} placeholder="Názov položky..." /></td>
-                                                          <td className="p-3 text-center px-6">
+                                                          <td className="p-3 px-2 text-center">
                                                               <select className="w-full bg-transparent outline-none text-center text-slate-500" value={row.unit} onChange={e => updateRow(row.id, 'unit', e.target.value)}>
                                                                   {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                                                               </select>
                                                           </td>
-                                                          <td className="p-3 text-right px-6"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.qty === 0 ? '' : row.qty} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'qty', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
-                                                          <td className="p-3 text-right px-6"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.unit_cost === 0 ? '' : row.unit_cost} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'unit_cost', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
-                                                          <td className="p-3 text-right px-6"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-bold text-orange-600" value={row.margin === 0 ? '' : row.margin} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'margin', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
-                                                          <td className="p-3 text-right px-6 font-bold text-slate-900 bg-slate-50/50">{formatMoney(rowPrice)}</td>
+                                                          <td className="p-3 px-2 text-right"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.qty === 0 ? '' : row.qty} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'qty', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
+                                                          <td className="p-3 px-2 text-right"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.unit_cost === 0 ? '' : row.unit_cost} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'unit_cost', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
+                                                          <td className="p-3 px-2 text-right"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-bold text-orange-600" value={row.margin === 0 ? '' : row.margin} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'margin', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
+                                                          <td className="bg-slate-50/50 p-3 text-right font-bold text-slate-900">{formatMoney(rowPrice)}</td>
                                                           <td className="p-3 text-center"><button onClick={() => removeCalcRow(row.id)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></td>
                                                       </tr>
                                                   );
                                               })}
                                           </tbody>
+                                          <tfoot>
+                                              <tr className="border-t border-slate-100 bg-slate-50/60">
+                                                  <td colSpan={8} className="p-2.5">
+                                                      <button
+                                                          type="button"
+                                                          onClick={addCalcRow}
+                                                          className="group flex w-full items-center gap-2 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-left text-sm font-bold text-slate-500 transition hover:border-orange-300 hover:bg-orange-50/70 hover:text-orange-700"
+                                                      >
+                                                          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-orange-600 shadow-sm ring-1 ring-slate-200 transition group-hover:ring-orange-200"><Plus size={16}/></span>
+                                                          Pridať ďalšiu položku
+                                                      </button>
+                                                  </td>
+                                              </tr>
+                                          </tfoot>
                                       </table>
                                     </div>
                                 </div>
@@ -1639,8 +1906,8 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col lg:flex-row gap-6 items-start">
-                                    <div className="w-full lg:max-w-[320px]">
+                                <div className="flex flex-col gap-6 items-start">
+                                    <div className="w-full">
                                         <IntegratedCalculator />
                                     </div>
                                 </div>
@@ -1666,17 +1933,25 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                 />
             )}
 
-            <ConfirmModal
-                isOpen={showConvertModal}
-                onClose={() => setShowConvertModal(false)}
-                onConfirm={() => {
-                    supabase.from('sites').update({ status: 'active', lead_stage: null }).eq('id', siteId).then(() => onConvertToProject());
-                }}
-                title="Začať realizáciu?"
-                message="Zákazka bude presunutá do realizácie. Uistite sa, že máte hotovú cenovú ponuku."
-                confirmText="Začať Realizáciu"
-                type="primary"
-            />
+            {showConvertModal && (
+                <Modal title="Začať realizáciu?" onClose={() => setShowConvertModal(false)} maxWidth="max-w-md">
+                    <div className="flex flex-col items-center text-center">
+                        <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-orange-100 bg-orange-50 text-orange-600 shadow-sm">
+                            <Smile size={34} strokeWidth={1.8}/>
+                        </div>
+                        <p className="max-w-sm text-base font-semibold leading-relaxed text-slate-700">Naozaj chcete začať realizáciu tejto zákazky?</p>
+                        <div className="mt-6 grid w-full grid-cols-2 gap-3">
+                            <Button variant="secondary" onClick={() => setShowConvertModal(false)}>Ešte nie</Button>
+                            <Button onClick={() => {
+                                supabase.from('sites').update({ status: 'active', lead_stage: null }).eq('id', siteId).then(() => {
+                                    setShowConvertModal(false);
+                                    onConvertToProject();
+                                });
+                            }}><CheckCircle2 size={17}/> Začať realizáciu</Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 };
@@ -1947,9 +2222,16 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
     };
 
     return (
-        <Modal title="Tvorba Cenovej Ponuky" onClose={onClose} maxWidth="max-w-6xl">
-            <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+        <Modal
+            title="Tvorba cenovej ponuky"
+            onClose={onClose}
+            maxWidth="max-w-6xl"
+            overlayClassName="!p-0 sm:!p-4"
+            panelClassName="!max-h-[100dvh] !rounded-none sm:!max-h-[90vh] sm:!rounded-3xl"
+            contentClassName="!p-3 sm:!p-6"
+        >
+            <div className="space-y-4 sm:space-y-6">
+                <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-100 bg-slate-50 p-3 sm:p-4 md:grid-cols-2 md:gap-6">
                     <div className="space-y-4">
                         <Select label="Projekt / Dopyt" value={header.site_id} onChange={(e: any) => setHeader({...header, site_id: e.target.value})}>
                             <option value="">-- Bez projektu --</option>
@@ -1959,7 +2241,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                         <Input label="Adresa Klienta" value={header.client_address} onChange={(e: any) => setHeader({...header, client_address: e.target.value})} />
                     </div>
                     <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             <Input label="Dátum vystavenia" type="date" value={header.issue_date} onChange={(e: any) => setHeader({...header, issue_date: e.target.value})} />
                             <Input label="Platnosť do" type="date" value={header.valid_until} onChange={(e: any) => setHeader({...header, valid_until: e.target.value})} />
                         </div>
@@ -1974,8 +2256,8 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                             </div>
                         </div>
                         {header.has_vat && (
-                            <div className="bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                                <div className="flex min-w-0 flex-1 items-center gap-2">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Predvolená DPH</span>
                                     <div className="relative w-20">
                                         <input
@@ -2046,7 +2328,59 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                             Položky boli automaticky prenesené z kalkulácie
                         </div>
                     )}
-                    <div className="border border-slate-200 rounded-xl overflow-visible shadow-sm bg-white">
+                    <div className="space-y-3 md:hidden">
+                        {items.map((item: any, i: number) => {
+                            const itemSub = roundFin(Number(item.quantity) * Number(item.unit_price));
+                            const itemVat = header.has_vat ? roundFin(itemSub * (item.vat_rate / 100)) : 0;
+                            const itemTotal = roundFin(itemSub + itemVat);
+                            return (
+                                <div key={i} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                                    <div className="mb-3 flex items-center justify-between">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 font-mono text-xs font-bold text-slate-500">{i + 1}</span>
+                                        <button type="button" onClick={() => removeItem(i)} aria-label="Odstrániť položku" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 active:bg-red-50 active:text-red-500"><Trash2 size={16}/></button>
+                                    </div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Popis
+                                        <input
+                                            className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold normal-case tracking-normal text-slate-800 outline-none focus:border-orange-300 focus:bg-white"
+                                            placeholder="Názov položky..."
+                                            value={item.description}
+                                            onChange={e => updateItem(i, 'description', e.target.value)}
+                                        />
+                                    </label>
+                                    <div className="mt-3 grid grid-cols-3 gap-2">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Mn.
+                                            <input type="number" min="0" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-2 text-center text-sm font-semibold normal-case tracking-normal text-slate-800 outline-none" value={item.quantity === 0 ? '' : item.quantity} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" />
+                                        </label>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Jedn.
+                                            <select className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-1 text-center text-sm font-semibold normal-case tracking-normal text-slate-700 outline-none" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
+                                                {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                                            </select>
+                                        </label>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Cena
+                                            <input type="number" min="0" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-2 text-right text-sm font-semibold normal-case tracking-normal text-slate-800 outline-none" value={item.unit_price === 0 ? '' : item.unit_price} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'unit_price', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" />
+                                        </label>
+                                    </div>
+                                    {header.has_vat && (
+                                        <div className="mt-3 grid grid-cols-2 gap-2">
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">DPH %
+                                                <input type="number" min="0" className="mt-1.5 h-10 w-full rounded-xl border border-orange-100 bg-orange-50/60 px-3 text-right text-sm font-bold normal-case tracking-normal text-orange-700 outline-none" value={item.vat_rate} onFocus={e => e.target.select()} onChange={e => updateItem(i, 'vat_rate', Math.max(0, parseFloat(e.target.value) || 0))} />
+                                            </label>
+                                            <div className="rounded-xl bg-slate-50 px-3 py-2 text-right">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">DPH suma</div>
+                                                <div className="mt-1 text-sm font-bold tabular-nums text-slate-600">{formatMoney(itemVat)}</div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-white">
+                                        <span className="text-xs font-semibold text-slate-300">Celkom</span>
+                                        <strong className="tabular-nums">{formatMoney(itemTotal)}</strong>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        <button type="button" onClick={addItem} className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-orange-200 bg-orange-50/60 px-4 py-3 text-sm font-bold text-orange-700"><Plus size={16}/> Pridať ďalšiu položku</button>
+                    </div>
+                    <div className="hidden border border-slate-200 rounded-xl overflow-visible shadow-sm bg-white md:block">
                         <div className="w-full overflow-x-auto overflow-y-visible custom-scrollbar">
                            <table className="w-full text-sm text-left min-w-[980px]">
                             <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 text-[11px]">
@@ -2204,6 +2538,20 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                                     );
                                 })}
                             </tbody>
+                            <tfoot>
+                                <tr className="border-t border-slate-100 bg-slate-50/60">
+                                    <td colSpan={header.has_vat ? 8 : 6} className="p-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={addItem}
+                                            className="group flex w-full items-center gap-2 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-left text-sm font-bold text-slate-500 transition hover:border-orange-300 hover:bg-orange-50/70 hover:text-orange-700"
+                                        >
+                                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-orange-600 shadow-sm ring-1 ring-slate-200 transition group-hover:ring-orange-200"><Plus size={16}/></span>
+                                            Pridať ďalšiu položku
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tfoot>
                            </table>
                         </div>
                     </div>
@@ -2587,7 +2935,7 @@ const LogDetailModal = ({ log, onClose }: { log: any, onClose: () => void }) => 
     if (!log) return null;
     const cost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : roundFin(Number(log.hours) * (log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0));
     return (
-        <Modal title="Detail Práce" onClose={onClose} maxWidth="max-w-md">
+        <Modal title="Detail práce" onClose={onClose} maxWidth="max-w-md">
             <div className="space-y-6">
                 <div>
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Popis práce</div>
@@ -3239,7 +3587,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       <AlertModal isOpen={alertState.open} onClose={() => setAlertState({...alertState, open: false})} title={alertState.title} message={alertState.message} type={alertState.type as any} />
       
       {statusModalOpen && (
-          <Modal title="Zmeniť Status" onClose={() => setStatusModalOpen(false)}>
+          <Modal title="Zmeniť stav" onClose={() => setStatusModalOpen(false)}>
               <div className="grid gap-3">
                   {[
                       { val: 'lead', label: 'Dopyt (Lead)', desc: 'Potenciálny zákazník v štádiu rokovania.' },
