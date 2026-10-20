@@ -78,6 +78,13 @@ const roundFin = (num: number): number => {
     return Math.round((num + Number.EPSILON) * 100) / 100;
 };
 
+type PriceCalculationMode = 'margin' | 'markup';
+
+const calculateSellingPrice = (cost: number, percent: number, mode: PriceCalculationMode): number => {
+    if (mode === 'markup') return cost * (1 + percent / 100);
+    return percent < 100 ? cost / ((100 - percent) / 100) : cost;
+};
+
 const normalizeQuoteLibraryKey = (description: string) =>
     description.trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -1576,6 +1583,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     const [quotes, setQuotes] = useState<any[]>([]);
     const [showQuoteModal, setShowQuoteModal] = useState(false);
     const [showConvertModal, setShowConvertModal] = useState(false);
+    const [priceCalculationMode, setPriceCalculationMode] = useState<PriceCalculationMode>('margin');
     
     const [calcRows, setCalcRows] = useState<CalcRow[]>([
         { id: '1', description: 'Položka č.1', unit: 'ks', qty: 1, unit_cost: 0, margin: 20 },
@@ -1620,8 +1628,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
     const totalCost = roundFin(calcRows.reduce((acc, r) => acc + (r.qty * r.unit_cost), 0));
     const totalPrice = roundFin(calcRows.reduce((acc, r) => {
         const cost = r.qty * r.unit_cost;
-        const price = cost / ((100 - r.margin) / 100);
-        return acc + (r.margin < 100 ? price : cost);
+        return acc + calculateSellingPrice(cost, r.margin, priceCalculationMode);
     }, 0));
     const totalProfit = roundFin(totalPrice - totalCost);
 
@@ -1681,7 +1688,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                 setShowQuoteModal(true);
                                 const quoteItems = calcRows.filter(row => row.description && row.qty > 0).map(row => {
                                     const cost = row.qty * row.unit_cost;
-                                    const price = row.margin < 100 ? cost / ((100 - row.margin) / 100) : cost;
+                                    const price = calculateSellingPrice(cost, row.margin, priceCalculationMode);
                                     return {
                                         description: row.description,
                                         quantity: row.qty,
@@ -1799,10 +1806,25 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                     <button type="button" onClick={addCalcRow} className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-orange-700"><Plus size={14}/> Položka</button>
                                 </div>
 
+                                <div className="flex flex-col gap-2 border-b border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-700">Spôsob výpočtu predajnej ceny</p>
+                                        <p className="mt-0.5 text-[11px] text-slate-400">
+                                            {priceCalculationMode === 'margin'
+                                                ? 'Marža je podiel z predajnej ceny · 100 € pri 20 % = 125 €'
+                                                : 'Prirážka sa pridáva k nákladu · 100 € pri 20 % = 120 €'}
+                                        </p>
+                                    </div>
+                                    <div className="grid shrink-0 grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
+                                        <button type="button" onClick={() => setPriceCalculationMode('margin')} className={`rounded-lg px-3 py-2 transition ${priceCalculationMode === 'margin' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Marža</button>
+                                        <button type="button" onClick={() => setPriceCalculationMode('markup')} className={`rounded-lg px-3 py-2 transition ${priceCalculationMode === 'markup' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Prirážka</button>
+                                    </div>
+                                </div>
+
                                 <div className="divide-y divide-slate-100 md:hidden">
                                   {calcRows.map((row, i) => {
                                     const rowCost = roundFin(row.qty * row.unit_cost);
-                                    const rowPrice = roundFin(rowCost / ((100 - row.margin) / 100));
+                                    const rowPrice = roundFin(calculateSellingPrice(rowCost, row.margin, priceCalculationMode));
                                     return (
                                       <div key={row.id} className="space-y-3 p-4">
                                         <div className="flex items-center justify-between gap-3">
@@ -1822,7 +1844,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                           <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cena
                                             <input type="number" min="0" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-right font-mono text-sm text-slate-800 outline-none" value={row.unit_cost === 0 ? '' : row.unit_cost} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'unit_cost', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" />
                                           </label>
-                                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Marža %
+                                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{priceCalculationMode === 'margin' ? 'Marža' : 'Prirážka'} %
                                             <input type="number" min="0" className="mt-1.5 h-10 w-full rounded-xl border border-orange-100 bg-orange-50/50 px-3 text-right text-sm font-bold text-orange-600 outline-none" value={row.margin === 0 ? '' : row.margin} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'margin', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" />
                                           </label>
                                         </div>
@@ -1847,7 +1869,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                               <th className="w-[8%] whitespace-nowrap px-2 py-3 text-center">MJ</th>
                                               <th className="w-[8%] whitespace-nowrap px-2 py-3 text-right">Mn.</th>
                                               <th className="w-[10%] whitespace-nowrap px-2 py-3 text-right">Cena</th>
-                                              <th className="w-[10%] whitespace-nowrap px-2 py-3 text-right">Marža %</th>
+                                              <th className="w-[10%] whitespace-nowrap px-2 py-3 text-right">{priceCalculationMode === 'margin' ? 'Marža' : 'Prirážka'} %</th>
                                               <th className="w-[14%] whitespace-nowrap px-3 py-3 text-right">Predajná cena</th>
                                               <th className="p-3 w-10"></th>
                                           </tr>
@@ -1855,7 +1877,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                       <tbody className="divide-y divide-slate-100">
                                               {calcRows.map((row, i) => {
                                                   const rowCost = roundFin(row.qty * row.unit_cost);
-                                                  const rowPrice = roundFin(rowCost / ((100 - row.margin) / 100));
+                                                  const rowPrice = roundFin(calculateSellingPrice(rowCost, row.margin, priceCalculationMode));
                                                   return (
                                                       <tr key={row.id} className="group hover:bg-slate-50 transition">
                                                           <td className="p-3 text-center text-slate-300 font-mono">{i+1}</td>
