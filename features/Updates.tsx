@@ -20,6 +20,16 @@ const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mo
 
 const pwaUpdates = [
   {
+    date: '20. október 2026',
+    version: 'v5.4.7',
+    title: 'Obedné prestávky a nastavenia tímu',
+    items: [
+      'Oprava: Vrátená možnosť pridania obednej prestávky pri zapisovaní dochádzky.',
+      'V sekcii Tím môžete každému zamestnancovi nastaviť vlastnú predvolenú obednú prestávku. Pri zapisovaní hodín sa automaticky predvyplní a odpočíta z odpracovaného času.',
+      'Nastavenia zamestnanca sú prehľadnejšie a vysvetlenie mzdových sadzieb zobrazíte kliknutím na otáznik.'
+    ]
+  },
+  {
     date: '6. október 2026',
     version: 'v5.4.6',
     title: 'Cenové ponuky a kalkulačka',

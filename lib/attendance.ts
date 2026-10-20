@@ -1,8 +1,24 @@
-const minutesFromTime = (value: string): number | null => {
+export const minutesFromTime = (value: string): number | null => {
   if (!/^\d{2}:\d{2}$/.test(value || '')) return null;
   const [hours, minutes] = value.split(':').map(Number);
   if (hours > 23 || minutes > 59) return null;
   return hours * 60 + minutes;
+};
+
+export const getDefaultAttendanceBreak = (profile: any) => ({
+  has_break: Boolean(profile?.default_break_start && profile?.default_break_end),
+  break_start: profile?.default_break_start || '12:00',
+  break_end: profile?.default_break_end || '12:45'
+});
+
+export const defaultBreakPayload = (form: any) => {
+  if (!form.has_break) return { default_break_start: null, default_break_end: null };
+  const start = minutesFromTime(form.break_start);
+  const end = minutesFromTime(form.break_end);
+  if (start === null || end === null || end <= start) {
+    throw new Error('Koniec predvoleného obeda musí byť neskôr ako začiatok.');
+  }
+  return { default_break_start: form.break_start, default_break_end: form.break_end };
 };
 
 export const calculateAttendanceMinutes = (

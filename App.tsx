@@ -1400,6 +1400,10 @@ export const App = () => {
                               <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
                               <span>Oprava: Vrátená možnosť pridania obednej prestávky pri zapisovaní dochádzky.</span>
                             </li>
+                            <li className="flex gap-2.5">
+                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
+                              <span>V sekcii Tím môžete každému zamestnancovi nastaviť vlastnú predvolenú obednú prestávku. Pri zapisovaní hodín sa automaticky predvyplní a odpočíta z odpracovaného času.</span>
+                            </li>
                           </ul>
                         </div>
                         <div className="mt-6">

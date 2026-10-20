@@ -7,6 +7,10 @@ import { UserPlus, Mail, Coins, Phone, ArrowLeft, Calendar, Building2, Banknote,
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
 import { Capacitor } from '@capacitor/core';
 import { PLANS } from './Subscription';
+import { getDefaultAttendanceBreak, defaultBreakPayload } from '../lib/attendance';
+import { DefaultAttendanceBreak } from '../components/DefaultAttendanceBreak';
+import { WageRatesHelp } from '../components/WageRatesHelp';
+import { EmployeeProfileOptions } from '../components/EmployeeProfileOptions';
 
 const TEAM_PAGE_SIZE = 15;
 const formatRoleBadge = (worker: any) => {
@@ -47,7 +51,8 @@ const TeamList = ({ profile, onSelect }: any) => {
     phone: '', 
     is_active: true, 
     job_title: 'zamestnanec',
-    show_wage_in_profile: true 
+    show_wage_in_profile: true,
+    ...getDefaultAttendanceBreak(null)
   });
   
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string, name?: string}>({ open: false, action: '', id: '' });
@@ -175,7 +180,8 @@ const TeamList = ({ profile, onSelect }: any) => {
           phone: worker.phone,
           is_active: worker.is_active,
           job_title: displayJobTitle,
-          show_wage_in_profile: worker.show_wage_in_profile ?? true
+          show_wage_in_profile: worker.show_wage_in_profile ?? true,
+          ...getDefaultAttendanceBreak(worker)
       });
       setShowModal(true);
   }
@@ -194,6 +200,7 @@ const TeamList = ({ profile, onSelect }: any) => {
     }
 
     try {
+        const breakDefaults = defaultBreakPayload(formData);
         let error;
         if (editingWorker) {
              const payload: any = {
@@ -204,7 +211,8 @@ const TeamList = ({ profile, onSelect }: any) => {
                 phone: formData.phone,
                 is_active: formData.is_active,
                 job_title: formData.job_title,
-                show_wage_in_profile: formData.show_wage_in_profile
+                show_wage_in_profile: formData.show_wage_in_profile,
+                ...breakDefaults
              };
              
              if (editingWorker.role === 'admin') {
@@ -226,7 +234,8 @@ const TeamList = ({ profile, onSelect }: any) => {
               phone: formData.phone,
               is_active: true,
               job_title: formData.job_title || 'zamestnanec',
-              show_wage_in_profile: formData.show_wage_in_profile
+              show_wage_in_profile: formData.show_wage_in_profile,
+                ...breakDefaults
             }]);
             error = err;
         }
@@ -554,48 +563,19 @@ const TeamList = ({ profile, onSelect }: any) => {
                 className={editingWorker?.role === 'admin' ? 'bg-slate-50 cursor-not-allowed font-bold text-slate-500' : ''}
             />
 
+            <WageRatesHelp />
             <div className="grid grid-cols-2 gap-4">
                 <Input label="Mzdová sadzba (€/h)" type="number" step="0.5" value={formData.rate} onChange={(e: any) => setFormData({...formData, rate: parseFloat(e.target.value)})} required />
                 <Input label="Celková cena práce (€/h)" type="number" step="0.5" value={formData.costRate} onChange={(e: any) => setFormData({...formData, costRate: parseFloat(e.target.value)})} required />
             </div>
+
+            <DefaultAttendanceBreak value={formData} onChange={setFormData} />
             
-            <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-2">
-                <Info size={16} className="text-blue-500 mt-0.5 shrink-0"/>
-                <p className="text-[10px] text-blue-700 leading-relaxed font-medium">
-                    <strong>Mzdová sadzba:</strong> to čo zamestnanec vidí vo svojom profile.<br/>
-                    <strong>Celková cena práce (CCP):</strong> úplný náklad firmy na zamestnanca. Toto číslo sa používa najmä pri výpočte analytiky zákaziek a firmy.
-                </p>
-            </div>
 
             <Input label="Telefón" value={formData.phone} onChange={(e: any) => setFormData({...formData, phone: e.target.value})} placeholder="+421..." />
             <Input label="Email" type="email" value={formData.email} onChange={(e: any) => setFormData({...formData, email: e.target.value})} readOnly className="bg-slate-50" />
             
-            <div className="space-y-3 pt-2 border-t border-slate-100">
-                <div className="flex items-center gap-2">
-                    <input type="checkbox" id="isActive" checked={formData.is_active} onChange={(e) => setFormData({...formData, is_active: e.target.checked})} className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500" />
-                    <label htmlFor="isActive" className="text-sm font-bold text-slate-700">Aktívny zamestnanec</label>
-                </div>
-
-                {editingWorker?.role !== 'admin' && (
-                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl space-y-2">
-                        <div className="flex items-center gap-2">
-                            <input 
-                                type="checkbox" 
-                                id="showWage" 
-                                checked={formData.show_wage_in_profile} 
-                                onChange={(e) => setFormData({...formData, show_wage_in_profile: e.target.checked})} 
-                                className="w-6 h-6 rounded text-blue-600 focus:ring-orange-500" 
-                            />
-                            <label htmlFor="showWage" className="text-sm font-black text-blue-900 flex items-center gap-2 cursor-pointer">
-                                Zobrazovať mzdu v profile
-                            </label>
-                        </div>
-                        <p className="text-[10px] text-blue-700 font-medium leading-relaxed ml-8">
-                            Po zakliknutí sa bude zamestnancovi v profile zobrazovať jeho hodinová mzda a celkový mesačný zárobok.
-                        </p>
-                    </div>
-                )}
-            </div>
+            <EmployeeProfileOptions value={formData} onChange={setFormData} showWageOption={editingWorker?.role !== 'admin'} />
 
             <Button type="submit" fullWidth className="mt-4 shadow-md">Uložiť Zmeny</Button>
           </form>
@@ -752,7 +732,8 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 phone: e.data.phone,
                 is_active: e.data.is_active,
                 job_title: e.data.role === 'admin' ? 'Administrátor' : (e.data.job_title || 'zamestnanec'),
-                show_wage_in_profile: e.data.show_wage_in_profile ?? true
+                show_wage_in_profile: e.data.show_wage_in_profile ?? true,
+                ...getDefaultAttendanceBreak(e.data)
             });
         }
         if (l.data) setAllLogs(l.data);
@@ -772,7 +753,8 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 phone: formData.phone,
                 is_active: formData.is_active,
                 job_title: formData.job_title,
-                show_wage_in_profile: formData.show_wage_in_profile
+                show_wage_in_profile: formData.show_wage_in_profile,
+                ...defaultBreakPayload(formData)
             };
             
             const { error } = await supabase.from('profiles').update(payload).eq('id', empId);
@@ -1007,47 +989,18 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                             className={emp?.role === 'admin' ? 'bg-slate-50 cursor-not-allowed font-bold text-slate-500' : ''}
                         />
 
+                        <WageRatesHelp />
                         <div className="grid grid-cols-2 gap-4">
                             <Input label="Mzdová sadzba (€/h)" type="number" step="0.5" value={formData.rate} onChange={(e: any) => setFormData({...formData, rate: parseFloat(e.target.value)})} required />
                             <Input label="Celková cena práce (€/h)" type="number" step="0.5" value={formData.costRate} onChange={(e: any) => setFormData({...formData, costRate: parseFloat(e.target.value)})} required />
                         </div>
+
+                        <DefaultAttendanceBreak value={formData} onChange={setFormData} />
                         
-                        <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-2">
-                            <Info size={16} className="text-blue-500 mt-0.5 shrink-0"/>
-                            <p className="text-[10px] text-blue-700 leading-relaxed font-medium">
-                                <strong>Mzdová sadzba:</strong> to čo zamestnanec vidí vo svojom profile.<br/>
-                                <strong>Celková cena práce (CCP):</strong> úplný náklad firmy na zamestnanca. Toto číslo sa používa najmä pri výpočte analytiky zákaziek a firmy.
-                            </p>
-                        </div>
 
                         <Input label="Telefón" value={formData.phone} onChange={(e: any) => setFormData({...formData, phone: e.target.value})} placeholder="+421..." />
                         
-                        <div className="space-y-3 pt-2 border-t border-slate-100">
-                            <div className="flex items-center gap-2">
-                                <input type="checkbox" id="isActiveDetail" checked={formData.is_active} onChange={(e) => setFormData({...formData, is_active: e.target.checked})} className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500" />
-                                <label htmlFor="isActiveDetail" className="text-sm font-bold text-slate-700">Aktívny zamestnanec</label>
-                            </div>
-
-                            {emp?.role !== 'admin' && (
-                                <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="checkbox" 
-                                            id="showWageDetail" 
-                                            checked={formData.show_wage_in_profile} 
-                                            onChange={(e) => setFormData({...formData, show_wage_in_profile: e.target.checked})} 
-                                            className="w-6 h-6 rounded text-blue-600 focus:ring-orange-500" 
-                                        />
-                                        <label htmlFor="showWageDetail" className="text-sm font-black text-blue-900 flex items-center gap-2 cursor-pointer">
-                                            Zobrazovať mzdu v profile
-                                        </label>
-                                    </div>
-                                    <p className="text-[10px] text-blue-700 font-medium leading-relaxed ml-8">
-                                        Po zakliknutí sa bude zamestnancovi v profile zobrazovať jeho hodinová mzda a celkový mesačný zárobok.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
+                        <EmployeeProfileOptions value={formData} onChange={setFormData} showWageOption={emp?.role !== 'admin'} />
 
                         <Button type="submit" fullWidth className="mt-4 shadow-md">Uložiť Zmeny</Button>
                     </form>

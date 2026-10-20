@@ -10,7 +10,7 @@ import { exportElementToPdf } from '../lib/pdfExport';
 import { ProjectPHM } from './ProjectPHM';
 import { PLANS } from './Subscription';
 import { searchProjectLocations, type LocationResult } from '../lib/weather';
-import { calculateAttendanceMinutes, formatAttendanceRange } from '../lib/attendance';
+import { calculateAttendanceMinutes, formatAttendanceRange, getDefaultAttendanceBreak } from '../lib/attendance';
 
 // Type declaration for window object
 declare global {
@@ -3745,7 +3745,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 disabled={!!formState.id}
                 onChange={(e: any) => {
                     const emp = employees.find(ep => ep.id === e.target.value);
-                    setFormState({...formState, user_id: e.target.value, hourly_rate_snapshot: emp?.hourly_rate || 0});
+                    setFormState({...formState, user_id: e.target.value, hourly_rate_snapshot: emp?.hourly_rate || 0, ...getDefaultAttendanceBreak(emp)});
                 }} 
                 required
             >
@@ -3789,9 +3789,9 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             )}
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex flex-col justify-center shadow-inner">
+                <div className="p-4 md:px-3 md:py-2 md:self-center bg-orange-50 rounded-2xl border border-orange-100 flex flex-col justify-center shadow-inner">
                     <span className="text-[10px] font-black text-orange-400 uppercase block mb-1 tracking-widest">Trvanie prác</span>
-                    <span className="text-2xl font-black text-slate-800 tracking-tight">
+                    <span className="text-2xl md:text-xl md:leading-tight font-black text-slate-800 tracking-tight">
                         {(() => {
                             const duration = calculateAttendanceMinutes(formState.start_time, formState.end_time, formState.has_break, formState.break_start, formState.break_end);
                             return formatDuration(duration.netMinutes / 60);

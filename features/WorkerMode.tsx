@@ -10,7 +10,7 @@ import {
   ChevronDown, Banknote, ChevronUp, ArrowUp, Check, Globe, ShieldCheck, BookOpen, Package, ClipboardCheck, Hash, RefreshCw, ArrowUpCircle, AlertTriangle
 } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
-import { calculateAttendanceMinutes } from '../lib/attendance';
+import { calculateAttendanceMinutes, getDefaultAttendanceBreak } from '../lib/attendance';
 
 import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
@@ -357,13 +357,26 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       start_time: '07:00',
       end_time: '15:30',
       hours: '8.5',
-      has_break: false,
-      break_start: '12:00',
-      break_end: '12:45',
+      ...getDefaultAttendanceBreak(initialProfile),
       description: '',
       payment_type: 'hourly' as 'hourly' | 'fixed',
       fixed_amount: ''
   });
+
+  const [breakDefaultsLoading, setBreakDefaultsLoading] = useState(true);
+
+  // Refresh the employer's defaults on each new visit to the entry form.
+  useEffect(() => {
+    if (activeTab !== 'log') return;
+    let cancelled = false;
+    setBreakDefaultsLoading(true);
+    Promise.resolve(supabase.from('profiles').select('*').eq('id', profile.id).single()).then(({ data, error }) => {
+      if (cancelled || error || !data) return;
+      setProfile((previous: any) => ({ ...previous, default_break_start: data.default_break_start, default_break_end: data.default_break_end }));
+      setLogForm(previous => ({ ...previous, ...getDefaultAttendanceBreak(data) }));
+    }).finally(() => { if (!cancelled) setBreakDefaultsLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, profile.id]);
 
   const [profileForm, setProfileForm] = useState({
       full_name: profile?.full_name || '',
@@ -719,7 +732,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
         setSuccess(true);
         setTimeout(() => {
             setSuccess(false);
-            setLogForm(prev => ({ ...prev, description: '', fixed_amount: '', payment_type: 'hourly', date: getLocalDateISO(new Date()), has_break: false, break_start: '12:00', break_end: '12:45' }));
+            setLogForm(prev => ({ ...prev, description: '', fixed_amount: '', payment_type: 'hourly', date: getLocalDateISO(new Date()), ...getDefaultAttendanceBreak(profile) }));
             loadAllData();
             setActiveTab('dashboard');
         }, 1500);
@@ -1564,7 +1577,9 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                   <div className="animate-in zoom-in-95 w-full max-w-[1120px] mx-auto space-y-6">
                       <WorkerSectionHeader icon={ClipboardCheck} title={t('nav_log')} subtitle={t('write_log')} colorClass="text-orange-600" />
                       
-                      {success ? (
+                      {breakDefaultsLoading ? (
+                          <div className="flex justify-center py-12"><Loader2 className="animate-spin text-orange-600" /></div>
+                      ) : success ? (
                           <div className="py-16 text-center animate-in zoom-in">
                               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-white shadow-md">
                                   <CheckCircle2 size={32}/>

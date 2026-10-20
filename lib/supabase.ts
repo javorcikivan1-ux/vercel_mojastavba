@@ -17,6 +17,8 @@ export type UserProfile = {
   full_name: string;
   organization_id: string;
   hourly_rate?: number;
+  default_break_start?: string | null;
+  default_break_end?: string | null;
   phone?: string;
   is_active?: boolean;
 };
