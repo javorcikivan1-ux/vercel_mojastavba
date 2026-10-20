@@ -10,6 +10,7 @@ import {
   ChevronDown, Banknote, ChevronUp, ArrowUp, Check, Globe, ShieldCheck, BookOpen, Package, ClipboardCheck, Hash, RefreshCw, ArrowUpCircle, AlertTriangle
 } from 'lucide-react';
 import { formatMoney, formatDate, formatDuration } from '../lib/utils';
+import { calculateAttendanceMinutes } from '../lib/attendance';
 
 import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
@@ -348,6 +349,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const mainScrollRef = useRef<HTMLDivElement>(null);
+  const logSubmitLockRef = useRef(false);
 
   const [logForm, setLogForm] = useState({
       site_id: '',
@@ -355,6 +357,9 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
       start_time: '07:00',
       end_time: '15:30',
       hours: '8.5',
+      has_break: false,
+      break_start: '12:00',
+      break_end: '12:45',
       description: '',
       payment_type: 'hourly' as 'hourly' | 'fixed',
       fixed_amount: ''
@@ -647,16 +652,13 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
 
   const readableDuration = useMemo(() => {
     if (logForm.start_time && logForm.end_time) {
-        const [sH, sM] = logForm.start_time.split(':').map(Number);
-        const [eH, eM] = logForm.end_time.split(':').map(Number);
-        let totalMinutes = (eH * 60 + eM) - (sH * 60 + sM);
-        if (totalMinutes < 0) totalMinutes += 24 * 60; 
-        const h = Math.floor(totalMinutes / 60);
-        const m = totalMinutes % 60;
+        const duration = calculateAttendanceMinutes(logForm.start_time, logForm.end_time, logForm.has_break, logForm.break_start, logForm.break_end);
+        const h = Math.floor(duration.netMinutes / 60);
+        const m = duration.netMinutes % 60;
         return `${h}${t('hours_abbr')} ${m}m`;
     }
     return `0${t('hours_abbr')} 0m`;
-  }, [logForm.start_time, logForm.end_time, lang]);
+  }, [logForm.start_time, logForm.end_time, logForm.has_break, logForm.break_start, logForm.break_end, lang]);
 
   const handleTaskDone = async (taskId: string) => {
       setActionLoading(true);
@@ -668,7 +670,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
 
   const handleLogSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (actionLoading) return; 
+    if (actionLoading || logSubmitLockRef.current) return;
+    logSubmitLockRef.current = true;
     
     setActionLoading(true);
     
@@ -676,15 +679,12 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
         ? parseFloat(String(logForm.fixed_amount).replace(/[^0-9.]/g, '')) || 0
         : 0;
 
-    const [sH, sM] = logForm.start_time.split(':').map(Number);
-    const [eH, eM] = logForm.end_time.split(':').map(Number);
-    let totalMinutes = (eH * 60 + eM) - (sH * 60 + sM);
-    if (totalMinutes < 0) totalMinutes += 24 * 60;
-    const calculatedHours = totalMinutes / 60;
+    const duration = calculateAttendanceMinutes(logForm.start_time, logForm.end_time, logForm.has_break, logForm.break_start, logForm.break_end);
 
     try {
         if(!logForm.site_id) throw new Error(t('site_select'));
         if(logForm.payment_type === 'fixed' && cleanFixedAmount <= 0) throw new Error(t('fixed_amount_label'));
+        if (!duration.valid) throw new Error(logForm.has_break ? 'Obedná prestávka musí byť v rozsahu pracovného času.' : 'Skontrolujte čas príchodu a odchodu.');
 
         const { data: override } = await supabase
             .from('site_worker_rates')
@@ -703,7 +703,10 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
             date: logForm.date,
             start_time: logForm.start_time,
             end_time: logForm.end_time,
-            hours: calculatedHours, 
+            hours: duration.netMinutes / 60,
+            break_start: logForm.has_break ? logForm.break_start : null,
+            break_end: logForm.has_break ? logForm.break_end : null,
+            break_minutes: logForm.has_break ? duration.breakMinutes : 0,
             description: logForm.description,
             hourly_rate_snapshot: hRate,
             cost_rate_snapshot: cRate,
@@ -716,13 +719,14 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
         setSuccess(true);
         setTimeout(() => {
             setSuccess(false);
-            setLogForm(prev => ({ ...prev, description: '', fixed_amount: '', payment_type: 'hourly', date: getLocalDateISO(new Date()) }));
+            setLogForm(prev => ({ ...prev, description: '', fixed_amount: '', payment_type: 'hourly', date: getLocalDateISO(new Date()), has_break: false, break_start: '12:00', break_end: '12:45' }));
             loadAllData();
             setActiveTab('dashboard');
         }, 1500);
     } catch (err: any) {
         setAlertState({ open: true, message: err.message, type: 'error' });
     } finally {
+        logSubmitLockRef.current = false;
         setActionLoading(false);
     }
   };
@@ -1608,6 +1612,22 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                   <div className="grid grid-cols-2 gap-4 mb-4">
                                       <Input label={t('arrival')} type="time" value={logForm.start_time} onChange={(e:any) => setLogForm({...logForm, start_time: e.target.value})} required className="text-center font-bold" />
                                       <Input label={t('departure')} type="time" value={logForm.end_time} onChange={(e:any) => setLogForm({...logForm, end_time: e.target.value})} required className="text-center font-bold" />
+                                  </div>
+                                  <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setLogForm({...logForm, has_break: !logForm.has_break, break_start: logForm.break_start || '12:00', break_end: logForm.break_end || '12:45'})}
+                                        className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-xs font-bold transition ${logForm.has_break ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}
+                                      >
+                                        <span className="flex items-center gap-2"><Clock size={15}/> Zapísať obednú prestávku</span>
+                                        <span className={`flex h-5 w-5 items-center justify-center rounded-full ${logForm.has_break ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-400'}`}>{logForm.has_break ? <Check size={13}/> : '+'}</span>
+                                      </button>
+                                      {logForm.has_break && (
+                                        <div className="mt-3 grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1">
+                                          <Input label="Prestávka od" type="time" value={logForm.break_start} onChange={(e:any) => setLogForm({...logForm, break_start: e.target.value})} required className="text-center font-bold" />
+                                          <Input label="Prestávka do" type="time" value={logForm.break_end} onChange={(e:any) => setLogForm({...logForm, break_end: e.target.value})} required className="text-center font-bold" />
+                                        </div>
+                                      )}
                                   </div>
                                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between"><span className="text-xs font-bold text-slate-500">{t('duration_on_site')}</span><span className="text-lg font-black text-slate-700">{readableDuration}</span></div>
                               </Card>

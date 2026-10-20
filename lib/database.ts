@@ -124,6 +124,9 @@ CREATE TABLE public.attendance_logs (
     date DATE DEFAULT CURRENT_DATE,
     start_time TEXT,
     end_time TEXT,
+    break_start TEXT,
+    break_end TEXT,
+    break_minutes INTEGER NOT NULL DEFAULT 0,
     payment_type TEXT DEFAULT 'hourly',
     fixed_amount NUMERIC DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()

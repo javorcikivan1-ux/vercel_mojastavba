@@ -10,6 +10,7 @@ import { exportElementToPdf } from '../lib/pdfExport';
 import { ProjectPHM } from './ProjectPHM';
 import { PLANS } from './Subscription';
 import { searchProjectLocations, type LocationResult } from '../lib/weather';
+import { calculateAttendanceMinutes, formatAttendanceRange } from '../lib/attendance';
 
 // Type declaration for window object
 declare global {
@@ -3020,13 +3021,18 @@ const LogDetailModal = ({ log, onClose }: { log: any, onClose: () => void }) => 
                         <div className="font-bold text-slate-900">{log.payment_type === 'fixed' ? 'Úkol' : 'Hodiny'}</div>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                        <div className="text-xs text-slate-500 font-bold uppercase mb-1">Čas na stavbe</div>
+                        <div className="text-xs text-slate-500 font-bold uppercase mb-1">Odpracovaný čas</div>
                         <div className="font-bold text-slate-900">{formatDuration(Number(log.hours))}</div>
                     </div>
                     <div className="bg-green-50 p-3 rounded-lg border border-green-100">
                         <div className="text-xs text-green-700 font-bold uppercase mb-1">Cena práce</div>
                         <div className="font-black text-green-800">{formatMoney(cost)}</div>
                     </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Príchod, prestávka a odchod</div>
+                    <div className="mt-1 font-bold tabular-nums text-slate-900">{formatAttendanceRange(log)}</div>
+                    {Number(log.break_minutes || 0) > 0 && <div className="mt-1 text-xs font-semibold text-orange-600">Prestávka: {log.break_minutes} min</div>}
                 </div>
                 <div className="flex justify-center pt-2">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Záznam vytvorený: {new Date(log.created_at).toLocaleString('sk-SK')}</div>
@@ -3047,6 +3053,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   const [modals, setModals] = useState({ log: false, transaction: false, export: false }); 
   const [exportSettings, setExportSettings] = useState({ type: 'client' as 'client' | 'owner', includeFinancials: false });
   const [formState, setFormState] = useState<any>({});
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const attendanceSubmitLockRef = useRef(false);
   const [confirmAction, setConfirmAction] = useState<{open: boolean, table: string, id: string}>({ open: false, table: '', id: '' });
   const [alertState, setAlertState] = useState<{open: boolean, title: string, message: string, type?: string}>({ open: false, title: '', message: '' });
   const [statusModalOpen, setStatusModalOpen] = useState(false); 
@@ -3260,6 +3268,9 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
           date: log.date,
           start_time: log.start_time,
           end_time: log.end_time,
+          has_break: Boolean(log.break_start && log.break_end),
+          break_start: log.break_start || '12:00',
+          break_end: log.break_end || '12:45',
           hours: log.hours,
           hourly_rate_snapshot: log.hourly_rate_snapshot,
           description: log.description,
@@ -3585,7 +3596,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h3 className="font-extrabold text-xl text-slate-900">Denník prác (História)</h3>
                 <button 
-                  onClick={() => { setFormState({ date: new Date().toISOString().split('T')[0], start_time: '07:00', end_time: '15:30', payment_type: 'hourly', fixed_amount: 0 }); setModals({...modals, log: true}); }}
+                  onClick={() => { setFormState({ date: new Date().toISOString().split('T')[0], start_time: '07:00', end_time: '15:30', has_break: false, break_start: '12:00', break_end: '12:45', payment_type: 'hourly', fixed_amount: 0 }); setModals({...modals, log: true}); }}
                   className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2.5 rounded-xl hover:bg-orange-700 transition font-bold text-sm shadow-sm shadow-orange-100 w-full sm:w-auto justify-center"
                 >
                   <Clock size={16}/> Zapísať dochádzku
@@ -3612,7 +3623,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                               </div>
                               <div className="text-sm font-semibold text-slate-500 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
                                 <Clock size={14} className="text-slate-400"/>
-                                <span>{l.start_time || '--:--'} - {l.end_time || '--:--'}</span>
+                                <span>{formatAttendanceRange(l)}</span>
                                 <span className="text-slate-300">•</span>
                                 <span>{formatDuration(Number(l.hours || 0))}</span>
                                 <span className="text-slate-300">•</span>
@@ -3681,15 +3692,30 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
       {modals.log && (
         <Modal title={formState.id ? "Upraviť záznam" : "Zapísať dochádzku"} onClose={() => { setModals({...modals, log: false}); setFormState({}); }}>
-          <form onSubmit={(e) => { 
+          <form onSubmit={async (e) => {
               e.preventDefault(); 
-              const [sH, sM] = (formState.start_time || "00:00").split(':').map(Number);
-              const [eH, eM] = (formState.end_time || "00:00").split(':').map(Number);
-              let totalMinutes = (eH * 60 + eM) - (sH * 60 + sM);
-              if (totalMinutes < 0) totalMinutes += 24 * 60;
-              const calculatedHours = totalMinutes / 60;
-              const payload = { ...formState, hours: calculatedHours }; 
-              submitForm('attendance_logs', payload, 'log'); 
+              if (attendanceSubmitLockRef.current) return;
+              const duration = calculateAttendanceMinutes(formState.start_time, formState.end_time, formState.has_break, formState.break_start, formState.break_end);
+              if (!duration.valid) {
+                  setAlertState({ open: true, title: 'Skontrolujte čas', message: formState.has_break ? 'Obedná prestávka musí byť v rozsahu pracovného času a jej koniec musí byť neskôr ako začiatok.' : 'Čas odchodu musí byť neskôr ako čas príchodu.', type: 'error' });
+                  return;
+              }
+              attendanceSubmitLockRef.current = true;
+              setAttendanceSaving(true);
+              const { has_break, ...cleanFormState } = formState;
+              const payload = {
+                  ...cleanFormState,
+                  hours: duration.netMinutes / 60,
+                  break_start: has_break ? formState.break_start : null,
+                  break_end: has_break ? formState.break_end : null,
+                  break_minutes: has_break ? duration.breakMinutes : 0
+              };
+              try {
+                  await submitForm('attendance_logs', payload, 'log');
+              } finally {
+                  attendanceSubmitLockRef.current = false;
+                  setAttendanceSaving(false);
+              }
           }}>
             <Select 
                 label="Pracovník" 
@@ -3718,6 +3744,23 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                     <Input label="Čas do" type="time" value={formState.end_time || ''} onChange={(e: any) => setFormState({...formState, end_time: e.target.value})} required />
                 </div>
             </div>
+
+            <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <button
+                  type="button"
+                  onClick={() => setFormState({...formState, has_break: !formState.has_break, break_start: formState.break_start || '12:00', break_end: formState.break_end || '12:45'})}
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition ${formState.has_break ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-orange-200'}`}
+                >
+                  <span className="flex items-center gap-2"><Clock size={17}/> Zapísať obednú prestávku</span>
+                  <span className={`flex h-6 w-6 items-center justify-center rounded-full ${formState.has_break ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-400'}`}>{formState.has_break ? <Check size={15}/> : <Plus size={15}/>}</span>
+                </button>
+                {formState.has_break && (
+                  <div className="mt-3 grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1">
+                    <Input label="Prestávka od" type="time" value={formState.break_start || '12:00'} onChange={(e: any) => setFormState({...formState, break_start: e.target.value})} required />
+                    <Input label="Prestávka do" type="time" value={formState.break_end || '12:45'} onChange={(e: any) => setFormState({...formState, break_end: e.target.value})} required />
+                  </div>
+                )}
+            </div>
             
             {formState.payment_type === 'fixed' && (
                 <Input label="Fixná suma za úkol (€)" type="number" step="0.01" value={formState.fixed_amount || ''} onChange={(e: any) => setFormState({...formState, fixed_amount: roundFin(parseFloat(e.target.value) || 0)})} required placeholder="0.00" />
@@ -3728,11 +3771,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                     <span className="text-[10px] font-black text-orange-400 uppercase block mb-1 tracking-widest">Trvanie prác</span>
                     <span className="text-2xl font-black text-slate-800 tracking-tight">
                         {(() => {
-                            const [sH, sM] = (formState.start_time || "00:00").split(':').map(Number);
-                            const [eH, eM] = (formState.end_time || "00:00").split(':').map(Number);
-                            let tm = (eH * 60 + eM) - (sH * 60 + sM);
-                            if (tm < 0) tm += 24 * 60;
-                            return formatDuration(tm / 60);
+                            const duration = calculateAttendanceMinutes(formState.start_time, formState.end_time, formState.has_break, formState.break_start, formState.break_end);
+                            return formatDuration(duration.netMinutes / 60);
                         })()}
                     </span>
                 </div>
@@ -3751,7 +3791,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
             <Input label="Popis činnosti" value={formState.description || ''} onChange={(e: any) => setFormState({...formState, description: e.target.value})} placeholder="Napr. Obkladanie kúpeľne, 2. poschodie" />
             
-            <Button type="submit" fullWidth size="lg" className="mt-6 shadow-orange-200">{formState.id ? 'Uložiť zmeny' : 'Zapísať hodiny'}</Button>
+            <Button type="submit" fullWidth size="lg" loading={attendanceSaving} disabled={attendanceSaving} className="mt-6 shadow-orange-200">{formState.id ? 'Uložiť zmeny' : 'Zapísať hodiny'}</Button>
           </form>
         </Modal>
       )}

@@ -4,6 +4,7 @@ import { Card, Button } from '../components/UI';
 import { FileCheck, Calendar, User, Printer, Loader2, Clock, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Pencil, Eye, EyeOff, Briefcase, Check, X } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 import { exportElementToPdf } from '../lib/pdfExport';
+import { formatAttendanceRange } from '../lib/attendance';
 
 export const AttendanceScreen = ({ profile, organization }: any) => {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -144,7 +145,9 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                       siteNames: l.sites?.name ? [l.sites.name] : [],
                       isFixed: l.payment_type === 'fixed',
                       start_time: l.start_time,
-                      end_time: l.end_time
+                       end_time: l.end_time,
+                       break_start: l.break_start,
+                       break_end: l.break_end
                   };
               } else {
                   groupMap[groupKey].totalHours += parseFloat(l.hours) || 0;
@@ -163,7 +166,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
               siteName: d.siteNames.join(', '),
               displayTime: exportOptions.useTemplate 
                 ? formatWithTemplate(d.totalHours) 
-                : (d.start_time && d.end_time ? `${d.start_time} - ${d.end_time}` : '---')
+                : formatAttendanceRange(d)
           })).sort((a, b) => a.date.localeCompare(b.date));
       } else {
           processed = sourceLogs.map(l => ({
@@ -173,7 +176,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
               isFixed: l.payment_type === 'fixed',
               displayTime: exportOptions.useTemplate 
                 ? formatWithTemplate(parseFloat(l.hours || 0)) 
-                : (l.start_time && l.end_time ? `${l.start_time} - ${l.end_time}` : '---')
+                : formatAttendanceRange(l)
           }));
       }
       setEditableLogs(processed);
