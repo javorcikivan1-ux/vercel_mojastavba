@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Modal, Card } from '../components/UI';
 import { AlertCircle, Calendar, LayoutGrid, MapPin, User, Plus, FileText, CheckCircle2, Loader2, Clock, XCircle, ChevronRight, Search, Activity, Briefcase, History } from 'lucide-react';
-import { formatMoney } from '../lib/utils';
+import { formatMoney, formatDuration } from '../lib/utils';
+import { absenceError, absenceRange, absenceTime, absenceType, classifyAttendance, loadAbsences, type EmployeeAbsence } from '../lib/absences';
 
 const PRIORITY_FLAG = "#PRIORITY";
 
@@ -16,7 +17,9 @@ const isDateToday = (dateStr: string) => {
 export const DashboardScreen = ({ profile, organization, onNavigate }: { profile: UserProfile, organization: any, onNavigate: (view: string, params?: any) => void }) => {
   const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
   const [upcomingTasks, setUpcomingTasks] = useState<any[]>([]);
-  const [attendanceStatus, setAttendanceStatus] = useState<{logged: any[], missing: any[]}>({ logged: [], missing: [] });
+  const [attendanceStatus, setAttendanceStatus] = useState<{logged: any[], missing: any[], absent: any[], partial: any[]}>({ logged: [], missing: [], absent: [], partial: [] });
+  const [absenceLoadError, setAbsenceLoadError] = useState('');
+  const fetchVersion = useRef(0);
   const [retroactiveLogs, setRetroactiveLogs] = useState<any[]>([]);
   const [activeSitesCount, setActiveSitesCount] = useState(0);
   const [selectedTask, setSelectedTask] = useState<any>(null);
@@ -27,6 +30,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
 
   const fetchDashboardData = useCallback(async () => {
     if (!profile.organization_id) return;
+    const request = ++fetchVersion.current;
     
     const nowLocal = new Date();
     const todayStr = `${nowLocal.getFullYear()}-${(nowLocal.getMonth() + 1).toString().padStart(2, '0')}-${nowLocal.getDate().toString().padStart(2, '0')}`;
@@ -35,32 +39,27 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
     const endOfToday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate(), 23, 59, 59, 999).toISOString();
     const endOfFuture = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate() + 4, 23, 59, 59, 999).toISOString();
 
-    const [overdue, upcoming, workers, logsToday, logsCreatedToday, activeSites] = await Promise.all([
+    const [overdue, upcoming, workers, logsToday, logsCreatedToday, activeSites, absenceResult] = await Promise.all([
       supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').lt('start_date', startOfToday).order('start_date'),
       supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').gte('start_date', startOfToday).lte('start_date', endOfFuture).order('start_date'),
       supabase.from('profiles').select('id, full_name').eq('organization_id', profile.organization_id).eq('is_active', true).eq('role', 'employee'),
       supabase.from('attendance_logs').select('*, sites(name)').eq('organization_id', profile.organization_id).eq('date', todayStr).order('start_time', { ascending: true }),
       supabase.from('attendance_logs').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).gte('created_at', startOfToday).lte('created_at', endOfToday),
-      supabase.from('sites').select('id', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['active', 'planning'])
+      supabase.from('sites').select('id', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['active', 'planning']),
+      loadAbsences(profile.organization_id, undefined, { start: todayStr, end: todayStr }).then(data => ({ data, error: null as any })).catch(error => ({ data: [] as EmployeeAbsence[], error }))
     ]);
     
+    if (request !== fetchVersion.current) return;
     if(overdue.data) setOverdueTasks(overdue.data);
     if(upcoming.data) setUpcomingTasks(upcoming.data);
     setActiveSitesCount(activeSites.count || 0);
     
+    const attendanceError = absenceResult.error || logsToday.error || workers.error;
+    setAbsenceLoadError(attendanceError ? absenceError(attendanceError) : '');
     if (workers.data) {
-        const logsByUser = new Map();
-        (logsToday.data || []).forEach(l => {
-            if (!logsByUser.has(l.user_id)) logsByUser.set(l.user_id, []);
-            logsByUser.get(l.user_id).push(l);
-        });
-        
-        const logged = workers.data
-            .filter(w => logsByUser.has(w.id))
-            .map(w => ({ ...w, logs: logsByUser.get(w.id) }));
-        
-        const missing = workers.data.filter(w => !logsByUser.has(w.id));
-        setAttendanceStatus({ logged, missing });
+      const status = classifyAttendance(workers.data, logsToday.data || [], absenceResult.data, todayStr);
+      // Do not claim someone failed to log hours when absence data is unavailable.
+      setAttendanceStatus(attendanceError ? { ...status, missing: [] } : status);
     }
 
     // Detekcia spätných zápisov (vytvorené dnes, ale pre iný dátum)
@@ -74,6 +73,10 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
 
   useEffect(() => {
     fetchDashboardData();
+    const interval = window.setInterval(fetchDashboardData, 60000);
+    window.addEventListener('employee-absences-changed', fetchDashboardData);
+    window.addEventListener('focus', fetchDashboardData);
+    return () => { fetchVersion.current++; window.clearInterval(interval); window.removeEventListener('employee-absences-changed', fetchDashboardData); window.removeEventListener('focus', fetchDashboardData); };
   }, [fetchDashboardData]);
 
   const handleMarkAsDone = async (taskId: string) => {
@@ -98,9 +101,10 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
 
   const filteredLogged = attendanceStatus.logged.filter(w => w.full_name.toLowerCase().includes(attendanceSearch.toLowerCase()));
   const filteredMissing = attendanceStatus.missing.filter(w => w.full_name.toLowerCase().includes(attendanceSearch.toLowerCase()));
+  const filteredAbsent = attendanceStatus.absent.filter(w => w.full_name.toLowerCase().includes(attendanceSearch.toLowerCase()));
   const todaysTasksCount = upcomingTasks.filter(task => isDateToday(task.start_date)).length;
   const attendanceTotal = attendanceStatus.logged.length + attendanceStatus.missing.length;
-  const attendancePercent = Math.round((attendanceStatus.logged.length / (attendanceTotal || 1)) * 100);
+  const attendancePercent = attendanceTotal === 0 && attendanceStatus.absent.length > 0 ? 100 : Math.round((attendanceStatus.logged.length / (attendanceTotal || 1)) * 100);
 
   const hasAnyFixedToday = useMemo(() => {
       return attendanceStatus.logged.some(w => w.logs.some((l: any) => l.payment_type === 'fixed'));
@@ -118,6 +122,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
         </div>
       </div>
 
+      {absenceLoadError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{absenceLoadError} Chýbajúce zápisy nemožno spoľahlivo určiť.</div>}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
           <Card className="p-4 md:p-5 border-slate-200 shadow-sm bg-white">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
@@ -153,7 +158,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
                   <button onClick={() => setShowAttendanceModal(true)} className="min-w-0 text-left rounded-2xl border border-orange-100 bg-orange-50/40 p-3 sm:p-4 hover:border-orange-200 hover:bg-orange-50 transition">
                       <div className="flex items-center justify-between mb-3">
                           <Clock size={18} className="text-orange-600"/>
-                          <span className="text-2xl font-bold text-orange-700 tabular-nums">{attendancePercent}%</span>
+                          <span className="text-2xl font-bold text-orange-700 tabular-nums">{absenceLoadError ? '—' : `${attendancePercent}%`}</span>
                       </div>
                       <div className="whitespace-nowrap text-[13px] font-semibold tracking-tight text-slate-900 sm:text-sm">Dochádzka</div>
                       <div className="mt-0.5 whitespace-nowrap text-[11px] font-medium tracking-tight text-slate-500 sm:text-xs">{attendanceStatus.logged.length} z {attendanceTotal} zapísaných</div>
@@ -246,12 +251,12 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
               <div className="flex-1 w-full md:max-w-xs">
                   <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-1.5">
                       <span>Priebeh zápisov</span>
-                      <span>{Math.round((attendanceStatus.logged.length / (attendanceStatus.logged.length + attendanceStatus.missing.length || 1)) * 100)}%</span>
+                      <span>{absenceLoadError ? '—' : `${attendancePercent}%`}</span>
                   </div>
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                       <div 
                         className="bg-orange-500 h-full transition-all duration-1000" 
-                        style={{ width: `${(attendanceStatus.logged.length / (attendanceStatus.logged.length + attendanceStatus.missing.length || 1)) * 100}%` }}
+                        style={{ width: `${absenceLoadError ? '—' : `${attendancePercent}%`}` }}
                       ></div>
                   </div>
               </div>
@@ -284,6 +289,8 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
                   </div>
 
                   <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
+                      {filteredAbsent.length > 0 && <div><h4 className="mb-3 text-xs font-bold text-slate-700">Celodenná neprítomnosť ({filteredAbsent.length})</h4><div className="space-y-2">{filteredAbsent.map(worker => <div key={worker.id} className="rounded-xl border border-slate-200 p-3"><strong className="text-sm text-slate-800">{worker.full_name}</strong>{worker.absences.map((a: EmployeeAbsence) => <p key={a.id} className="mt-1 text-xs text-slate-600">{absenceType(a.kind).label} · {absenceTime(a)} · {absenceRange(a)}</p>)}{worker.logs.length > 0 && <p className="mt-2 text-xs font-semibold text-amber-700">Má aj zapísanú prácu ({formatDuration(worker.logs.reduce((sum: number, log: any) => sum + Number(log.hours), 0))}). Skontrolujte súbeh s neprítomnosťou.</p>}</div>)}</div></div>}
+                      {attendanceStatus.partial.filter(worker => worker.full_name.toLowerCase().includes(attendanceSearch.toLowerCase())).length > 0 && <div><h4 className="mb-3 text-xs font-bold text-slate-700">Neprítomnosť počas časti dňa</h4>{attendanceStatus.partial.filter(worker => worker.full_name.toLowerCase().includes(attendanceSearch.toLowerCase())).map(worker => <div key={worker.id} className="mb-2 rounded-xl border border-slate-200 p-3 text-xs"><strong>{worker.full_name}</strong>{worker.absences.map((a: EmployeeAbsence) => <p key={a.id} className="mt-1 text-slate-600">{absenceType(a.kind).label} · {absenceTime(a)}</p>)}<p className="mt-1 text-slate-500">Za odpracovanú časť dňa sa hodiny evidujú samostatne.</p></div>)}</div>}
                       {filteredLogged.length > 0 && (
                           <div>
                               <h4 className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -316,7 +323,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
                                                           </div>
                                                           <div className="text-right shrink-0">
                                                               <div className={`text-xs font-black ${isFixed ? 'text-orange-600' : 'text-slate-800'}`}>
-                                                                  {isFixed ? formatMoney(l.fixed_amount) : `${l.hours} h`}
+                                                                  {isFixed ? formatMoney(l.fixed_amount) : formatDuration(Number(l.hours))}
                                                               </div>
                                                               <div className="text-[8px] text-slate-400 font-bold uppercase">{l.start_time} - {l.end_time}</div>
                                                           </div>

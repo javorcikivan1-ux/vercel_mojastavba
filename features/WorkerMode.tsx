@@ -1109,7 +1109,7 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
                                     <div key={h.date} className="flex-1 flex flex-col items-center gap-2 group">
                                         <div className="relative w-full flex flex-col justify-end items-center h-full">
                                             <div className={`absolute bottom-[calc(100%+4px)] text-[9px] md:text-[10px] font-black transition-all ${h.hours > 0 ? 'opacity-100 scale-100 text-slate-800' : 'opacity-40 scale-90 text-slate-300'}`}>
-                                                {h.hours > 0 ? `${h.hours.toFixed(1)}${t('hours_abbr')}` : `0${t('hours_abbr')}`}
+                                                {formatDuration(h.hours)}
                                             </div>
                                             <div 
                                                 className={`w-full max-w-[32px] rounded-t-xl transition-all duration-1000 min-h-[4px] relative ${

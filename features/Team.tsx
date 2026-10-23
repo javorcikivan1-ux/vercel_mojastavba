@@ -11,11 +11,13 @@ import { getDefaultAttendanceBreak, defaultBreakPayload } from '../lib/attendanc
 import { DefaultAttendanceBreak } from '../components/DefaultAttendanceBreak';
 import { WageRatesHelp } from '../components/WageRatesHelp';
 import { EmployeeProfileOptions } from '../components/EmployeeProfileOptions';
+import { EmployeeAbsences, TeamAbsenceOverview } from './EmployeeAbsences';
+import { ActionTooltip } from '../components/ActionTooltip';
 
 const TEAM_PAGE_SIZE = 15;
 const formatRoleBadge = (worker: any) => {
+  if (worker.role === 'admin') return 'Administrátor';
   if (!worker.is_active) return 'Archivovaný';
-  if (worker.role === 'admin') return 'Admin';
   return worker.job_title || 'zamestnanec';
 };
 
@@ -39,10 +41,12 @@ const TeamList = ({ profile, onSelect }: any) => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
+  const [showAdminComingSoon, setShowAdminComingSoon] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingWorker, setEditingWorker] = useState<any>(null);
+  const [absenceWorker, setAbsenceWorker] = useState<any>(null);
   const [formData, setFormData] = useState<any>({ 
     email: '', 
     fullName: '', 
@@ -109,7 +113,9 @@ const TeamList = ({ profile, onSelect }: any) => {
         const to = from + TEAM_PAGE_SIZE - 1;
 
         const { data: workerData, error } = await query
+            .order('role', { ascending: true, nullsFirst: false })
             .order('full_name', { ascending: true })
+            .order('id', { ascending: true })
             .range(from, to);
 
         if (error) throw error;
@@ -369,19 +375,25 @@ const TeamList = ({ profile, onSelect }: any) => {
            </h2>
            <p className="app-section-subtitle">Správa pracovníkov a prehľad výkonov</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-            <Button variant="secondary" onClick={() => setShowArchived(!showArchived)} fullWidth className="sm:w-auto justify-center order-2 sm:order-1">
-                {showArchived ? 'Späť na aktívnych' : 'Zobraziť Archív'}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full md:w-auto md:justify-end">
+            <Button variant="secondary" onClick={() => setShowArchived(!showArchived)} fullWidth className="sm:w-auto justify-center !min-h-11 !rounded-xl !px-4 !text-sm !font-semibold !shadow-none hover:!border-slate-300">
+                <Archive size={16}/>{showArchived ? 'Späť na aktívnych' : 'Zobraziť Archív'}
+            </Button>
+            <Button variant="secondary" onClick={() => setShowAdminComingSoon(true)} fullWidth className="sm:w-auto justify-center !min-h-11 !rounded-xl !px-4 !text-sm !font-semibold !shadow-none hover:!border-orange-200 hover:!bg-orange-50/50">
+                <Shield size={16} className="text-orange-600"/> Pridať ďalšieho administrátora
             </Button>
             <Button 
                 onClick={() => setShowInviteModal(true)} 
                 fullWidth 
-                className={`sm:w-auto justify-center order-1 sm:order-2 shadow-lg ${isLimitReached ? 'grayscale opacity-50' : 'shadow-orange-100'}`}
+                variant="secondary"
+                className={`sm:w-auto justify-center !min-h-11 !rounded-xl !px-4 !text-sm !font-semibold !shadow-none !border-orange-200 !bg-orange-50 !text-orange-700 hover:!border-orange-300 hover:!bg-orange-100 ${isLimitReached ? 'grayscale opacity-50' : ''}`}
             >
-                <UserPlus size={18}/> Pozvať do tímu
+                <UserPlus size={16}/> Pozvať do tímu
             </Button>
         </div>
       </div>
+
+      <TeamAbsenceOverview profile={profile} onSelect={onSelect} />
 
       {isLimitReached && (
           <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top-2">
@@ -417,59 +429,21 @@ const TeamList = ({ profile, onSelect }: any) => {
             <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-orange-600" size={40}/></div>
         ) : (
             <>
-                {pendingInvites.map(invite => (
-                  <Card key={`invite-${invite.id}`} className="relative border border-amber-200 bg-amber-50/40 flex flex-col h-full">
-                    <div className="flex items-start gap-4">
-                      <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-amber-600 border border-amber-200 shrink-0">
-                        <Mail size={24}/>
-                      </div>
-                      <div className="min-w-0 flex-1 pr-10">
-                        <h3 className="font-bold text-lg text-slate-900 truncate">
-                            {invite.employee_name || invite.email}
-                        </h3>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                            <span className="inline-flex items-center max-w-full rounded-md border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-semibold leading-none text-amber-800 whitespace-nowrap">
-                                Pozvaný
-                            </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-auto space-y-3 pt-4 border-t border-amber-100">
-                      <div className="flex items-center gap-3 text-sm text-slate-700 truncate">
-                        <Mail size={16} className="text-amber-500 shrink-0"/> <span className="truncate">{invite.email}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-slate-600">
-                        <Clock size={16} className="text-amber-500 shrink-0"/>
-                        <span>
-                            Odoslané {invite.sent_count || 1}x
-                            {invite.last_sent_at ? ` · ${formatDate(invite.last_sent_at)}` : ''}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="absolute top-4 right-4">
-                        <button onClick={(e) => handleCancelInvite(invite, e)} className="bg-white p-2 rounded-full text-red-500 shadow-sm border border-amber-200 hover:border-red-200 active:scale-90 transition" title="Zrušiť pozvánku">
-                            <Trash2 size={14}/>
-                        </button>
-                    </div>
-                  </Card>
-                ))}
                 {workers.map(w => (
                   <Card key={w.id} onClick={() => onSelect(w.id)} className={`relative group hover:shadow-md transition cursor-pointer border border-slate-200 flex flex-col h-full ${!w.is_active ? 'opacity-70 bg-slate-50' : ''}`}>
-                    <div className="flex items-start gap-4">
-                      <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xl text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition border border-slate-200 shrink-0">
+                    <div className="flex items-start gap-3 pb-4">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-base text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition border border-slate-200 shrink-0">
                         {w.full_name?.charAt(0)}
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition truncate pr-8">{w.full_name}</h3>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                            <span className={`inline-flex items-center max-w-full rounded-md px-2 py-0.5 text-xs font-semibold leading-none whitespace-nowrap ${w.is_active ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-slate-200 text-slate-600 border border-slate-300'}`}>
+                        <h3 className="font-bold text-lg text-slate-900 group-hover:text-orange-600 transition truncate">{w.full_name}</h3>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            <span className={`inline-flex items-center max-w-full rounded-md border px-2 py-1 text-[11px] font-medium leading-none whitespace-nowrap ${w.role === 'admin' ? 'bg-orange-50 text-orange-700 border-orange-100' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>
                                 <span className="truncate">{formatRoleBadge(w)}</span>
                             </span>
                             {w.is_active && w.role !== 'admin' && (
-                                <span className={`inline-flex items-center max-w-full rounded-md px-2 py-0.5 text-xs font-semibold leading-none whitespace-nowrap border ${w.show_wage_in_profile ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                                    {w.show_wage_in_profile ? <Eye size={10} className="inline mr-1"/> : <EyeOff size={10} className="inline mr-1"/>}
+                                <span className="inline-flex items-center gap-1.5 max-w-full rounded-md border border-slate-200/70 bg-white px-2 py-1 text-[11px] font-medium leading-none whitespace-nowrap text-slate-500">
+                                    {w.show_wage_in_profile ? <Eye size={11}/> : <EyeOff size={11}/>}
                                     {w.show_wage_in_profile ? 'Mzda viditeľná' : 'Mzda skrytá'}
                                 </span>
                             )}
@@ -496,18 +470,57 @@ const TeamList = ({ profile, onSelect }: any) => {
                       </div>
                     </div>
                     
-                    <div className="absolute top-4 right-4 flex gap-1">
-                        <button onClick={(e) => handleEdit(w, e)} className="bg-white p-2 rounded-full text-blue-500 shadow-sm border border-slate-200 hover:border-blue-200 active:scale-90 transition sm:opacity-0 sm:group-hover:opacity-100" title="Upraviť">
+                    <div className="mt-4 flex justify-end gap-3 border-t border-slate-100 pt-4">
+                        <ActionTooltip text="Neprítomnosti"><button onClick={(e) => { e.stopPropagation(); setAbsenceWorker(w); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:scale-110 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 hover:shadow-sm active:scale-95" aria-label={`Neprítomnosti: ${w.full_name}`}><Calendar size={14}/></button></ActionTooltip>
+                        <ActionTooltip text="Upraviť zamestnanca"><button onClick={(e) => handleEdit(w, e)} className="flex h-11 w-11 shrink-0 items-center justify-center bg-white rounded-full text-blue-500 border border-slate-200 hover:scale-110 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm active:scale-95 transition" aria-label={`Upraviť: ${w.full_name}`}>
                             <Pencil size={14}/>
-                        </button>
-                        <button onClick={(e) => toggleArchive(w, e)} className="bg-white p-2 rounded-full text-orange-500 shadow-sm border border-slate-200 hover:border-orange-200 active:scale-90 transition sm:opacity-0 sm:group-hover:opacity-100" title={w.is_active ? "Archivovať" : "Obnoviť"}>
+                        </button></ActionTooltip>
+                        <ActionTooltip text={w.is_active ? "Archivovať zamestnanca" : "Obnoviť zamestnanca"}><button onClick={(e) => toggleArchive(w, e)} className="flex h-11 w-11 shrink-0 items-center justify-center bg-white rounded-full text-orange-500 border border-slate-200 hover:scale-110 hover:border-orange-300 hover:bg-orange-50 hover:shadow-sm active:scale-95 transition" aria-label={`${w.is_active ? 'Archivovať' : 'Obnoviť'}: ${w.full_name}`}>
                             {w.is_active ? <Archive size={14}/> : <RefreshCcw size={14}/>}
-                        </button>
+                        </button></ActionTooltip>
                         {!w.is_active && (
-                            <button onClick={(e) => handleDelete(w.id, e)} className="bg-white p-2 rounded-full text-red-500 shadow-sm border border-slate-200 hover:border-red-200 active:scale-90 transition" title="Zmazať">
+                            <ActionTooltip text="Odstrániť zamestnanca"><button onClick={(e) => handleDelete(w.id, e)} className="flex h-11 w-11 shrink-0 items-center justify-center bg-white rounded-full text-red-500 border border-slate-200 hover:scale-110 hover:border-red-300 hover:bg-red-50 hover:shadow-sm active:scale-95 transition" aria-label={`Zmazať: ${w.full_name}`}>
                                 <Trash2 size={14}/>
-                            </button>
+                            </button></ActionTooltip>
                         )}
+                    </div>
+                  </Card>
+                ))}
+                {pendingInvites.map(invite => (
+                  <Card key={`invite-${invite.id}`} className="relative border border-amber-200 bg-amber-50/40 flex flex-col h-full">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-amber-600 border border-amber-200 shrink-0">
+                        <Mail size={24}/>
+                      </div>
+                      <div className="min-w-0 flex-1 pr-10">
+                        <h3 className="font-bold text-lg text-slate-900 truncate">
+                            {invite.employee_name || invite.email}
+                        </h3>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="inline-flex items-center max-w-full rounded-md border border-amber-100 bg-amber-50 px-2 py-1 text-[11px] font-medium leading-none text-amber-700 whitespace-nowrap">
+                                Pozvaný
+                            </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-auto space-y-3 pt-4 border-t border-amber-100">
+                      <div className="flex items-center gap-3 text-sm text-slate-700 truncate">
+                        <Mail size={16} className="text-amber-500 shrink-0"/> <span className="truncate">{invite.email}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-slate-600">
+                        <Clock size={16} className="text-amber-500 shrink-0"/>
+                        <span>
+                            Odoslané {invite.sent_count || 1}x
+                            {invite.last_sent_at ? ` · ${formatDate(invite.last_sent_at)}` : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="absolute top-4 right-4">
+                        <button onClick={(e) => handleCancelInvite(invite, e)} className="bg-white p-2 rounded-full text-red-500 shadow-sm border border-amber-200 hover:border-red-200 active:scale-90 transition" title="Zrušiť pozvánku">
+                            <Trash2 size={14}/>
+                        </button>
                     </div>
                   </Card>
                 ))}
@@ -541,6 +554,10 @@ const TeamList = ({ profile, onSelect }: any) => {
         type={confirm.action === 'delete' || confirm.action === 'cancel-invite' ? 'danger' : 'primary'}
       />
       
+      {showAdminComingSoon && <Modal title="V príprave" onClose={() => setShowAdminComingSoon(false)} maxWidth="max-w-sm">
+        <Button fullWidth onClick={() => setShowAdminComingSoon(false)}>Rozumiem</Button>
+      </Modal>}
+
       <AlertModal
         isOpen={alert.open}
         onClose={() => setAlert({ ...alert, open: false })}
@@ -548,6 +565,8 @@ const TeamList = ({ profile, onSelect }: any) => {
         message={alert.message}
         type={alert.title === 'Chyba' ? 'error' : 'success'}
       />
+
+      {absenceWorker && <Modal title={`Neprítomnosti – ${absenceWorker.full_name}`} maxWidth="max-w-3xl" onClose={() => setAbsenceWorker(null)}><EmployeeAbsences key={absenceWorker.id} profile={profile} employee={absenceWorker} /></Modal>}
 
       {showModal && (
         <Modal title="Upraviť zamestnanca" onClose={() => setShowModal(false)}>
@@ -859,16 +878,18 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 </div>
             </div>
 
+            <EmployeeAbsences key={emp.id} profile={profile} employee={emp} logs={allLogs} showCalendar={false} />
+
             <Card className="bg-slate-50 border-slate-200 p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div className="lg:col-span-1">
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                            <Search size={12}/> Hľadať stavbu
+                            <Search size={12}/> Hľadať zákazku
                         </label>
                         <div className="relative group site-search-container">
                             <input 
                                 type="text"
-                                placeholder="Všetky stavby..."
+                                placeholder="Všetky zákazky..."
                                 value={searchSiteQuery}
                                 onFocus={() => setShowSiteDropdown(true)}
                                 onChange={(e) => setSearchSiteQuery(e.target.value)}

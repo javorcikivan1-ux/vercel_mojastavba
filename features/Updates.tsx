@@ -21,10 +21,14 @@ const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mo
 const pwaUpdates = [
   {
     date: '23. október 2026',
-    version: 'v5.4.8',
-    title: 'PDF exporty na iPhone a iPade',
+    version: 'v5.4.9',
+    title: 'Dochádzka, neprítomnosti a PDF exporty',
     items: [
-      'Vylepšená kompatibilita s iOS pri generovaní PDF exportov. Na iPhone a iPade môžete pripravené PDF uložiť do Súborov alebo zdieľať.'
+      'Evidencia neprítomností: V sekcii Tím môžete pridávať, upravovať a odstraňovať PN, OČR, návštevu lekára, sprevádzanie k lekárovi, dovolenku a ďalšie druhy voľna.',
+      'Presnejší prehľad na nástenke: Zamestnanci s celodennou neprítomnosťou sa nezobrazujú medzi chýbajúcimi zápismi dochádzky.',
+      'PDF exporty na iOS: Vylepšili sme kompatibilitu generovania a otvárania PDF na iPhone a iPade.',
+      'Rýchlejšie zapisovanie financií: Priamo v hlavičke zákazky pribudli tlačidlá na pridanie výdavku a príjmu.',
+      'Prehľadnejšie ovládanie: Upravili sme mobilné menu zákazky, vzhľad záloh a štítkov v tíme.'
     ]
   },
   {

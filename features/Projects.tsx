@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { Menu } from 'lucide-react';
+import { ActionTooltip } from '../components/ActionTooltip';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button, Card, Badge, Modal, Input, Select, ConfirmModal, AlertModal, CustomLogo } from '../components/UI';
 // Added BookOpen to lucide-react imports to fix line 162 error
@@ -890,8 +892,8 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                                                 </div>
                                             </div>
                                             <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
-                                                <button onClick={() => handleEditSite(lead)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={18}/></button>
-                                                <button onClick={() => setConfirm({ open: true, action: 'delete', id: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                                                <ActionTooltip text="Upraviť dopyt"><button aria-label="Upraviť dopyt" onClick={() => handleEditSite(lead)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={18}/></button></ActionTooltip>
+                                                <ActionTooltip text="Vymazať dopyt"><button aria-label="Vymazať dopyt" onClick={() => setConfirm({ open: true, action: 'delete', id: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button></ActionTooltip>
                                             </div>
                                         </div>
                                     );
@@ -937,8 +939,8 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                                         <div className="font-bold text-slate-700 leading-none">{formatMoney(site.income)}</div>
                                     </div>
                                     <div className="flex gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setConfirm({ open: true, action: 'delete', id: site.id }); }} className="p-2 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-600 transition border border-transparent hover:border-red-100"><Trash2 size={16}/></button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleEditSite(site); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition border border-transparent hover:border-slate-200"><Pencil size={16}/></button>
+                                        <ActionTooltip text="Vymazať zákazku"><button aria-label="Vymazať zákazku" onClick={(e) => { e.stopPropagation(); setConfirm({ open: true, action: 'delete', id: site.id }); }} className="p-2 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-600 transition border border-transparent hover:border-red-100"><Trash2 size={16}/></button></ActionTooltip>
+                                        <ActionTooltip text="Upraviť zákazku"><button aria-label="Upraviť zákazku" onClick={(e) => { e.stopPropagation(); handleEditSite(site); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition border border-transparent hover:border-slate-200"><Pencil size={16}/></button></ActionTooltip>
                                     </div>
                                 </div>
                             </Card>
@@ -1140,7 +1142,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                                                 </td>
                                             )}
                                             <td className="py-2 text-right">
-                                                <button type="button" onClick={() => removeBudgetLine(line.id)} className="p-2 text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button>
+                                                <ActionTooltip text="Odstrániť položku"><button aria-label="Odstrániť položku" type="button" onClick={() => removeBudgetLine(line.id)} className="p-2 text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></ActionTooltip>
                                             </td>
                                         </tr>
                                     ))}
@@ -1829,7 +1831,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                       <div key={row.id} className="space-y-3 p-4">
                                         <div className="flex items-center justify-between gap-3">
                                           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 font-mono text-xs font-bold text-slate-500">{i + 1}</span>
-                                          <button type="button" onClick={() => removeCalcRow(row.id)} aria-label="Odstrániť položku" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-500"><Trash2 size={16}/></button>
+                                          <ActionTooltip text="Odstrániť položku"><button type="button" onClick={() => removeCalcRow(row.id)} aria-label="Odstrániť položku" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-500"><Trash2 size={16}/></button></ActionTooltip>
                                         </div>
                                         <input list="quote-desc-suggestions" className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-800 outline-none placeholder:text-slate-400 focus:border-orange-300 focus:bg-white" value={row.description} onChange={e => updateRow(row.id, 'description', e.target.value)} placeholder="Názov položky..." />
                                         <div className="grid grid-cols-2 gap-3">
@@ -1891,7 +1893,7 @@ const LeadDetail = ({ siteId, profile, onBack, organization, onConvertToProject 
                                                           <td className="p-3 px-2 text-right"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-mono" value={row.unit_cost === 0 ? '' : row.unit_cost} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'unit_cost', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0.00" /></td>
                                                           <td className="p-3 px-2 text-right"><input type="number" min="0" className="w-full bg-transparent outline-none text-right font-bold text-orange-600" value={row.margin === 0 ? '' : row.margin} onFocus={e => e.target.select()} onChange={e => updateRow(row.id, 'margin', Math.max(0, parseFloat(e.target.value) || 0))} placeholder="0" /></td>
                                                           <td className="bg-slate-50/50 p-3 text-right font-bold text-slate-900">{formatMoney(rowPrice)}</td>
-                                                          <td className="p-3 text-center"><button onClick={() => removeCalcRow(row.id)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></td>
+                                                          <td className="p-3 text-center"><ActionTooltip text="Odstrániť položku"><button aria-label="Odstrániť položku" onClick={() => removeCalcRow(row.id)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></ActionTooltip></td>
                                                       </tr>
                                                   );
                                               })}
@@ -2360,7 +2362,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                                 <div key={i} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                                     <div className="mb-3 flex items-center justify-between">
                                         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 font-mono text-xs font-bold text-slate-500">{i + 1}</span>
-                                        <button type="button" onClick={() => removeItem(i)} aria-label="Odstrániť položku" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 active:bg-red-50 active:text-red-500"><Trash2 size={16}/></button>
+                                        <ActionTooltip text="Odstrániť položku"><button type="button" onClick={() => removeItem(i)} aria-label="Odstrániť položku" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 active:bg-red-50 active:text-red-500"><Trash2 size={16}/></button></ActionTooltip>
                                     </div>
                                     <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Popis
                                         <input
@@ -2556,7 +2558,7 @@ const QuoteBuilder = ({ onClose, sites, profile, organization, onSave, initialSi
                                                 <td className="p-2 text-right text-slate-500 font-semibold tabular-nums">{formatMoney(itemVat)}</td>
                                             )}
                                             <td className="p-2 text-right font-black text-slate-900 bg-slate-50/30 tabular-nums">{formatMoney(itemTotal)}</td>
-                                            <td className="p-2 text-right"><button type="button" onClick={() => removeItem(i)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></td>
+                                            <td className="p-2 text-right"><ActionTooltip text="Odstrániť položku"><button aria-label="Odstrániť položku" type="button" onClick={() => removeItem(i)} className="text-slate-300 hover:text-red-500 transition active:scale-90"><Trash2 size={16}/></button></ActionTooltip></td>
                                         </tr>
                                     );
                                 })}
@@ -3178,6 +3180,14 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       }
   };
 
+  const openNewTransaction = (type: 'expense' | 'invoice' = 'expense') => {
+      const today = new Date();
+      setFormState({ type, date: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`, is_material: false, is_paid: true, unit: 'ks', quantity: 1 });
+      setActiveTab('finance');
+      setMobileTabsOpen(false);
+      setModals(previous => ({ ...previous, transaction: true }));
+  };
+
   const handleEditFinance = (item: any) => {
       if (item.itemType === 'material') {
           setFormState({
@@ -3358,20 +3368,19 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
           </div>
         </div>
         
-        <div className={`relative w-full border-t border-slate-100 pt-4 sm:overflow-hidden sm:rounded-2xl sm:border sm:p-4 sm:shadow-sm xl:w-auto xl:min-w-[260px] ${stats.profit >= 0 ? 'sm:bg-green-50/60 sm:border-green-100' : 'sm:bg-red-50/60 sm:border-red-100'}`}>
-          <div className={`absolute bottom-0 left-0 top-0 hidden w-1 sm:block ${stats.profit >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <div className="relative z-10 sm:pl-2 sm:pr-12">
-              <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-500 sm:font-semibold">
-                <Activity size={12} className={`hidden sm:block ${stats.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}/>
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center xl:w-auto">
+        <div className="w-full rounded-lg bg-slate-50 px-5 py-4 sm:w-auto sm:min-w-[230px] sm:mr-3">
+              <div className="mb-2 text-xs font-semibold text-slate-600">
                 Priebežný zisk
               </div>
-              <div className={`text-[1.75rem] font-bold tracking-tight ${stats.profit >= 0 ? 'text-emerald-700' : 'text-red-700'} tabular-nums leading-tight sm:text-[1.7rem]`}>
+              <div className={`whitespace-nowrap text-[1.75rem] font-bold tracking-tight ${stats.profit >= 0 ? 'text-emerald-700' : 'text-red-700'} tabular-nums leading-tight sm:text-[2rem]`}>
                 {formatMoney(stats.profit)}
               </div>
-          </div>
-          <div className={`absolute right-4 top-4 hidden h-10 w-10 items-center justify-center rounded-xl sm:flex ${stats.profit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-             <TrendingUp size={20} />
-          </div>
+        </div>
+        <div className="flex shrink-0 flex-col gap-2">
+          <button type="button" onClick={() => openNewTransaction('expense')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-100"><Plus size={16} /> Pridať výdavok</button>
+          <button type="button" onClick={() => openNewTransaction('invoice')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"><Plus size={16} /> Pridať príjem</button>
+        </div>
         </div>
       </div>
 
@@ -3382,17 +3391,18 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
               type="button"
               aria-expanded={mobileTabsOpen}
               aria-controls="project-mobile-menu"
+              aria-label={`Menu zákazky – ${activeProjectTab.label}`}
               onClick={() => setMobileTabsOpen(open => !open)}
-              className="flex min-h-[50px] w-full touch-manipulation items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left shadow-sm active:bg-slate-100"
+              className={`flex min-h-[56px] w-full touch-manipulation items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors active:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${mobileTabsOpen ? 'border-orange-300 bg-orange-50' : 'border-orange-200 bg-orange-50/60'}`}
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700">
-                <activeProjectTab.icon size={18} />
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center text-orange-700">
+                <Menu size={23} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Menu zákazky</span>
-                <span className="block truncate text-sm font-bold text-slate-900">{activeProjectTab.label}</span>
+                <span className="block text-sm font-bold text-slate-900">Menu zákazky</span>
               </span>
-              <ChevronDown size={19} className={`shrink-0 text-slate-500 transition-transform ${mobileTabsOpen ? 'rotate-180' : ''}`} />
+              <span className="max-w-[45%] truncate text-xs font-medium text-slate-600">{activeProjectTab.label}</span>
+              <ChevronDown size={19} className={`shrink-0 text-orange-700 transition-transform ${mobileTabsOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {mobileTabsOpen && (
@@ -3548,17 +3558,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
             <div className="animate-in fade-in">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <h3 className="font-extrabold text-xl text-slate-900">História príjmov a nákladov</h3>
-                <Button fullWidth={window.innerWidth < 640} onClick={() => { 
-                    setFormState({ 
-                        type: 'expense', 
-                        date: new Date().toISOString().split('T')[0], 
-                        is_material: false, 
-                        is_paid: true, 
-                        unit: 'ks', 
-                        quantity: 1
-                    }); 
-                    setModals({...modals, transaction: true}); 
-                }}><Plus size={18}/> Pridať pohyb</Button>
+                <Button fullWidth={window.innerWidth < 640} onClick={() => openNewTransaction()}><Plus size={18}/> Pridať pohyb</Button>
               </div>
                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="w-full overflow-x-auto custom-scrollbar">
@@ -3598,8 +3598,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                             </td>
                             <td className="p-4 text-right">
                                 <div className="flex gap-1 justify-end">
-                                    <button onClick={(e) => { e.stopPropagation(); handleEditFinance(t); }} className="p-2 text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-lg transition"><Pencil size={16}/></button>
-                                    <button onClick={(e) => { e.stopPropagation(); requestDelete(t.itemType === 'material' ? 'materials' : 'transactions', t.id); }} className="p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition"><Trash2 size={16}/></button>
+                                    <ActionTooltip text="Upraviť finančný záznam"><button aria-label="Upraviť finančný záznam" onClick={(e) => { e.stopPropagation(); handleEditFinance(t); }} className="p-2 text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-lg transition"><Pencil size={16}/></button></ActionTooltip>
+                                    <ActionTooltip text="Vymazať finančný záznam"><button aria-label="Vymazať finančný záznam" onClick={(e) => { e.stopPropagation(); requestDelete(t.itemType === 'material' ? 'materials' : 'transactions', t.id); }} className="p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition"><Trash2 size={16}/></button></ActionTooltip>
                                 </div>
                             </td>
                           </tr>
@@ -3657,8 +3657,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                                 {l.payment_type === 'fixed' ? <Briefcase className="text-orange-300" size={24}/> : formatDuration(Number(l.hours || 0))}
                               </div>
                               <div className="flex gap-1 opacity-100">
-                                <button onClick={(e) => { e.stopPropagation(); handleEditLog(l); }} className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-90"><Pencil size={18}/></button>
-                                <button onClick={(e) => { e.stopPropagation(); requestDelete('attendance_logs', l.id); }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition active:scale-90"><Trash2 size={18}/></button>
+                                <ActionTooltip text="Upraviť zápis dochádzky"><button aria-label="Upraviť zápis dochádzky" onClick={(e) => { e.stopPropagation(); handleEditLog(l); }} className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-90"><Pencil size={18}/></button></ActionTooltip>
+                                <ActionTooltip text="Vymazať zápis dochádzky"><button aria-label="Vymazať zápis dochádzky" onClick={(e) => { e.stopPropagation(); requestDelete('attendance_logs', l.id); }} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition active:scale-90"><Trash2 size={18}/></button></ActionTooltip>
                               </div>
                           </div>
                       </div>

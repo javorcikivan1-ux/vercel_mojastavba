@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { loadAdvanceTotals } from '../lib/advances';
 import { Card, Button, Modal, Input, Select, Badge, ConfirmModal } from '../components/UI';
 import { 
     Banknote, Plus, History, CheckCircle2, User, 
@@ -17,6 +18,12 @@ export const AdvancesScreen = ({ profile }: any) => {
     const [workers, setWorkers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    const settlementLock = useRef(false);
+    const saveLock = useRef(false);
+    const [settling, setSettling] = useState(false);
+    const [stats, setStats] = useState({ totalUnsettled: 0, countUnsettled: 0 });
+    const [statsError, setStatsError] = useState('');
+    const [statsLoading, setStatsLoading] = useState(true);
     
     // Pagination & Filter State
     const [page, setPage] = useState(0);
@@ -133,24 +140,42 @@ export const AdvancesScreen = ({ profile }: any) => {
         return () => clearTimeout(timer);
     }, [statusFilter, userFilter, searchQuery]);
 
-    const stats = useMemo(() => {
-        const unsettled = advances.filter(a => a.status === 'pending');
-        const remainingTotal = unsettled.reduce((s, a) => s + (Number(a.amount) - Number(a.settled_amount || 0)), 0);
-        return {
-            totalUnsettled: remainingTotal,
-            countUnsettled: unsettled.length
+    useEffect(() => {
+        let cancelled = false;
+        const loadTotals = async () => {
+            setStatsLoading(true);
+            setStatsError('');
+            try {
+                const totals = await loadAdvanceTotals(profile.organization_id, userFilter);
+                if (!cancelled) setStats(totals);
+            } catch {
+                if (!cancelled) setStatsError('Súhrn záloh sa nepodarilo načítať.');
+            } finally {
+                if (!cancelled) setStatsLoading(false);
+            }
         };
-    }, [advances]);
+        loadTotals();
+        return () => { cancelled = true; };
+    }, [profile.organization_id, userFilter, advances]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (saveLock.current) return;
+        const amount = Number(formData.amount);
+        const alreadySettled = Number(editingAdvance?.settled_amount || 0);
+        if (!Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) < Math.round(alreadySettled * 100)) {
+            alert('Suma zálohy musí byť kladná a nesmie byť nižšia ako už zúčtované splátky.');
+            return;
+        }
+        saveLock.current = true;
         setLoading(true);
         try {
             const payload = {
                 ...formData,
-                amount: parseFloat(formData.amount),
+                amount,
                 organization_id: profile.organization_id,
-                status: 'pending'
+                status: Math.round(alreadySettled * 100) === Math.round(amount * 100) ? 'settled' : 'pending',
+                settled_at: Math.round(alreadySettled * 100) === Math.round(amount * 100) ? (editingAdvance?.settled_at || new Date().toISOString()) : null
             };
 
             let res;
@@ -168,39 +193,37 @@ export const AdvancesScreen = ({ profile }: any) => {
         } catch (err: any) {
             alert(err.message);
         } finally {
+            saveLock.current = false;
             setLoading(false);
         }
     };
 
     const handleSettleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedForSettle) return;
+        if (!selectedForSettle || settlementLock.current) return;
         
         const amountToSettle = parseFloat(settleForm.amount);
-        if (isNaN(amountToSettle) || amountToSettle <= 0) return;
+        if (!Number.isFinite(amountToSettle) || amountToSettle <= 0) return;
+        if (Math.round(amountToSettle * 100) > Math.round((Number(selectedForSettle.amount) - Number(selectedForSettle.settled_amount || 0)) * 100)) {
+            alert('Splátka nemôže byť vyššia ako zostávajúci zostatok zálohy.');
+            return;
+        }
+        settlementLock.current = true;
+        setSettling(true);
 
         setLoading(true);
         try {
-            const newSettledAmount = Number(selectedForSettle.settled_amount || 0) + amountToSettle;
-            const isFullySettled = newSettledAmount >= Number(selectedForSettle.amount);
-
-            // 1. Záznam do histórie splátok
-            const { error: histError } = await supabase.from('advance_settlements').insert([{
-                advance_id: selectedForSettle.id,
-                amount: amountToSettle,
-                date: settleForm.date
-            }]);
-            if (histError) throw histError;
-
-            // 2. Update hlavného záznamu
-            const { error: advError } = await supabase.from('advances').update({
-                settled_amount: Math.min(newSettledAmount, Number(selectedForSettle.amount)),
-                status: isFullySettled ? 'settled' : 'pending',
-                settled_at: isFullySettled ? new Date().toISOString() : null
-            }).eq('id', selectedForSettle.id);
-
-            if (advError) throw advError;
-
+            const { error } = await supabase.rpc('settle_employee_advance', {
+                p_advance_id: selectedForSettle.id,
+                p_amount: amountToSettle,
+                p_date: settleForm.date
+            });
+            if (error) {
+                if (error.code === 'PGRST202' || error.code === '42883') {
+                    throw new Error('Najskôr je potrebné spustiť SQL aktualizáciu pre bezpečné zúčtovanie záloh.');
+                }
+                throw error;
+            }
             setShowSettleModal(false);
             setSelectedForSettle(null);
             setSettleForm({ amount: '', date: new Date().toISOString().split('T')[0] });
@@ -208,6 +231,8 @@ export const AdvancesScreen = ({ profile }: any) => {
         } catch (err: any) {
             alert(err.message);
         } finally {
+            settlementLock.current = false;
+            setSettling(false);
             setLoading(false);
         }
     };
@@ -235,7 +260,7 @@ export const AdvancesScreen = ({ profile }: any) => {
                     </h2>
                     <p className="app-section-subtitle">Evidencia splátok a zostatkov záloh</p>
                 </div>
-                <Button onClick={() => { setEditingAdvance(null); setFormData({ user_id: '', amount: '', date: new Date().toISOString().split('T')[0], description: '' }); setShowModal(true); }}>
+                <Button size="sm" className="!shadow-none" onClick={() => { setEditingAdvance(null); setFormData({ user_id: '', amount: '', date: new Date().toISOString().split('T')[0], description: '' }); setShowModal(true); }}>
                     <Plus size={18}/> Vyplatiť Zálohu
                 </Button>
             </div>
@@ -245,8 +270,8 @@ export const AdvancesScreen = ({ profile }: any) => {
                     <div className="absolute top-0 right-0 p-4 opacity-10"><TrendingUp size={64} className="text-orange-600"/></div>
                     <div className="relative z-10">
                         <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Celkom k vráteniu</div>
-                        <div className="text-3xl font-black text-orange-600">{formatMoney(stats.totalUnsettled)}</div>
-                        <div className="text-xs font-bold text-slate-400 mt-1">{stats.countUnsettled} aktívnych záloh</div>
+                        <div className="text-2xl font-bold text-orange-600">{statsLoading ? '…' : statsError ? '—' : formatMoney(stats.totalUnsettled)}</div>
+                        <div className="text-xs font-bold text-slate-400 mt-1">{statsLoading ? 'Načítavam súhrn…' : statsError || (stats.countUnsettled + ' aktívnych záloh')}</div>
                     </div>
                 </Card>
                 
@@ -290,24 +315,24 @@ export const AdvancesScreen = ({ profile }: any) => {
                             const percent = (settled / total) * 100;
 
                             return (
-                                <Card key={adv.id} onClick={() => openHistory(adv)} className="p-4 sm:p-6 hover:shadow-lg transition-all group border-slate-200 cursor-pointer overflow-hidden bg-white">
-                                    <div className="flex flex-col gap-4">
+                                <Card key={adv.id} onClick={() => openHistory(adv)} className="p-4 sm:p-5 !shadow-none hover:border-slate-300 transition-colors group border-slate-200 cursor-pointer overflow-hidden bg-white">
+                                    <div className="flex flex-col gap-3">
                                         {/* HEADER RAD: IKONA + ZÁKLADNÉ INFO */}
                                         <div className="flex items-start justify-between gap-4">
-                                            <div className="flex items-center gap-4 min-w-0">
-                                                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 shadow-sm shrink-0">
-                                                    <Banknote className="size-6 sm:size-8"/>
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 shrink-0">
+                                                    <Banknote className="size-5"/>
                                                 </div>
                                                 <div className="min-w-0">
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <span className="font-black text-slate-900 text-lg sm:text-2xl tracking-tight">{formatMoney(total)}</span>
+                                                        <span className="font-bold text-slate-900 text-lg sm:text-xl tracking-tight">{formatMoney(total)}</span>
                                                         {adv.status === 'settled' ? (
-                                                            <span className="text-xs sm:text-sm bg-green-100 text-green-700 px-2 py-0.5 sm:py-1 rounded-lg font-bold uppercase tracking-wider flex items-center gap-1 border border-green-200"><CheckCircle2 size={10}/> Splatené</span>
+                                                            <span className="text-[11px] bg-green-50 text-green-700 px-2 py-0.5 rounded-md font-medium flex items-center gap-1 border border-green-100"><CheckCircle2 size={10}/> Splatené</span>
                                                         ) : settled > 0 ? (
-                                                            <span className="text-xs sm:text-sm bg-yellow-100 text-yellow-700 px-2 py-0.5 sm:py-1 rounded-lg font-bold uppercase tracking-wider flex items-center gap-1 border border-yellow-200"><Clock size={10}/> Čiastočne splatené</span>
+                                                            <span className="text-[11px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md font-medium flex items-center gap-1 border border-amber-100"><Clock size={10}/> Čiastočne splatené</span>
                                                         ) : null}
                                                     </div>
-                                                    <div className="text-xs sm:text-sm font-bold text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                                                    <div className="text-xs font-medium text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
                                                         <span className="flex items-center gap-1.5"><User size={14} className="text-slate-300"/> {adv.profiles?.full_name}</span>
                                                         <span className="flex items-center gap-1.5"><Calendar size={14} className="text-slate-300"/> {formatDate(adv.date)}</span>
                                                     </div>
@@ -332,17 +357,17 @@ export const AdvancesScreen = ({ profile }: any) => {
 
                                         {/* PROGRESS SECTION: TERAZ NA CELÚ ŠÍRKU KARTY */}
                                         {adv.status === 'pending' && (
-                                            <div className="w-full bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-inner">
+                                            <div className="w-full bg-slate-50/70 p-3 sm:p-4 rounded-xl border border-slate-100">
                                                 <div className="flex justify-between items-end mb-3">
-                                                    <span className="text-xs sm:text-sm font-bold uppercase text-slate-500 tracking-wider">Priebeh splácania ({Math.round(percent)}%)</span>
+                                                    <span className="text-xs font-medium text-slate-500">Priebeh splácania ({Math.round(percent)}%)</span>
                                                     <div className="text-right">
-                                                        <span className="text-xs block text-slate-400 font-bold uppercase mb-0.5">Zostatok k vráteniu</span>
-                                                        <span className="text-sm sm:text-lg text-orange-600 font-black">{formatMoney(remaining)}</span>
+                                                        <span className="text-[11px] block text-slate-500 font-medium mb-0.5">Zostatok k vráteniu</span>
+                                                        <span className="text-sm sm:text-base text-orange-600 font-bold">{formatMoney(remaining)}</span>
                                                     </div>
                                                 </div>
-                                                <div className="w-full h-3 sm:h-4 bg-white rounded-full overflow-hidden border border-slate-200 p-0.5 flex shadow-sm">
+                                                <div className="w-full h-2 bg-slate-200/70 rounded-full overflow-hidden flex">
                                                     <div 
-                                                        className="h-full bg-orange-500 rounded-full transition-all duration-1000 shadow-[0_0_12px_rgba(249,115,22,0.4)]" 
+                                                        className="h-full bg-orange-500 rounded-full transition-all duration-1000"
                                                         style={{ width: `${percent}%` }}
                                                     ></div>
                                                 </div>
@@ -350,7 +375,7 @@ export const AdvancesScreen = ({ profile }: any) => {
                                         )}
 
                                         {/* ACTION BUTTON & DESCRIPTION */}
-                                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2">
+                                        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-1">
                                             {adv.description ? (
                                                 <p className="text-[11px] sm:text-sm text-slate-500 italic bg-slate-50/50 p-3 rounded-xl border border-slate-100 border-dashed w-full sm:w-auto flex-1">
                                                     "{adv.description}"
@@ -359,8 +384,8 @@ export const AdvancesScreen = ({ profile }: any) => {
                                             
                                             {adv.status === 'pending' && (
                                                 <div className="w-full sm:w-auto" onClick={(e) => e.stopPropagation()}>
-                                                    <Button size="md" onClick={() => { setSelectedForSettle(adv); setSettleForm({ amount: '', date: new Date().toISOString().split('T')[0] }); setShowSettleModal(true); }} className="bg-green-600 text-white border-none hover:bg-green-700 w-full sm:w-auto h-12 px-8 shadow-xl shadow-green-100 text-xs sm:text-sm uppercase font-black tracking-widest">
-                                                        <Calculator size={18}/> Zúčtovať splátku
+                                                    <Button size="sm" onClick={() => { setSelectedForSettle(adv); setSettleForm({ amount: '', date: new Date().toISOString().split('T')[0] }); setShowSettleModal(true); }} className="w-full sm:w-auto !shadow-none !font-semibold !tracking-normal">
+                                                        <Calculator size={15}/> Zúčtovať splátku
                                                     </Button>
                                                 </div>
                                             )}
@@ -432,7 +457,7 @@ export const AdvancesScreen = ({ profile }: any) => {
                             </p>
                         </div>
 
-                        <Button type="submit" fullWidth size="lg" className="mt-6 shadow-orange-100 h-12 font-bold tracking-wide">
+                        <Button type="submit" loading={settling} disabled={settling} fullWidth size="lg" className="mt-6 shadow-orange-100 h-12 font-bold tracking-wide">
                             {editingAdvance ? 'Uložiť zmeny' : 'Uložiť zálohu'}
                         </Button>
                     </form>
@@ -441,7 +466,7 @@ export const AdvancesScreen = ({ profile }: any) => {
 
             {/* MODAL: ZÚČTOVAŤ SPLÁTKU */}
             {showSettleModal && (
-                <Modal title="Zúčtovať splátku zálohy" onClose={() => setShowSettleModal(false)}>
+                <Modal title="Zúčtovať splátku zálohy" onClose={() => { if (!settlementLock.current) setShowSettleModal(false); }}>
                     <form onSubmit={handleSettleSubmit} className="space-y-6">
                         <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-inner text-center">
                             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Aktuálny stav u zamestnanca</div>
@@ -484,10 +509,10 @@ export const AdvancesScreen = ({ profile }: any) => {
                         </div>
 
                         <div className="flex flex-col gap-2 pt-2">
-                            <Button type="submit" fullWidth size="lg" className="h-12 font-bold tracking-wide shadow-xl shadow-green-100 bg-green-600 hover:bg-green-700 border-none">
+                            <Button type="submit" loading={settling} disabled={settling} fullWidth size="lg" className="h-12 font-bold tracking-wide shadow-xl shadow-green-100 bg-green-600 hover:bg-green-700 border-none">
                                 <Check size={20}/> Potvrdiť a odpočítať
                             </Button>
-                            <Button variant="secondary" fullWidth onClick={() => setShowSettleModal(false)} className="h-11 sm:h-12 font-bold text-slate-400 border-none hover:text-slate-600">
+                            <Button variant="secondary" disabled={settling} fullWidth onClick={() => setShowSettleModal(false)} className="h-11 sm:h-12 font-bold text-slate-400 border-none hover:text-slate-600">
                                 Zrušiť
                             </Button>
                         </div>

@@ -1395,12 +1395,22 @@ export const App = () => {
                           23. október 2026 · v{pkg.version}
                         </p>
                         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
+                          <h4 className="mb-3 text-sm font-bold text-slate-900">Úprava dochádzky a evidencia neprítomností</h4>
                           <ul className="space-y-3 text-sm font-medium leading-relaxed text-slate-700">
                             <li className="flex gap-2.5">
                               <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>Vylepšená kompatibilita s iOS pri generovaní PDF exportov. Na iPhone a iPade môžete pripravené PDF uložiť do Súborov alebo zdieľať.</span>
+                              <span>V sekcii <strong>Tím</strong> môžete teraz u konkrétneho zamestnanca evidovať PN, OČR, dovolenku a ďalšie neprítomnosti.</span>
+                            </li>
+                            <li className="flex gap-2.5">
+                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
+                              <span>Vylepšili sme kompatibilitu PDF exportov s iPhonom a iPadom.</span>
+                            </li>
+                            <li className="flex gap-2.5">
+                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
+                              <span>V prípade, že ste našli chybu alebo bug, neváhajte nás o tejto skutočnosti informovať cez formulár na nástenke.</span>
                             </li>
                           </ul>
+                          <p className="mt-4 text-sm text-slate-500">Ďakujeme, že používate MojaStavba.</p>
                         </div>
                         <div className="mt-6">
                           <Button fullWidth onClick={() => setShowPwaUpdateNotice(false)}>

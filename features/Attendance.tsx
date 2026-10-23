@@ -1,16 +1,21 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button } from '../components/UI';
 import { FileCheck, Calendar, User, Printer, Loader2, Clock, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Pencil, Eye, EyeOff, Briefcase, Check, X } from 'lucide-react';
-import { formatDate } from '../lib/utils';
+import { formatDate, formatDuration } from '../lib/utils';
 import { exportElementToPdf } from '../lib/pdfExport';
-import { formatAttendanceRange } from '../lib/attendance';
+import { formatAttendanceRange, formatAttendanceRanges, parseAttendanceRangeHours } from '../lib/attendance';
+import { AbsenceCalendar } from '../components/AbsenceCalendar';
+import { absenceDayCounts, absenceError, absenceExportRows, loadAbsences, type EmployeeAbsence } from '../lib/absences';
 
 export const AttendanceScreen = ({ profile, organization }: any) => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [selectedEmpId, setSelectedEmpId] = useState(profile.role === 'admin' ? '' : profile.id);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [logs, setLogs] = useState<any[]>([]);
+  const [absences, setAbsences] = useState<EmployeeAbsence[]>([]);
+  const [dataError, setDataError] = useState('');
+  const loadVersion = useRef(0);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   
@@ -43,25 +48,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
       return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showTemplatePopover]);
 
-  // Funkcia na výpočet hodín z textového reťazca "07:00 - 15:30"
-  const parseTimeToHours = (timeStr: string): number | null => {
-      if (!timeStr) return null;
-      const regex = /(\d{1,2})[:.](\d{2})\s*[-–,]\s*(\d{1,2})[:.](\d{2})/;
-      const match = timeStr.match(regex);
-      if (!match) return null;
-
-      const h1 = parseInt(match[1]);
-      const m1 = parseInt(match[2]);
-      const h2 = parseInt(match[3]);
-      const m2 = parseInt(match[4]);
-
-      const startMins = h1 * 60 + m1;
-      let endMins = h2 * 60 + m2;
-      
-      if (endMins < startMins) endMins += 24 * 60; // Cez polnoc
-
-      return parseFloat(((endMins - startMins) / 60).toFixed(1));
-  };
+  const parseTimeToHours = parseAttendanceRangeHours;
 
   useEffect(() => {
     if (profile.role === 'admin') {
@@ -81,25 +68,32 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
       loadLogs();
     } else {
         setLogs([]);
+        setAbsences([]);
     }
-  }, [selectedEmpId, currentDate]);
+    const refresh = () => { if (selectedEmpId) loadLogs(); };
+    window.addEventListener('employee-absences-changed', refresh);
+    return () => { loadVersion.current++; window.removeEventListener('employee-absences-changed', refresh); };
+  }, [selectedEmpId, currentDate, profile.organization_id]);
 
   const loadLogs = async () => {
+    const request = ++loadVersion.current;
     setLoading(true);
+    setLogs([]); setAbsences([]); setDataError('');
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const startOfMonth = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
     const lastDay = new Date(year, month + 1, 0).getDate();
     const endOfMonth = `${year}-${(month + 1).toString().padStart(2, '0')}-${lastDay}`;
 
-    const { data } = await supabase.from('attendance_logs')
-      .select('*, sites(name)')
-      .eq('user_id', selectedEmpId)
-      .gte('date', startOfMonth)
-      .lte('date', endOfMonth)
-      .order('date');
-    if (data) setLogs(data);
-    setLoading(false);
+    try {
+      const [work, absenceData] = await Promise.all([
+        supabase.from('attendance_logs').select('*, sites(name)').eq('organization_id', profile.organization_id).eq('user_id', selectedEmpId).gte('date', startOfMonth).lte('date', endOfMonth).order('date'),
+        loadAbsences(profile.organization_id, selectedEmpId, { start: startOfMonth, end: endOfMonth })
+      ]);
+      if (work.error) throw work.error;
+      if (request === loadVersion.current) { setLogs(work.data || []); setAbsences(absenceData); }
+    } catch (error) { if (request === loadVersion.current) setDataError(absenceError(error)); }
+    finally { if (request === loadVersion.current) setLoading(false); }
   };
 
   const addMinutes = (time: string, mins: number) => {
@@ -144,6 +138,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                       descriptions: l.description ? [l.description] : [], 
                       siteNames: l.sites?.name ? [l.sites.name] : [],
                       isFixed: l.payment_type === 'fixed',
+                      sourceLogs: [l],
                       start_time: l.start_time,
                        end_time: l.end_time,
                        break_start: l.break_start,
@@ -151,6 +146,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                   };
               } else {
                   groupMap[groupKey].totalHours += parseFloat(l.hours) || 0;
+                  groupMap[groupKey].sourceLogs.push(l);
                   if (l.description && !groupMap[groupKey].descriptions.includes(l.description)) groupMap[groupKey].descriptions.push(l.description);
                   const sName = l.sites?.name;
                   if (sName && !groupMap[groupKey].siteNames.includes(sName)) groupMap[groupKey].siteNames.push(sName);
@@ -161,17 +157,17 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
 
           processed = Object.values(groupMap).map(d => ({
               ...d,
-              hours: d.totalHours.toFixed(1),
+              hours: String(d.totalHours),
               description: d.descriptions.join(', '),
               siteName: d.siteNames.join(', '),
               displayTime: exportOptions.useTemplate 
                 ? formatWithTemplate(d.totalHours) 
-                : formatAttendanceRange(d)
+                : formatAttendanceRanges(d.sourceLogs)
           })).sort((a, b) => a.date.localeCompare(b.date));
       } else {
           processed = sourceLogs.map(l => ({
               ...l,
-              hours: parseFloat(l.hours || 0).toFixed(1),
+              hours: String(parseFloat(l.hours || 0)),
               siteName: l.sites?.name,
               isFixed: l.payment_type === 'fixed',
               displayTime: exportOptions.useTemplate 
@@ -179,19 +175,21 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                 : formatAttendanceRange(l)
           }));
       }
-      setEditableLogs(processed);
+      const absenceRows = absenceExportRows(absences, currentDate);
+      setEditableLogs([...processed, ...absenceRows].sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.isAbsence) - Number(!!b.isAbsence)));
   };
 
   useEffect(() => {
-    if (logs.length > 0) {
+    if (logs.length > 0 || absences.length > 0) {
         processLogs(logs);
     } else {
         setEditableLogs([]);
     }
-  }, [logs, exportOptions]);
+  }, [logs, absences, currentDate, exportOptions]);
 
   const stats = useMemo(() => {
     return editableLogs.reduce((acc, log) => {
+        if (log.isAbsence) return acc;
         const h = parseFloat(log.hours) || 0;
         if (log.isFixed) {
             acc.fixedHours += h;
@@ -204,20 +202,21 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
   }, [editableLogs]);
 
   const handleRowChange = (index: number, field: string, value: any) => {
+      if (editableLogs[index]?.isAbsence) return;
       const newLogs = [...editableLogs];
       newLogs[index] = { ...newLogs[index], [field]: value };
 
       if (field === 'displayTime') {
           const calculatedHours = parseTimeToHours(value);
           if (calculatedHours !== null) {
-              newLogs[index].hours = calculatedHours.toFixed(1);
+              newLogs[index].hours = String(calculatedHours);
           }
       }
       setEditableLogs(newLogs);
   };
 
   const handleExportPDF = async () => {
-    if (!printRef.current) return;
+    if (!printRef.current || loading || dataError) return;
     setExporting(true);
 
     try {
@@ -259,13 +258,15 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
           <p className="app-section-subtitle">Správa a export mesačných výkazov</p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-          <Button onClick={handleExportPDF} disabled={!selectedEmpId || editableLogs.length === 0 || exporting} fullWidth className="md:w-auto shadow-lg shadow-orange-100">
+          <Button onClick={handleExportPDF} disabled={!selectedEmpId || editableLogs.length === 0 || exporting || loading || !!dataError} fullWidth className="md:w-auto shadow-lg shadow-orange-100">
             {exporting ? <Loader2 className="animate-spin" size={18}/> : <Printer size={18} />} 
             Generovať PDF
           </Button>
         </div>
       </div>
 
+      {dataError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{dataError} Výkaz nemožno exportovať, kým sa nenačítajú kompletné údaje.</div>}
+      {selectedEmpId && !loading && !dataError && <AbsenceCalendar month={currentDate} logs={logs} absences={absences} />}
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-4 items-start">
             <Card className="grid grid-cols-1 md:grid-cols-[minmax(260px,1fr)_240px] gap-4 items-end shadow-sm border-slate-200">
@@ -402,7 +403,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                 <div className="min-w-0 px-2 pr-5 transition-colors sm:flex sm:h-14 sm:min-w-[190px] sm:flex-none sm:flex-row-reverse sm:items-center sm:justify-end sm:gap-3 sm:rounded-xl sm:border sm:border-slate-200 sm:bg-white sm:px-3 sm:py-0 sm:shadow-sm">
                     <div className="min-w-0 text-left sm:flex-1">
                         <span className="mb-2 block whitespace-nowrap text-xs font-semibold leading-none text-slate-500 sm:mb-1 sm:text-[10px] sm:font-black sm:uppercase sm:tracking-wide">Hodinový fond</span>
-                        <span className="whitespace-nowrap text-lg font-bold leading-none text-slate-900 sm:text-xl sm:font-black">{stats.hourlyHours.toFixed(1)} <span className="text-[10px] font-semibold uppercase text-slate-500 sm:text-xs">hod</span></span>
+                        <span className="whitespace-nowrap text-lg font-bold leading-none text-slate-900 sm:text-xl sm:font-black">{formatDuration(stats.hourlyHours)}</span>
                     </div>
                     <div className="hidden w-9 h-9 rounded-lg bg-slate-50 sm:flex items-center justify-center text-orange-500 shrink-0">
                         <Clock size={17}/>
@@ -429,7 +430,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                   {exportOptions.showSites && <th className="px-4 py-3 w-[210px]">Zákazka</th>}
                   <th className="px-4 py-3 text-center min-w-[230px]">Čas Od - Do</th>
                   {exportOptions.showDescription && <th className="px-4 py-3 min-w-[220px]">Činnosť / Popis</th>}
-                  <th className="px-4 py-3 text-right w-[100px]">Hodiny</th>
+                  <th className="px-4 py-3 text-right min-w-[180px]">Trvanie</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -448,6 +449,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                         <td className="w-[210px] min-w-[210px] px-3 py-2 align-middle">
                             <input
                               type="text"
+                              readOnly={!!log.isAbsence}
                               value={log.siteName || ''} 
                               onChange={(e) => handleRowChange(idx, 'siteName', e.target.value)}
                               title={log.siteName || ''}
@@ -459,6 +461,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                     <td className="px-3 py-2 align-middle text-center">
                         <input 
                           type="text" 
+                          readOnly={!!log.isAbsence}
                           value={log.displayTime} 
                           onChange={(e) => handleRowChange(idx, 'displayTime', e.target.value)}
                           className="h-10 w-full rounded-lg border border-transparent bg-slate-50/70 px-3 text-center text-[13px] font-medium text-slate-700 outline-none transition hover:border-orange-200 focus:border-orange-500 focus:bg-white sm:text-sm sm:font-semibold"
@@ -469,6 +472,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                         <td className="px-3 py-2 align-middle">
                             <textarea 
                               rows={1}
+                              readOnly={!!log.isAbsence}
                               value={log.description || ''} 
                               onChange={(e) => handleRowChange(idx, 'description', e.target.value)}
                               className="min-h-10 w-full resize-none rounded-lg border border-transparent bg-slate-50/70 px-3 py-2 text-[13px] font-medium leading-relaxed text-slate-700 outline-none transition hover:border-slate-200 focus:border-orange-500 focus:bg-white sm:text-sm sm:font-normal sm:italic custom-scrollbar"
@@ -477,13 +481,16 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                         </td>
                     )}
                     <td className="px-3 py-2 align-middle text-right">
-                        <input 
-                          type="number" 
-                          step="0.1"
-                          value={log.hours} 
-                          onChange={(e) => handleRowChange(idx, 'hours', e.target.value)}
-                          className={`h-10 w-full rounded-lg border border-transparent bg-slate-50 px-3 text-right text-[13px] font-semibold outline-none transition hover:border-slate-200 focus:border-orange-500 focus:bg-white sm:text-base sm:font-black ${log.isFixed ? 'text-orange-600' : 'text-slate-900'}`}
-                        />
+                        {log.isAbsence ? <span className="text-sm font-semibold text-slate-700">{log.all_day ? '—' : formatDuration(Number(log.hours))}</span> : <div className="flex items-center justify-end gap-1 text-xs text-slate-500">
+                          <input type="number" min="0" step="1" aria-label={`Hodiny práce – riadok ${idx + 1}`} value={Math.floor(Math.round(Number(log.hours || 0) * 60) / 60)}
+                            onChange={event => { const hours = Number(event.target.value); if (Number.isInteger(hours) && hours >= 0) handleRowChange(idx, 'hours', String(hours + (Math.round(Number(log.hours || 0) * 60) % 60) / 60)); }}
+                            className="h-10 w-16 rounded-lg border border-slate-200 bg-slate-50 px-2 text-right text-sm font-semibold text-slate-900 outline-none focus:border-orange-500" />
+                          <span>h</span>
+                          <input type="number" min="0" max="59" step="1" aria-label={`Minúty práce – riadok ${idx + 1}`} value={Math.round(Number(log.hours || 0) * 60) % 60}
+                            onChange={event => { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes < 60) handleRowChange(idx, 'hours', String(Math.floor(Math.round(Number(log.hours || 0) * 60) / 60) + minutes / 60)); }}
+                            className="h-10 w-16 rounded-lg border border-slate-200 bg-slate-50 px-2 text-right text-sm font-semibold text-slate-900 outline-none focus:border-orange-500" />
+                          <span>min</span>
+                        </div>}
                     </td>
                   </tr>
                 ))}
@@ -539,12 +546,12 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
             <div className="grid grid-cols-3 gap-4 mb-8 break-inside-avoid">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">Hodiny k výplate</div>
-                <div className="text-2xl font-bold text-slate-950 tabular-nums">{stats.hourlyHours.toFixed(1)} h</div>
+                <div className="text-2xl font-bold text-slate-950 tabular-nums">{formatDuration(stats.hourlyHours)}</div>
               </div>
               <div className="bg-orange-50/70 p-4 rounded-xl border border-orange-100">
                 <div className="text-[10px] font-bold text-orange-800/70 uppercase tracking-[0.14em] mb-1">Úkolové práce</div>
                 <div className="text-2xl font-bold text-orange-800 tabular-nums">{stats.fixedCount} ks</div>
-                <div className="text-[10px] text-orange-700/70 font-semibold">{stats.fixedHours.toFixed(1)} h evidenčne</div>
+                <div className="text-[10px] text-orange-700/70 font-semibold">{formatDuration(stats.fixedHours)} evidenčne</div>
               </div>
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.14em] mb-1">Počet riadkov</div>
@@ -552,6 +559,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
               </div>
             </div>
 
+            {absences.length > 0 && <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs"><strong>Neprítomnosti v mesiaci</strong><p className="mt-1">{absenceDayCounts(absences, currentDate).map(type => type.short + ': ' + type.days + ' kal. dní').join(' · ')}</p><p className="mt-1 text-[10px] text-slate-500">Neprítomnosti nie sú započítané do odpracovaných hodín. Výkaz nepočíta náhrady mzdy ani nárok na dovolenku. Otvorené neprítomnosti sú vykázané len po dnešný dátum.</p></div>}
             <table className="w-full border-collapse mb-10 table-fixed text-xs rounded-xl overflow-hidden">
               <thead>
                 <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
@@ -559,7 +567,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                   {exportOptions.showSites && <th className="border-b border-slate-200 p-2.5 text-left w-[32mm]">Zákazka</th>}
                   <th className="border-b border-slate-200 p-2.5 text-center w-[42mm]">Čas od - do</th>
                   {exportOptions.showDescription && <th className="border-b border-slate-200 p-2.5 text-left">Činnosť / popis</th>}
-                  <th className="border-b border-slate-200 p-2.5 text-right w-[24mm]">Hodiny</th>
+                  <th className="border-b border-slate-200 p-2.5 text-right w-[30mm]">Trvanie</th>
                 </tr>
               </thead>
               <tbody>
@@ -586,7 +594,8 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                     )}
                     <td className={`border-b border-slate-100 p-2.5 text-right font-bold align-top tabular-nums ${log.isFixed ? 'bg-orange-50/40' : ''}`}>
                       <div className="flex flex-col items-end">
-                        <span className={log.isFixed ? 'text-orange-800' : 'text-slate-950'}>{parseFloat(log.hours || 0).toFixed(1)} h</span>
+                        <span className={log.isFixed ? 'text-orange-800' : 'text-slate-950'}>{log.isAbsence ? (log.all_day ? '—' : formatDuration(parseFloat(log.hours || 0))) : formatDuration(parseFloat(log.hours || 0))}</span>
+                        {log.isAbsence && <span className="mt-1 whitespace-nowrap text-[8px] font-semibold text-slate-500">Neprít.</span>}
                         {log.isFixed && <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-orange-700 mt-0.5 leading-none">Úkol</span>}
                       </div>
                     </td>
@@ -596,12 +605,12 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
               <tfoot>
                 <tr className="bg-slate-50 font-bold text-slate-900">
                   <td colSpan={totalLabelColSpan} className="border-t border-slate-200 p-3 text-right uppercase tracking-[0.12em] text-[10px] text-slate-600">Hodiny k výplate</td>
-                  <td className="border-t border-slate-200 p-3 text-right text-base whitespace-nowrap tabular-nums">{stats.hourlyHours.toFixed(1)} h</td>
+                  <td className="border-t border-slate-200 p-3 text-right text-base whitespace-nowrap tabular-nums">{formatDuration(stats.hourlyHours)}</td>
                 </tr>
                 {stats.fixedCount > 0 && (
                   <tr className="bg-orange-50 font-bold text-orange-800">
                       <td colSpan={totalLabelColSpan} className="border-t border-orange-100 p-2.5 text-right uppercase tracking-[0.12em] text-[10px]">Samostatné úkolové práce</td>
-                      <td className="border-t border-orange-100 p-2.5 text-right text-sm whitespace-nowrap tabular-nums">{stats.fixedCount} ks / {stats.fixedHours.toFixed(1)} h</td>
+                      <td className="border-t border-orange-100 p-2.5 text-right text-sm whitespace-nowrap tabular-nums">{stats.fixedCount} ks / {formatDuration(stats.fixedHours)}</td>
                   </tr>
                 )}
               </tfoot>

@@ -381,7 +381,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth() + 1;
       const startStr = `${year}-${month.toString().padStart(2, '0')}-01`;
-      const endStr = new Date(year, month, 0).toISOString().split('T')[0];
+      const endStr = getLocalDateString(new Date(year, month, 0));
 
       const [records, logs] = await Promise.all([
           supabase.from('diary_records').select('*').eq('site_id', selectedSiteId).gte('date', startStr).lte('date', endStr),
@@ -1055,7 +1055,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                   <h4 className="font-extrabold text-slate-900">{previewDay.date.toLocaleDateString(getLocaleCode(), { day: 'numeric', month: 'long' })}</h4>
                   <div className="flex gap-1">
                     {previewDay.stats?.record && <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold uppercase">{t('record')}</span>}
-                    {previewDay.stats?.totalHours > 0 && <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">{previewDay.stats.totalHours.toFixed(1)}h</span>}
+                    {previewDay.stats?.totalHours > 0 && <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">{formatDuration(previewDay.stats.totalHours)}</span>}
                   </div>
               </div>
               
@@ -1403,7 +1403,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                            ))}
                        </div>
                       {[
-                          { title: `1. ${t('workers')}`, content: dailyAttendance.length > 0 ? dailyAttendance.map(l => `${l.profiles?.full_name} (${Number(l.hours).toFixed(1)}h)`).join(', ') : t('no_records') },
+                          { title: `1. ${t('workers')}`, content: dailyAttendance.length > 0 ? dailyAttendance.map(l => `${l.profiles?.full_name} (${formatDuration(Number(l.hours))})`).join(', ') : t('no_records') },
                           { title: `2. ${t('diary_section_mechanisms')}`, content: diaryEntry.mechanisms || t('no_records') },
                           { title: `3. ${t('material_purchases')}`, content: dailyMaterials.length > 0 ? dailyMaterials.map(m => `${m.name} (${m.quantity} ${m.unit})`).join(', ') : t('no_purchases') },
                       ].map((sec, i) => (
@@ -1502,7 +1502,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                               </div>
                               <div className="mt-auto w-full opacity-0 md:group-hover:opacity-100 transition-opacity flex justify-between items-end relative z-10">
                                   <div className="bg-slate-900/5 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase hidden md:block">{t('details')}</div>
-                                  {stats?.totalHours > 0 && <span className="text-[9px] md:text-[10px] font-black text-blue-600 mb-0.5">{stats.totalHours.toFixed(1)}h</span>}
+                                  {stats?.totalHours > 0 && <span className="text-[9px] md:text-[10px] font-black text-blue-600 mb-0.5">{formatDuration(stats.totalHours)}</span>}
                               </div>
                           </button>
                       );
@@ -1563,7 +1563,7 @@ export const DiaryScreen = ({ profile, organization, fixedSiteId, selectedSiteId
                                   <div className="font-bold text-[11px] border-b border-slate-200 mb-2 pb-1 text-slate-900">1. {t('workers')}</div>
                                   <div className="text-xs leading-relaxed text-slate-700">
                                       {day.logs?.length > 0 
-                                          ? day.logs.map((l: any, i: number) => `${l.profiles?.full_name} (${Number(l.hours).toFixed(1)}h)`).join(', ') 
+                                          ? day.logs.map((l: any, i: number) => `${l.profiles?.full_name} (${formatDuration(Number(l.hours))})`).join(', ')
                                           : t('no_records')}
                                   </div>
                               </div>

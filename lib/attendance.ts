@@ -61,6 +61,29 @@ export const calculateAttendanceMinutes = (
   };
 };
 
+export const parseAttendanceRangeHours = (value: string): number | null => {
+  const parts = (value || '').split(',');
+  let minutes = 0;
+  for (const part of parts) {
+    const match = part.trim().match(/^(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})$/);
+    if (!match) return null;
+    const [, h1, m1, h2, m2] = match.map(Number);
+    if (h1 > 23 || h2 > 23 || m1 > 59 || m2 > 59) return null;
+    const duration = h2 * 60 + m2 - h1 * 60 - m1;
+    minutes += duration < 0 ? duration + 1440 : duration;
+  }
+  return minutes / 60;
+};
+
+export const formatAttendanceRanges = (logs: any[]): string => {
+  // Keep each recorded interval: merging the earliest start and latest end
+  // would turn gaps between separate entries into worked time.
+  return [...logs]
+    .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+    .map(formatAttendanceRange)
+    .join(', ');
+};
+
 export const formatAttendanceRange = (log: any): string => {
   if (!log?.start_time || !log?.end_time) return '---';
   if (log.break_start && log.break_end) {
