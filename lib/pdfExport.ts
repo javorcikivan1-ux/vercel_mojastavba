@@ -1,4 +1,4 @@
-type PrintExportOptions = {
+export type PrintExportOptions = {
   filename?: string;
   title?: string;
   pageMarginMm?: number;
@@ -28,7 +28,7 @@ const waitForImages = async (doc: Document) => {
   );
 };
 
-const copyStylesInto = (targetDoc: Document) => {
+export const copyStylesInto = (targetDoc: Document) => {
   const base = targetDoc.createElement('base');
   base.href = window.location.href;
   targetDoc.head.appendChild(base);
@@ -38,7 +38,7 @@ const copyStylesInto = (targetDoc: Document) => {
   });
 };
 
-const getPrintStyles = (pageMarginMm: number) => {
+export const getPrintStyles = (pageMarginMm: number) => {
   const printableWidthMm = 210 - pageMarginMm * 2;
 
   return `
@@ -137,6 +137,13 @@ export const exportElementToPdf = async (
   element: HTMLElement,
   options: PrintExportOptions = {}
 ) => {
+  const isAppleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isAppleMobile) {
+    const { exportApplePdf } = await import('./pdfExportApple');
+    return exportApplePdf(element, options);
+  }
+
   const iframe = document.createElement('iframe');
   const title = (options.title || options.filename || 'MojaStavba PDF').replace(/\.pdf$/i, '');
   const originalDocumentTitle = document.title;

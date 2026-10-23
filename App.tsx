@@ -1392,17 +1392,13 @@ export const App = () => {
                           Aplikácia bola automaticky aktualizovaná
                         </h3>
                         <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                          20. október 2026 · v{pkg.version}
+                          23. október 2026 · v{pkg.version}
                         </p>
                         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
                           <ul className="space-y-3 text-sm font-medium leading-relaxed text-slate-700">
                             <li className="flex gap-2.5">
                               <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>Oprava: Vrátená možnosť pridania obednej prestávky pri zapisovaní dochádzky.</span>
-                            </li>
-                            <li className="flex gap-2.5">
-                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>V sekcii Tím môžete každému zamestnancovi nastaviť vlastnú predvolenú obednú prestávku. Pri zapisovaní hodín sa automaticky predvyplní a odpočíta z odpracovaného času.</span>
+                              <span>Vylepšená kompatibilita s iOS pri generovaní PDF exportov. Na iPhone a iPade môžete pripravené PDF uložiť do Súborov alebo zdieľať.</span>
                             </li>
                           </ul>
                         </div>

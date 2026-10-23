@@ -20,6 +20,14 @@ const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mo
 
 const pwaUpdates = [
   {
+    date: '23. október 2026',
+    version: 'v5.4.8',
+    title: 'PDF exporty na iPhone a iPade',
+    items: [
+      'Vylepšená kompatibilita s iOS pri generovaní PDF exportov. Na iPhone a iPade môžete pripravené PDF uložiť do Súborov alebo zdieľať.'
+    ]
+  },
+  {
     date: '20. október 2026',
     version: 'v5.4.7',
     title: 'Obedné prestávky a nastavenia tímu',
