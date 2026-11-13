@@ -1,5 +1,5 @@
 ﻿
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Modal, Input, Badge, ConfirmModal, AlertModal, Select } from '../components/UI';
 // Added AlertCircle to fix line 276 error
@@ -13,10 +13,15 @@ import { WageRatesHelp } from '../components/WageRatesHelp';
 import { EmployeeProfileOptions } from '../components/EmployeeProfileOptions';
 import { EmployeeAbsences, TeamAbsenceOverview } from './EmployeeAbsences';
 import { ActionTooltip } from '../components/ActionTooltip';
+import { TemporaryWorkerForm } from '../components/TemporaryWorkerForm';
+import { InviteTeamModal } from '../components/InviteTeamModal';
+import { temporaryPeriods, temporaryWorkerHasEnded, cooperationDateISO } from '../lib/temporaryWorkers';
+import { loadAllProjectRows } from '../lib/projectData';
 
 const TEAM_PAGE_SIZE = 15;
 const formatRoleBadge = (worker: any) => {
   if (worker.role === 'admin') return 'Administrátor';
+  if (worker.is_temporary) return worker.job_title || 'Dočasný pracovník';
   if (!worker.is_active) return 'Archivovaný';
   return worker.job_title || 'zamestnanec';
 };
@@ -42,6 +47,10 @@ const TeamList = ({ profile, onSelect }: any) => {
   const [hasMore, setHasMore] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [showAdminComingSoon, setShowAdminComingSoon] = useState(false);
+  const [temporaryEditor, setTemporaryEditor] = useState<any>(null);
+  const [showAddChoice, setShowAddChoice] = useState(false);
+  const [activeCoreCount, setActiveCoreCount] = useState<number | null>(null);
+  const loadRequest = useRef(0);
 
   const [showModal, setShowModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -61,11 +70,6 @@ const TeamList = ({ profile, onSelect }: any) => {
   
   const [confirm, setConfirm] = useState<{open: boolean, action: string, id: string, name?: string}>({ open: false, action: '', id: '' });
   const [alert, setAlert] = useState<{open: boolean, message: string, title?: string}>({ open: false, message: '' });
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [idCopied, setIdCopied] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteName, setInviteName] = useState('');
-  const [inviteSending, setInviteSending] = useState(false);
 
   // Získame aktuálnu organizáciu pre limity
   const [org, setOrg] = useState<any>(null);
@@ -91,7 +95,9 @@ const TeamList = ({ profile, onSelect }: any) => {
   }, [page]);
 
   const load = async (reset = false) => {
+    const request = ++loadRequest.current;
     if (reset) {
+        setPage(0);
         setLoading(true);
         setWorkers([]);
         setPendingInvites([]);
@@ -100,10 +106,10 @@ const TeamList = ({ profile, onSelect }: any) => {
     }
 
     try {
-        let query = supabase.from('profiles')
+        let query = supabase.from('team_worker_directory')
             .select('*')
             .eq('organization_id', profile.organization_id)
-            .eq('is_active', !showArchived);
+            .eq('effective_is_active', !showArchived);
 
         if (searchQuery) {
             query = query.or(`full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`);
@@ -118,13 +124,19 @@ const TeamList = ({ profile, onSelect }: any) => {
             .order('id', { ascending: true })
             .range(from, to);
 
+        if (request !== loadRequest.current) return;
         if (error) throw error;
         if (workerData) {
-            setWorkers(prev => reset ? workerData : [...prev, ...workerData]);
+            const directory = workerData.map(worker => ({ ...worker, record_is_active: worker.is_active, is_active: worker.effective_is_active }));
+            setWorkers(prev => reset ? directory : [...prev, ...directory]);
             setHasMore(workerData.length === TEAM_PAGE_SIZE);
         }
 
         if (reset) {
+            const { count, error: countError } = await supabase.from('profiles').select('id', { count: 'exact', head: true })
+                .eq('organization_id', profile.organization_id).eq('role', 'employee').eq('is_active', true).eq('is_temporary', false);
+            if (request !== loadRequest.current) return;
+            if (!countError && count !== null) setActiveCoreCount(count);
             if (showArchived) {
                 setPendingInvites([]);
             } else {
@@ -142,6 +154,7 @@ const TeamList = ({ profile, onSelect }: any) => {
                     .order('last_sent_at', { ascending: false })
                     .limit(50);
 
+                if (request !== loadRequest.current) return;
                 if (inviteError) {
                     console.warn('Pending invites unavailable:', inviteError.message);
                     setPendingInvites([]);
@@ -152,18 +165,32 @@ const TeamList = ({ profile, onSelect }: any) => {
         }
     } catch (e: any) {
         console.error(e);
+        setAlert({ open: true, title: 'Tím sa nepodarilo načítať', message: ['42P01', 'PGRST205'].includes(e?.code) ? 'Spustite aktualizovaný SQL súbor pre dočasných pracovníkov.' : e?.message || 'Skúste obnoviť zoznam.' });
     } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        if (request === loadRequest.current) {
+            setLoading(false);
+            setLoadingMore(false);
+        }
     }
   };
+
+  useEffect(() => {
+    const refresh = () => load(true);
+    let day = cooperationDateISO();
+    const interval = window.setInterval(() => {
+      const today = cooperationDateISO();
+      if (day !== today) { day = today; refresh(); }
+    }, 60000);
+    window.addEventListener('focus', refresh);
+    return () => { window.clearInterval(interval); window.removeEventListener('focus', refresh); };
+  }, [profile.organization_id, searchQuery, showArchived]);
 
   // Vypočítame koľko zamestnancov firma má
   const currentEmployeeCount = useMemo(() => {
       // Tu by bolo ideálne reálne query, ale pre UI check stačí momentálne workers ak sú načítaní
       // Avšak load() stránkuje, tak skúsime headcount bez stránkovania
-      return workers.filter(w => w.role === 'employee' && w.is_active).length;
-  }, [workers]);
+      return activeCoreCount ?? workers.filter(w => w.role === 'employee' && w.is_active && !w.is_temporary).length;
+  }, [workers, activeCoreCount]);
 
   const activePlan = useMemo(() => {
       const planId = org?.subscription_plan || 'base';
@@ -174,6 +201,7 @@ const TeamList = ({ profile, onSelect }: any) => {
 
   const handleEdit = (worker: any, e: any) => {
       e.stopPropagation();
+      if (worker.is_temporary) { setTemporaryEditor(worker); return; }
       setEditingWorker(worker);
       
       const displayJobTitle = worker.role === 'admin' ? 'Administrátor' : (worker.job_title || 'zamestnanec');
@@ -277,6 +305,10 @@ const TeamList = ({ profile, onSelect }: any) => {
 
   const toggleArchive = (worker: any, e: any) => {
       e.stopPropagation();
+      if (!worker.is_active && temporaryWorkerHasEnded(worker)) {
+          setTemporaryEditor({ ...worker, reactivate: true, temporary_periods: [...temporaryPeriods(worker), { start_date: cooperationDateISO(), end_date: '' }] });
+          return;
+      }
       setConfirm({ 
           open: true, 
           action: worker.is_active ? 'archive' : 'restore', 
@@ -300,67 +332,6 @@ const TeamList = ({ profile, onSelect }: any) => {
       });
   };
 
-  const copyInviteLink = () => {
-      const inviteUrl = `https://www.moja-stavba.sk/?action=register-emp&companyId=${profile.organization_id}`;
-      navigator.clipboard.writeText(inviteUrl);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-  };
-
-  const copyCompanyId = () => {
-      navigator.clipboard.writeText(profile.organization_id);
-      setIdCopied(true);
-      setTimeout(() => setIdCopied(false), 2000);
-  };
-
-  const handleSendInviteEmail = async (e: React.FormEvent) => {
-      e.preventDefault();
-      const email = inviteEmail.trim();
-      if (!email) {
-          setAlert({ open: true, title: 'Chyba', message: 'Zadajte email zamestnanca.' });
-          return;
-      }
-
-      setInviteSending(true);
-      try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          const accessToken = sessionData.session?.access_token;
-          if (!accessToken) throw new Error('Nie ste prihlásený.');
-
-          const response = await fetch('/api/send-invite', {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${accessToken}`
-              },
-              body: JSON.stringify({
-                  email,
-                  employeeName: inviteName.trim()
-              })
-          });
-
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(result.error || 'Pozvánku sa nepodarilo odoslať.');
-
-          setInviteEmail('');
-          setInviteName('');
-          setPage(0);
-          load(true);
-          const sentCount = result.invite?.sent_count;
-          setAlert({
-              open: true,
-              title: 'Pozvánka odoslaná',
-              message: sentCount > 1
-                  ? `Emailová pozvánka bola znova odoslaná na ${email}. Celkovo odoslané ${sentCount}x.`
-                  : `Emailová pozvánka bola odoslaná na ${email}.`
-          });
-      } catch (error: any) {
-          setAlert({ open: true, title: 'Chyba', message: error.message || 'Pozvánku sa nepodarilo odoslať.' });
-      } finally {
-          setInviteSending(false);
-      }
-  };
-
   const handleLoadMore = () => {
       setPage(p => p + 1);
   };
@@ -375,25 +346,18 @@ const TeamList = ({ profile, onSelect }: any) => {
            </h2>
            <p className="app-section-subtitle">Správa pracovníkov a prehľad výkonov</p>
         </div>
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full md:w-auto md:justify-end">
-            <Button variant="secondary" onClick={() => setShowArchived(!showArchived)} fullWidth className="sm:w-auto justify-center !min-h-11 !rounded-xl !px-4 !text-sm !font-semibold !shadow-none hover:!border-slate-300">
-                <Archive size={16}/>{showArchived ? 'Späť na aktívnych' : 'Zobraziť Archív'}
-            </Button>
-            <Button variant="secondary" onClick={() => setShowAdminComingSoon(true)} fullWidth className="sm:w-auto justify-center !min-h-11 !rounded-xl !px-4 !text-sm !font-semibold !shadow-none hover:!border-orange-200 hover:!bg-orange-50/50">
-                <Shield size={16} className="text-orange-600"/> Pridať ďalšieho administrátora
-            </Button>
-            <Button 
-                onClick={() => setShowInviteModal(true)} 
-                fullWidth 
-                variant="secondary"
-                className={`sm:w-auto justify-center !min-h-11 !rounded-xl !px-4 !text-sm !font-semibold !shadow-none !border-orange-200 !bg-orange-50 !text-orange-700 hover:!border-orange-300 hover:!bg-orange-100 ${isLimitReached ? 'grayscale opacity-50' : ''}`}
-            >
-                <UserPlus size={16}/> Pozvať do tímu
-            </Button>
+        <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:justify-end">
+          <Button variant="secondary" onClick={() => setShowArchived(!showArchived)} className="whitespace-nowrap">
+            <Archive size={18}/>{showArchived ? 'Späť na aktívnych' : 'Zobraziť archív'}
+          </Button>
+          <Button onClick={() => setShowInviteModal(true)} className="whitespace-nowrap">
+            <UserPlus size={18}/> Pozvať do tímu
+          </Button>
         </div>
       </div>
 
       <TeamAbsenceOverview profile={profile} onSelect={onSelect} />
+
 
       {isLimitReached && (
           <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top-2">
@@ -425,6 +389,10 @@ const TeamList = ({ profile, onSelect }: any) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative min-h-[200px]">
+        <button type="button" onClick={() => setShowAddChoice(true)} className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-slate-600 transition hover:border-orange-300 hover:bg-orange-50/30 hover:text-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 text-orange-600"><UserPlus size={22} /></span>
+          <span className="text-sm font-semibold">Pridať zamestnanca</span>
+        </button>
         {loading && workers.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-orange-600" size={40}/></div>
         ) : (
@@ -441,7 +409,7 @@ const TeamList = ({ profile, onSelect }: any) => {
                             <span className={`inline-flex items-center max-w-full rounded-md border px-2 py-1 text-[11px] font-medium leading-none whitespace-nowrap ${w.role === 'admin' ? 'bg-orange-50 text-orange-700 border-orange-100' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>
                                 <span className="truncate">{formatRoleBadge(w)}</span>
                             </span>
-                            {w.is_active && w.role !== 'admin' && (
+                            {w.is_active && w.role !== 'admin' && !w.is_temporary && (
                                 <span className="inline-flex items-center gap-1.5 max-w-full rounded-md border border-slate-200/70 bg-white px-2 py-1 text-[11px] font-medium leading-none whitespace-nowrap text-slate-500">
                                     {w.show_wage_in_profile ? <Eye size={11}/> : <EyeOff size={11}/>}
                                     {w.show_wage_in_profile ? 'Mzda viditeľná' : 'Mzda skrytá'}
@@ -451,16 +419,17 @@ const TeamList = ({ profile, onSelect }: any) => {
                       </div>
                     </div>
                     <div className="mt-auto space-y-3 pt-4 border-t border-slate-100">
-                      <div className="flex items-center gap-3 text-sm text-slate-600 truncate">
+                      {!w.is_temporary && <div className="flex items-center gap-3 text-sm text-slate-600 truncate">
                         <Mail size={16} className="text-slate-400 shrink-0"/> <span className="truncate">{w.email}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-slate-600">
+                      </div>}
+                      {w.is_temporary && temporaryPeriods(w).length > 0 && <div className="flex items-center gap-3 text-xs text-slate-600"><Calendar size={16} className="shrink-0 text-slate-400" /><span>{temporaryPeriods(w).map(period => `${formatDate(period.start_date)} – ${period.end_date ? formatDate(period.end_date) : 'bez určeného konca'}`).join(' · ')}</span></div>}
+                      {(!w.is_temporary || w.phone) && <div className="flex items-center gap-3 text-sm text-slate-600">
                         <Phone size={16} className="text-slate-400 shrink-0"/> {w.phone || '-'}
-                      </div>
+                      </div>}
                       <div className="flex items-start gap-3 text-sm text-slate-600">
                         <Coins size={16} className="text-orange-400 shrink-0 mt-0.5"/> 
                         <div className="flex flex-wrap items-baseline gap-x-2">
-                            <span className="font-bold">{formatMoney(w.hourly_rate || 0)} <span className="text-[10px] font-medium opacity-60">/ hod</span></span>
+                            <span className="font-bold">{w.is_temporary && !w.default_payment_type ? 'Odmena pri zápise práce' : w.is_temporary && w.default_payment_type === 'fixed' ? `${formatMoney(w.default_fixed_amount || 0)} / úkol` : <>{formatMoney(w.hourly_rate || 0)} <span className="text-[10px] font-medium opacity-60">/ hod</span></>}</span>
                             {w.cost_rate > 0 && w.cost_rate !== w.hourly_rate && (
                                 <span className="text-[10px] font-black text-slate-400 uppercase bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 mt-1 sm:mt-0" title="Celková cena práce">
                                     CCP: {formatMoney(w.cost_rate)}
@@ -471,7 +440,7 @@ const TeamList = ({ profile, onSelect }: any) => {
                     </div>
                     
                     <div className="mt-4 flex justify-end gap-3 border-t border-slate-100 pt-4">
-                        <ActionTooltip text="Neprítomnosti"><button onClick={(e) => { e.stopPropagation(); setAbsenceWorker(w); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:scale-110 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 hover:shadow-sm active:scale-95" aria-label={`Neprítomnosti: ${w.full_name}`}><Calendar size={14}/></button></ActionTooltip>
+                        {!w.is_temporary && <ActionTooltip text="Neprítomnosti"><button onClick={(e) => { e.stopPropagation(); setAbsenceWorker(w); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:scale-110 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 hover:shadow-sm active:scale-95" aria-label={`Neprítomnosti: ${w.full_name}`}><Calendar size={14}/></button></ActionTooltip>}
                         <ActionTooltip text="Upraviť zamestnanca"><button onClick={(e) => handleEdit(w, e)} className="flex h-11 w-11 shrink-0 items-center justify-center bg-white rounded-full text-blue-500 border border-slate-200 hover:scale-110 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm active:scale-95 transition" aria-label={`Upraviť: ${w.full_name}`}>
                             <Pencil size={14}/>
                         </button></ActionTooltip>
@@ -554,6 +523,20 @@ const TeamList = ({ profile, onSelect }: any) => {
         type={confirm.action === 'delete' || confirm.action === 'cancel-invite' ? 'danger' : 'primary'}
       />
       
+      {showAddChoice && <Modal title="Pridať do tímu" onClose={() => setShowAddChoice(false)} maxWidth="max-w-md">
+        <div className="space-y-3">
+          <button type="button" onClick={() => { setShowAddChoice(false); setShowInviteModal(true); }} className="flex min-h-24 w-full items-center gap-4 rounded-xl border border-slate-200 p-4 text-left transition hover:border-orange-200 hover:bg-orange-50/30">
+            <Users size={22} className="shrink-0 text-orange-600" /><span><span className="block text-sm font-semibold text-slate-900">Pridať zamestnanca</span><span className="mt-1 block text-xs text-slate-500">Pozvánka emailom, vlastný účet.</span></span>
+          </button>
+          <button type="button" onClick={() => { setShowAddChoice(false); setTemporaryEditor({}); }} className="flex min-h-24 w-full items-center gap-4 rounded-xl border border-slate-200 p-4 text-left transition hover:border-orange-200 hover:bg-orange-50/30">
+            <Briefcase size={22} className="shrink-0 text-orange-600" /><span><span className="block text-sm font-semibold text-slate-900">Pridať brigádnika / pomocníka</span><span className="mt-1 block text-xs text-slate-500">Bez účtu, hodiny zapisuje administrátor.</span></span>
+          </button>
+          <button type="button" onClick={() => { setShowAddChoice(false); setShowAdminComingSoon(true); }} className="flex min-h-10 items-center gap-2 text-xs font-medium text-slate-500 hover:text-orange-700"><Shield size={14} /> Pridať ďalšieho administrátora</button>
+        </div>
+      </Modal>}
+
+      {temporaryEditor && <TemporaryWorkerForm key={temporaryEditor.id || 'new'} worker={temporaryEditor.id ? temporaryEditor : undefined} onClose={() => setTemporaryEditor(null)} onSaved={() => { setTemporaryEditor(null); if (showArchived) setShowArchived(false); else load(true); }} />}
+
       {showAdminComingSoon && <Modal title="V príprave" onClose={() => setShowAdminComingSoon(false)} maxWidth="max-w-sm">
         <Button fullWidth onClick={() => setShowAdminComingSoon(false)}>Rozumiem</Button>
       </Modal>}
@@ -601,122 +584,16 @@ const TeamList = ({ profile, onSelect }: any) => {
         </Modal>
       )}
 
-      {showInviteModal && (
-          <Modal title="Pozvať členov do tímu" onClose={() => setShowInviteModal(false)} maxWidth="max-w-3xl">
-              <div className="space-y-5">
-                  <div className="flex items-center gap-4 rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                      <div className="w-14 h-14 bg-orange-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-orange-100 shrink-0">
-                          <UserPlus size={28}/>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                          <h3 className="text-xl md:text-2xl font-black text-slate-950 tracking-tight">Pridávanie zamestnancov</h3>
-                          <p className="text-sm text-slate-600 leading-relaxed font-medium mt-1">
-                              Odošlite zamestnancovi registračný email alebo použite záložný link pre ručné zdieľanie.
-                          </p>
-                      </div>
-                  </div>
+      {showInviteModal && <InviteTeamModal organizationId={profile.organization_id} onClose={() => setShowInviteModal(false)} onUpdated={() => { if (showArchived) setShowArchived(false); else load(true); }} />}
 
-                  <div className="space-y-4">
-                      <form onSubmit={handleSendInviteEmail} className="bg-white border border-orange-200 rounded-2xl p-5 shadow-sm space-y-5">
-                          <div>
-                              <span className="text-xs font-black text-orange-600 uppercase tracking-wider flex items-center gap-2 mb-2">
-                                  <Mail size={16}/> Emailová pozvánka
-                              </span>
-                              <p className="text-sm text-slate-600 font-medium leading-relaxed">
-                                  Pozvánka odíde z adresy <strong>noreply@moja-stavba.sk</strong> a registračný odkaz bude už obsahovať ID vašej firmy.
-                              </p>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <Input
-                                  label="Email zamestnanca"
-                                  type="email"
-                                  value={inviteEmail}
-                                  onChange={(e: any) => setInviteEmail(e.target.value)}
-                                  required
-                                  placeholder="meno@mail.sk"
-                              />
-                              <Input
-                                  label="Meno zamestnanca (voliteľné)"
-                                  value={inviteName}
-                                  onChange={(e: any) => setInviteName(e.target.value)}
-                                  placeholder="Ján Novák"
-                              />
-                          </div>
-
-                          <Button type="submit" fullWidth loading={inviteSending} disabled={inviteSending} className="h-12">
-                              <Send size={18}/>
-                              {inviteSending ? 'Odosielam...' : 'Odoslať pozvánku'}
-                          </Button>
-                      </form>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
-                          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden min-w-0">
-                              <Link size={76} className="absolute -right-4 -top-4 text-slate-100 pointer-events-none"/>
-                              <div className="relative">
-                                  <div className="flex items-center justify-between gap-3 mb-3">
-                                      <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                                          <Zap size={15} className="text-orange-600 fill-orange-600"/> Záložný link
-                                      </span>
-                                  </div>
-                                  <div className="flex items-center gap-2 min-w-0">
-                                      <div className="min-w-0 flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-semibold text-slate-600 truncate">
-                                          https://www.moja-stavba.sk/?action=register-emp&companyId={profile.organization_id}
-                                      </div>
-                                      <button 
-                                          onClick={copyInviteLink}
-                                          className={`flex h-11 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black uppercase transition-all ${linkCopied ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-orange-600'}`}
-                                          title="Kopírovať registračný link"
-                                      >
-                                          {linkCopied ? <ClipboardCheck size={19}/> : <Copy size={19}/>}
-                                          {linkCopied ? 'Hotovo' : 'Kopírovať'}
-                                      </button>
-                                  </div>
-                              </div>
-                          </div>
-
-                          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm min-w-0">
-                                  <div className="flex items-center justify-between gap-3 mb-3">
-                                      <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                                          <Hash size={15}/> ID firmy
-                                      </span>
-                                  </div>
-                              <div className="flex items-center gap-2 min-w-0">
-                                  <code className="min-w-0 flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm font-black text-slate-800 truncate">
-                                      {profile.organization_id}
-                                  </code>
-                                  <button
-                                      onClick={copyCompanyId}
-                                      className={`flex h-11 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black uppercase transition-all ${idCopied ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-orange-600'}`}
-                                  >
-                                      {idCopied ? <ClipboardCheck size={19}/> : <Copy size={19}/>}
-                                      {idCopied ? 'Hotovo' : 'Kopírovať'}
-                                  </button>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-
-                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex gap-3 text-left">
-                      <div className="bg-blue-600 text-white p-2 rounded-xl shrink-0 h-fit">
-                          <Info size={18}/>
-                      </div>
-                      <div>
-                          <h4 className="text-sm font-black text-blue-900 uppercase tracking-tight">Ako to funguje</h4>
-                          <p className="text-xs text-blue-800/80 leading-relaxed font-medium mt-1">
-                              Emailová pozvánka je odporúčaný spôsob. Univerzálny registračný link ostáva ako záloha, ak chcete pozvánku poslať zamestnancovi ručne.
-                          </p>
-                      </div>
-                  </div>
-              </div>
-          </Modal>
-      )}
     </div>
   );
 };
 
 const EmployeeDetail = ({ empId, profile, onBack }: any) => {
     const [loading, setLoading] = useState(true);
+    const [dataError, setDataError] = useState('');
+    const loadVersion = useRef(0);
     const [emp, setEmp] = useState<any>(null);
     const [allLogs, setAllLogs] = useState<any[]>([]);
     const [sites, setSites] = useState<any[]>([]);
@@ -734,12 +611,17 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
     const [alert, setAlert] = useState<{open: boolean, message: string}>({ open: false, message: '' });
 
     const loadData = async () => {
+        const request = ++loadVersion.current;
         setLoading(true);
+        setDataError('');
+        try {
         const [e, l, s] = await Promise.all([
-            supabase.from('profiles').select('*').eq('id', empId).single(),
-            supabase.from('attendance_logs').select('*, sites(name)').eq('user_id', empId).order('date', {ascending: false}),
-            supabase.from('sites').select('id, name').eq('organization_id', profile.organization_id)
+            supabase.from('profiles').select('*').eq('id', empId).eq('organization_id', profile.organization_id).single(),
+            loadAllProjectRows('attendance_logs', '*, sites(name)', profile.organization_id, undefined, 'date', false, empId),
+            loadAllProjectRows('sites', 'id, name', profile.organization_id, undefined, 'name', true)
         ]);
+        if (request !== loadVersion.current) return;
+        if (e.error || !e.data) throw e.error || new Error('Zamestnanec sa nenašiel.');
 
         if (e.data) {
             setEmp(e.data);
@@ -755,12 +637,16 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 ...getDefaultAttendanceBreak(e.data)
             });
         }
-        if (l.data) setAllLogs(l.data);
-        if (s.data) setSites(s.data);
-        setLoading(false);
+        setAllLogs(l);
+        setSites(s);
+        } catch (error: any) {
+            if (request === loadVersion.current) setDataError(error?.message || 'Údaje zamestnanca sa nepodarilo načítať.');
+        } finally {
+            if (request === loadVersion.current) setLoading(false);
+        }
     };
 
-    useEffect(() => { loadData(); }, [empId]);
+    useEffect(() => { loadData(); return () => { loadVersion.current++; }; }, [empId, profile.organization_id]);
 
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -822,15 +708,17 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
         return matchesSite && matchesMonth;
     });
 
+    const getEntryCompanyCost = (log: any) => log.payment_type === 'fixed'
+        ? Number(log.fixed_amount || 0)
+        : Number(log.hours) * Number(log.cost_rate_snapshot || log.hourly_rate_snapshot || emp?.cost_rate || emp?.hourly_rate || 0);
+
     const stats = filteredLogs.reduce((acc, log) => {
         const hours = Number(log.hours);
         const entryCost = log.payment_type === 'fixed' 
             ? Number(log.fixed_amount || 0) 
             : hours * Number(log.hourly_rate_snapshot || emp?.hourly_rate || 0);
         
-        const realExpense = log.payment_type === 'fixed'
-            ? Number(log.fixed_amount || 0)
-            : hours * Number(log.cost_rate_snapshot || log.hourly_rate_snapshot || emp?.cost_rate || emp?.hourly_rate || 0);
+        const realExpense = getEntryCompanyCost(log);
 
         acc.hours += hours;
         acc.earned += entryCost;
@@ -839,6 +727,7 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
     }, { hours: 0, earned: 0, totalCost: 0 });
 
     if(loading) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-orange-600" size={40}/></div>;
+    if(dataError) return <div role="alert" className="p-6 space-y-4"><p className="text-sm text-red-700">{dataError}</p><div className="flex gap-3"><Button variant="secondary" onClick={onBack}>Späť</Button><Button onClick={loadData}>Skúsiť znova</Button></div></div>;
 
     return (
         <div className="space-y-6 pb-8 md:pb-20 animate-in fade-in duration-300">
@@ -861,24 +750,24 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 <div className="text-center md:text-left flex-1">
                     <h1 className="text-3xl font-black text-slate-900 leading-tight">{emp.full_name}</h1>
                     <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-2 text-sm">
-                         <span className="flex items-center gap-1 text-slate-500 font-medium"><Briefcase size={14}/> {emp.role === 'admin' ? 'Administrátor' : (emp.job_title || 'zamestnanec')}</span>
-                         <span className="flex items-center gap-1 text-slate-500 font-medium"><Mail size={14}/> {emp.email}</span>
+                         <span className="flex items-center gap-1 text-slate-500 font-medium"><Briefcase size={14}/> {formatRoleBadge(emp)}</span>
+                         {!emp.is_temporary && <span className="flex items-center gap-1 text-slate-500 font-medium"><Mail size={14}/> {emp.email}</span>}
                          {emp.phone && <span className="flex items-center gap-1 text-slate-500 font-medium"><Phone size={14}/> {emp.phone}</span>}
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
                     <div className="bg-white px-6 py-3 rounded-2xl border border-slate-200 text-center min-w-[160px] shadow-sm">
-                        <div className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Mzdová sadzba</div>
-                        <div className="text-xl font-black text-slate-800">{formatMoney(emp.hourly_rate)} <span className="text-[10px] font-bold opacity-60">/ h</span></div>
+                        <div className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">{emp.is_temporary ? 'Predvolená odmena' : 'Mzdová sadzba'}</div>
+                        <div className="text-xl font-black text-slate-800">{emp.is_temporary && !emp.default_payment_type ? 'Pri zápise práce' : emp.is_temporary && emp.default_payment_type === 'fixed' ? formatMoney(emp.default_fixed_amount || 0) : formatMoney(emp.hourly_rate)} <span className="text-[10px] font-bold opacity-60">{emp.is_temporary && !emp.default_payment_type ? '' : emp.default_payment_type === 'fixed' ? '/ úkol' : '/ h'}</span></div>
                     </div>
-                    <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-200 text-center min-w-[160px] shadow-sm">
+                    {(!emp.is_temporary || emp.default_payment_type === 'hourly') && <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-200 text-center min-w-[160px] shadow-sm">
                         <div className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Cena práce (CCP)</div>
-                        <div className="text-xl font-black text-orange-600">{formatMoney(emp.cost_rate || emp.hourly_rate)} <span className="text-[10px] font-bold opacity-60">/ h</span></div>
-                    </div>
+                        <div className="text-xl font-black text-orange-600">{formatMoney(emp.cost_rate ?? emp.hourly_rate)} <span className="text-[10px] font-bold opacity-60">/ h</span></div>
+                    </div>}
                 </div>
             </div>
 
-            <EmployeeAbsences key={emp.id} profile={profile} employee={emp} logs={allLogs} showCalendar={false} />
+            {!emp.is_temporary && <EmployeeAbsences key={emp.id} profile={profile} employee={emp} logs={allLogs} showCalendar={false} />}
 
             <Card className="bg-slate-50 border-slate-200 p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
@@ -985,7 +874,7 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                                         <div className="text-right">
                                             <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Náklad pre firmu</div>
                                             <div className="text-xl font-black text-orange-600">
-                                                {isFixed ? formatMoney(log.fixed_amount) : formatMoney(Number(log.hours) * Number(log.cost_rate_snapshot || emp?.cost_rate || emp?.hourly_rate || 0))}
+                                                {formatMoney(getEntryCompanyCost(log))}
                                             </div>
                                         </div>
                                     </div>
@@ -996,7 +885,8 @@ const EmployeeDetail = ({ empId, profile, onBack }: any) => {
                 </div>
             </div>
 
-            {showEditModal && (
+            {showEditModal && emp.is_temporary && <TemporaryWorkerForm worker={emp} onClose={() => setShowEditModal(false)} onSaved={() => { setShowEditModal(false); loadData(); }} />}
+            {showEditModal && !emp.is_temporary && (
                 <Modal title="Upraviť zamestnanca" onClose={() => setShowEditModal(false)}>
                     <form onSubmit={handleSaveEdit} className="space-y-4">
                         <Input label="Meno a Priezvisko" value={formData.fullName} onChange={(e: any) => setFormData({...formData, fullName: e.target.value})} required placeholder="Ján Novák" />

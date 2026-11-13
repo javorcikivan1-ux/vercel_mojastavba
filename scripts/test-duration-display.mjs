@@ -14,3 +14,10 @@ test('decimal hours are displayed as hours and minutes', () => {
     assert.equal(module.exports.formatDuration(hours), label);
   }
 });
+
+test('history month ranges use real last days, including leap years', () => {
+  for (const [year, month, end] of [['2026','02','28'], ['2024','02','29'], ['2026','04','30'], ['2026','11','30'], ['2026','12','31'], ['2026','1','31']]) {
+    const prefix = `${year}-${month.padStart(2,'0')}`;
+    assert.deepEqual(module.exports.getMonthDateRange(year, month), { start: `${prefix}-01`, end: `${prefix}-${end}` });
+  }
+});

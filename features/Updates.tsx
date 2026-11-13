@@ -20,6 +20,19 @@ const GITHUB_REPO_URL = "https://api.github.com/repos/javorcikivan1-ux/vercel_mo
 
 const pwaUpdates = [
   {
+    date: '13. november 2026',
+    version: 'v5.5.0',
+    title: 'Dočasní zamestnanci, dochádzka a PDF výkazy',
+    items: [
+      'Dočasní zamestnanci: V sekcii Tím pridáte brigádnika alebo krátkodobú výpomoc bez vlastného účtu. Pozíciu môžete pomenovať vlastným názvom a evidovať aj opakované obdobia spolupráce.',
+      'PDF výkazy zákaziek: Pri pracovných zápisoch sa zobrazuje aj meno zamestnanca.',
+      'Jednoduchší zápis dochádzky: Možnosť zápisu sme pridali aj priamo do sekcie Dochádzka, kde ju prirodzene hľadáte. Vyberiete zákazku a zapíšete prácu jednému alebo viacerým pracovníkom naraz.',
+      'Rýchlejšie pridávanie zamestnancov: Najmä firmám s väčším tímom ušetria čas hromadné pozvánky. Zamestnancov zadáte do jedného formulára a pozvánky sa odošlú postupne, so sekundovou prestávkou medzi jednotlivými odoslaniami. Priebeh aj výsledok vidíte pri každom emaile.',
+      'Opravy prehľadov: Upravili sme mesačný filter histórie, pokračovanie stránkovania po vyhľadávaní zákaziek a rozlišovanie pracovníkov s rovnakým menom v analytike.',
+      'Nápoveda vždy poruke: Neviete, ako postupovať? Cez otáznik na pravom okraji aplikácie vyhľadáte návody na jednotlivé funkcie bez toho, aby ste museli opustiť rozpracovanú sekciu.'
+    ]
+  },
+  {
     date: '23. október 2026',
     version: 'v5.4.9',
     title: 'Dochádzka, neprítomnosti a PDF exporty',

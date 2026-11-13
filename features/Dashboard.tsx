@@ -42,7 +42,7 @@ export const DashboardScreen = ({ profile, organization, onNavigate }: { profile
     const [overdue, upcoming, workers, logsToday, logsCreatedToday, activeSites, absenceResult] = await Promise.all([
       supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').lt('start_date', startOfToday).order('start_date'),
       supabase.from('tasks').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).eq('status', 'todo').gte('start_date', startOfToday).lte('start_date', endOfFuture).order('start_date'),
-      supabase.from('profiles').select('id, full_name').eq('organization_id', profile.organization_id).eq('is_active', true).eq('role', 'employee'),
+      supabase.from('profiles').select('*').eq('organization_id', profile.organization_id).eq('is_active', true).eq('role', 'employee'),
       supabase.from('attendance_logs').select('*, sites(name)').eq('organization_id', profile.organization_id).eq('date', todayStr).order('start_time', { ascending: true }),
       supabase.from('attendance_logs').select('*, sites(name), profiles(full_name)').eq('organization_id', profile.organization_id).gte('created_at', startOfToday).lte('created_at', endOfToday),
       supabase.from('sites').select('id', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['active', 'planning']),

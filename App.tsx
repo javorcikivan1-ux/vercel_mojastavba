@@ -891,6 +891,7 @@ export const App = () => {
              <>
                {!isOnline && <OfflineOverlay />}
                <SubscriptionScreen profile={profile} organization={organization} isExpiredProp={true} onSuccess={() => window.location.reload()} onLogout={handleLogout} />
+               <SupportWidget key={profile.id} profile={profile} organization={organization} />
              </>
            );
       }
@@ -900,12 +901,8 @@ export const App = () => {
                <>
                 {!isOnline && <OfflineOverlay />}
                 <WorkerModeScreen profile={profile} organization={organization} onLogout={handleLogout} onTabChange={setWorkerTab} />
-                {workerTab === 'dashboard' && (
-                    <>
-                        <SupportWidget profile={profile} organization={organization} />
-                        {hasAI && <AIAssistantWidget profile={profile} organization={organization} />}
-                    </>
-                )}
+                <SupportWidget key={profile.id} profile={profile} organization={organization} />
+                {workerTab === 'dashboard' && hasAI && <AIAssistantWidget profile={profile} organization={organization} />}
                 
                 {updateAvailable && (
                     <Modal title="Aktualizácia systému" onClose={updateStatus === 'idle' ? () => setUpdateAvailable(null) : undefined} maxWidth="max-w-sm">
@@ -1324,12 +1321,8 @@ export const App = () => {
                       {activeScreen === 'subscription' && <SubscriptionScreen profile={profile} organization={organization} onSuccess={() => { fetchProfile(profile.id); setActiveScreen('dashboard'); }} onLogout={handleLogout} />}
                  </div>
                  
-                 {activeScreen === 'dashboard' && (
-                     <>
-                        <SupportWidget profile={profile} organization={organization} />
-                        {hasAI && <AIAssistantWidget profile={profile} organization={organization} />}
-                    </>
-                 )}
+                 <SupportWidget key={profile.id} profile={profile} organization={organization} />
+                 {activeScreen === 'dashboard' && hasAI && <AIAssistantWidget profile={profile} organization={organization} />}
              </main>
 
              {updateAvailable && (
@@ -1392,23 +1385,15 @@ export const App = () => {
                           Aplikácia bola automaticky aktualizovaná
                         </h3>
                         <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                          23. október 2026 · v{pkg.version}
+                          13. november 2026 · v{pkg.version}
                         </p>
                         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
-                          <h4 className="mb-3 text-sm font-bold text-slate-900">Úprava dochádzky a evidencia neprítomností</h4>
+                          <h4 className="mb-3 text-sm font-bold text-slate-900">Dočasní zamestnanci a PDF výkazy</h4>
                           <ul className="space-y-3 text-sm font-medium leading-relaxed text-slate-700">
-                            <li className="flex gap-2.5">
-                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>V sekcii <strong>Tím</strong> môžete teraz u konkrétneho zamestnanca evidovať PN, OČR, dovolenku a ďalšie neprítomnosti.</span>
-                            </li>
-                            <li className="flex gap-2.5">
-                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>Vylepšili sme kompatibilitu PDF exportov s iPhonom a iPadom.</span>
-                            </li>
-                            <li className="flex gap-2.5">
-                              <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" />
-                              <span>V prípade, že ste našli chybu alebo bug, neváhajte nás o tejto skutočnosti informovať cez formulár na nástenke.</span>
-                            </li>
+                            {[
+                              'V sekcii Tím môžete pridať dočasného zamestnanca bez vlastného účtu. Jeho pozíciu si pomenujete podľa potreby.',
+                              'PDF výkaz zákazky teraz pri zapísanej práci obsahuje aj meno zamestnanca.'
+                            ].map(text => <li key={text} className="flex gap-2.5"><CheckCircle2 size={17} className="mt-0.5 shrink-0 text-orange-600" /><span>{text}</span></li>)}
                           </ul>
                           <p className="mt-4 text-sm text-slate-500">Ďakujeme, že používate MojaStavba.</p>
                         </div>

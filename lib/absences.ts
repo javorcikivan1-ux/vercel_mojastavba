@@ -59,7 +59,7 @@ export const absenceDayCounts = (absences: EmployeeAbsence[], month: Date, today
 })).filter(type => type.days > 0);
 
 export const classifyAttendance = (workers: any[], logs: any[], absences: EmployeeAbsence[], date: string) => {
-  const withAbsences = workers.map(worker => ({ ...worker, logs: logs.filter(log => log.user_id === worker.id), absences: absences.filter(absence => absence.user_id === worker.id && absenceOnDate(absence, date)) }));
+  const withAbsences = workers.filter(worker => !worker.is_temporary).map(worker => ({ ...worker, logs: logs.filter(log => log.user_id === worker.id), absences: absences.filter(absence => absence.user_id === worker.id && absenceOnDate(absence, date)) }));
   return {
     logged: withAbsences.filter(worker => worker.logs.length > 0 && !worker.absences.some((absence: EmployeeAbsence) => absence.all_day)),
     missing: withAbsences.filter(worker => worker.logs.length === 0 && !worker.absences.some((absence: EmployeeAbsence) => absence.all_day)),

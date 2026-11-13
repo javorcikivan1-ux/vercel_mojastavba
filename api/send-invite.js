@@ -195,6 +195,10 @@ export default async function handler(req, res) {
       `
     });
 
+    if (result.error) {
+      throw Object.assign(new Error(result.error.message || 'Email sa nepodarilo odoslať.'), { status: result.error.statusCode });
+    }
+
     const sentCount = existingInvite ? (existingInvite.sent_count || 0) + 1 : 1;
     const invitePayload = {
       organization_id: profile.organization_id,
@@ -216,6 +220,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, data: result, invite: { email: normalizedEmail, sent_count: sentCount } });
   } catch (error) {
     console.error('Send invite error:', error);
-    return res.status(500).json({ error: error.message || 'Email sa nepodarilo odoslat.' });
+    return res.status(error.status === 429 ? 429 : 500).json({ error: error.message || 'Email sa nepodarilo odoslat.' });
   }
 }

@@ -3,72 +3,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { Bot, X, Send, User, Loader2, Sparkles } from 'lucide-react';
 
-// @ts-ignore - Inteligentný import čistého textu z Markdown súboru (Vite feature)
-import FULL_MANUAL from './ai_assistant_training_manual.md?raw';
+import { HELP_ARTICLES } from '../lib/help';
 
-const CURRENT_APP_GUIDE = `
-AKTUÁLNE FUNGOVANIE APLIKÁCIE:
-
-Ak sa starší manuál dostane do konfliktu s týmto aktuálnym prehľadom, vždy použi tento prehľad.
-
-Prístup a balíky:
-- AI asistent je dostupný administrátorovi firmy v balíku PLATINUM. Zamestnanci ho nevidia.
-- Aplikácia sa používa najmä ako webová/PWA aplikácia, ktorú možno nainštalovať z podporovaného prehliadača.
-
-Nástenka:
-- Zobrazuje dnešný prehľad: úlohy po termíne, dnešný plán, stav dochádzky a počet aktívnych zákaziek.
-- Pracovné skratky sú len doplnok.
-
-Zákazky:
-- Používaj termín zákazka, nie stavba ani projekt.
-- Sekcia má hlavné časti Realizácia, Obchod a Archív.
-- Obchod slúži na dopyty. Stav dopytu sa prepína medzi Nový, Kontakt, Obhliadka a Ponuka.
-- Po kliknutí na Začať realizáciu sa dopyt presunie do Realizácie. Údaje zákazky sa pritom nemažú.
-- Detail zákazky má záložky: Prehľad, Dochádzka, Sadzby tímu, Príjmy & výdavky, PHM, Prístupy.
-- Prehľad ukazuje financie zákazky, dochádzku a náklady.
-- Príjmy sú hlavne uhradené faktúry alebo platby.
-- Náklady sú výdavky, materiál, PHM a mzdy z dochádzky.
-
-Denník práce:
-- Používaj názov Denník práce.
-- Slúži ako pracovný prehľad zápisov k zákazke, nie ako právne podpisovaný úradný dokument.
-- Vie importovať práce z dochádzky daného dňa.
-- Fotky sa komprimujú, aby zbytočne nezaťažovali úložisko.
-
-Tím:
-- Zamestnancov vie admin pozvať emailom z aplikácie.
-- Pozvánka odchádza z noreply@moja-stavba.sk.
-- Zamestnanec sa registruje cez odkaz z pozvánky, nie cez ručné zadávanie ID firmy ako hlavný spôsob.
-- Pozvánky môžu mať stav pozvaný / nezaregistrovaný, kým používateľ nedokončí registráciu.
-- Admin nastavuje sadzby, rolu, viditeľnosť mzdy a zálohy.
-
-Dochádzka:
-- Dochádzka slúži na evidenciu odpracovaných hodín alebo fixnej úkolovej práce.
-- Administrátor môže doplniť záznam za zamestnanca aj spätne.
-- Nesprávny záznam opraví v Dochádzkach: vyberie zamestnanca a obdobie, pri zázname klikne na ceruzku, upraví údaje a uloží ich.
-- Pri výkaze PDF sa dá nastaviť podrobný alebo súhrnný export a voliteľná prestávka.
-
-Obchod a cenové ponuky:
-- Cenové ponuky sa vytvárajú v Zákazky → Obchod.
-- Najprv treba pridať alebo otvoriť Nový dopyt. V jeho detaile je karta Cenové ponuky a tlačidlo Vytvoriť cenovú ponuku.
-- Cenovú ponuku je možné vytvoriť aj prenesením položiek z rozpočtového hárka.
-- Ponuka podporuje položky, množstvo, mernú jednotku, cenu, DPH a zľavu.
-- Hotovú cenovú ponuku možno otvoriť, upraviť a exportovať ako PDF.
-- Kalkulačka v rozpočte podporuje základné operácie, percentá, odmocninu, druhú mocninu a lokálnu históriu výpočtov.
-
-Analytika:
-- Firemná analytika pri všetkých zákazkách má filter obdobia: Tento rok, Minulý rok, 12 mesiacov, Celé obdobie.
-- Jedna zákazka sa počíta od jej prvého reálneho záznamu.
-- Kumulatívny graf ukazuje postupný vývoj príjmov a nákladov.
-
-Nastavenia:
-- Logo, pečiatka a podpis sa používajú v PDF exportoch.
-- Logo alebo pečiatku je možné orezať pred uložením.
-
-Technická podpora:
-- Plávajúci widget technickej podpory posiela email na podporu.
-- Neplní databázu support požiadavkami z widgetu.
-`;
+const CURRENT_APP_GUIDE = [
+    'Si sprievodca aplikáciou MojaStavba. Používaj iba aktuálne postupy uvedené nižšie. Nevymýšľaj tlačidlá ani možnosti, ktoré tieto návody neuvádzajú.',
+    'AI asistent je dostupný administrátorovi v balíku PLATINUM. Pripravenú Nápovedu nájde používateľ pod otáznikom na pravom okraji aplikácie.',
+    'Nevykonávaš zápisy ani zmeny údajov. Nikdy neoznamuj, že si niečo uložil, odoslal alebo vymazal. Ak postup nie je zdokumentovaný, odporuč podporu.',
+    ...HELP_ARTICLES.filter(article => article.roles.includes('admin')).map(article => [
+        `NÁVOD: ${article.title} (${article.category})`,
+        article.summary,
+        ...article.steps.map((step, index) => `${index + 1}. ${step}`),
+        article.note ? `Poznámka: ${article.note}` : ''
+    ].filter(Boolean).join('\n'))
+].join('\n\n');
 
 const cleanAssistantText = (value = '') => String(value)
     .replace(/\r/g, '')
@@ -133,8 +80,6 @@ export const AIAssistantWidget = ({ profile, organization }: any) => {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
             const systemInstruction = `
-                ${FULL_MANUAL}
-
                 ${CURRENT_APP_GUIDE}
 
                 --- AKTUÁLNY KONTEXT POUŽÍVATEĽA ---

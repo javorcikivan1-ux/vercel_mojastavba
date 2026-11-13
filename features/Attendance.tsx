@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button } from '../components/UI';
-import { FileCheck, Calendar, User, Printer, Loader2, Clock, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Pencil, Eye, EyeOff, Briefcase, Check, X } from 'lucide-react';
+import { FileCheck, Calendar, User, Printer, Loader2, Clock, ChevronLeft, ChevronRight, Settings2, LayoutList, Calculator, Pencil, Eye, EyeOff, Briefcase, Check, X, Plus } from 'lucide-react';
 import { formatDate, formatDuration } from '../lib/utils';
 import { exportElementToPdf } from '../lib/pdfExport';
 import { formatAttendanceRange, formatAttendanceRanges, parseAttendanceRangeHours } from '../lib/attendance';
 import { AbsenceCalendar } from '../components/AbsenceCalendar';
 import { absenceDayCounts, absenceError, absenceExportRows, loadAbsences, type EmployeeAbsence } from '../lib/absences';
+import { AttendanceEntryModal } from '../components/AttendanceEntryModal';
+import { loadAllProjectRows } from '../lib/projectData';
 
 export const AttendanceScreen = ({ profile, organization }: any) => {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -18,6 +20,9 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
   const loadVersion = useRef(0);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showEntry, setShowEntry] = useState(false);
+  const [saveVersion, setSaveVersion] = useState(0);
+  const [savedMessage, setSavedMessage] = useState('');
   
   const [editableLogs, setEditableLogs] = useState<any[]>([]);
 
@@ -53,11 +58,10 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
   useEffect(() => {
     if (profile.role === 'admin') {
       const loadEmployees = async () => {
-        const { data } = await supabase.from('profiles')
-            .select('id, full_name, hourly_rate, cost_rate')
-            .eq('organization_id', profile.organization_id)
-            .order('full_name');
-        if (data) setEmployees(data);
+        try {
+          const data = await loadAllProjectRows('profiles', '*', profile.organization_id, undefined, 'full_name', true);
+          setEmployees(data);
+        } catch (error) { setDataError(absenceError(error)); }
       };
       loadEmployees();
     }
@@ -73,7 +77,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
     const refresh = () => { if (selectedEmpId) loadLogs(); };
     window.addEventListener('employee-absences-changed', refresh);
     return () => { loadVersion.current++; window.removeEventListener('employee-absences-changed', refresh); };
-  }, [selectedEmpId, currentDate, profile.organization_id]);
+  }, [selectedEmpId, currentDate, profile.organization_id, saveVersion]);
 
   const loadLogs = async () => {
     const request = ++loadVersion.current;
@@ -257,14 +261,24 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
           </h2>
           <p className="app-section-subtitle">Správa a export mesačných výkazov</p>
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
-          <Button onClick={handleExportPDF} disabled={!selectedEmpId || editableLogs.length === 0 || exporting || loading || !!dataError} fullWidth className="md:w-auto shadow-lg shadow-orange-100">
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <Button variant="secondary" onClick={handleExportPDF} disabled={!selectedEmpId || editableLogs.length === 0 || exporting || loading || !!dataError} className="whitespace-nowrap">
             {exporting ? <Loader2 className="animate-spin" size={18}/> : <Printer size={18} />} 
             Generovať PDF
           </Button>
+          {profile.role === 'admin' && <Button onClick={() => { setSavedMessage(''); setShowEntry(true); }} className="whitespace-nowrap"><Plus size={18} /> Zapísať dochádzku</Button>}
         </div>
       </div>
 
+      {showEntry && <AttendanceEntryModal profile={profile} initialEmployeeId={selectedEmpId} onClose={() => setShowEntry(false)} onSaved={({ date, employeeIds }: any) => {
+        setShowEntry(false);
+        if (!employeeIds.includes(selectedEmpId)) setSelectedEmpId(employeeIds[0]);
+        const [year, month] = date.split('-').map(Number);
+        setCurrentDate(new Date(year, month - 1, 1));
+        setSaveVersion(version => version + 1);
+        setSavedMessage(`Dochádzka bola zapísaná. Počet pracovníkov: ${employeeIds.length}.`);
+      }} />}
+      {savedMessage && <p role="status" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{savedMessage}</p>}
       {dataError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{dataError} Výkaz nemožno exportovať, kým sa nenačítajú kompletné údaje.</div>}
       {selectedEmpId && !loading && !dataError && <AbsenceCalendar month={currentDate} logs={logs} absences={absences} />}
       <div className="space-y-4">
@@ -278,7 +292,7 @@ export const AttendanceScreen = ({ profile, organization }: any) => {
                         </label>
                         <select value={selectedEmpId} onChange={(e: any) => setSelectedEmpId(e.target.value)} className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition cursor-pointer text-sm font-normal text-slate-700 sm:font-semibold sm:text-slate-800">
                             <option value="">Vyberte zamestnanca</option>
-                            {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+                            {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}{e.is_temporary ? ' · Dočasný' : ''}</option>)}
                         </select>
                     </div>
                 )}

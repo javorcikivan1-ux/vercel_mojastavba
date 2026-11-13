@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { summarizeAnalyticsLabor } from '../lib/analyticsLabor';
 import { Card } from '../components/UI';
 import { formatMoney, formatDuration } from '../lib/utils';
 import { 
@@ -226,17 +227,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
           periodLabel: periodRange.label
       });
 
-      const workerMap = logs.reduce((acc: any, log: any) => {
-          const name = log.profiles?.full_name || 'Neznámy pracovník';
-          if (!acc[name]) acc[name] = { hours: 0, cost: 0 };
-          const rate = log.cost_rate_snapshot || log.profiles?.cost_rate || log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
-          const entryCost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : (Number(log.hours) * rate);
-          acc[name].hours += Number(log.hours);
-          acc[name].cost += entryCost;
-          return acc;
-      }, {});
-
-      setLaborBreakdown(Object.entries(workerMap).map(([name, data]: any) => ({ name, ...data })).sort((a, b) => b.hours - a.hours));
+      setLaborBreakdown(summarizeAnalyticsLabor(logs));
       setDataLoading(false);
   };
 
@@ -352,17 +343,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
           totalHours: logs.reduce((s, l) => s + Number(l.hours), 0)
       });
 
-      const workerMap = logs.reduce((acc: any, log: any) => {
-          const name = log.profiles?.full_name || 'Neznámy pracovník';
-          if (!acc[name]) acc[name] = { hours: 0, cost: 0 };
-          const rate = log.cost_rate_snapshot || log.profiles?.cost_rate || log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
-          const entryCost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : (Number(log.hours) * rate);
-          acc[name].hours += Number(log.hours);
-          acc[name].cost += entryCost;
-          return acc;
-      }, {});
-
-      setLaborBreakdown(Object.entries(workerMap).map(([name, data]: any) => ({ name, ...data })).sort((a, b) => b.hours - a.hours));
+      setLaborBreakdown(summarizeAnalyticsLabor(logs));
       setDataLoading(false);
   };
 
@@ -676,7 +657,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
                             {laborBreakdown.map((worker) => {
                                 const percent = (worker.cost / (analyticsData.laborCost || 1)) * 100;
                                 return (
-                                    <div key={worker.name} className="p-4 bg-white odd:bg-orange-50/[0.26]">
+                                    <div key={worker.id} className="p-4 bg-white odd:bg-orange-50/[0.26]">
                                         <div className="flex items-start gap-0">
                                             <div className="min-w-0 flex-1">
                                                 <div className="font-bold text-slate-900 leading-snug">{worker.name}</div>
@@ -720,7 +701,7 @@ export const AnalyticsScreen = ({ profile }: any) => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
                                     {laborBreakdown.map((worker, index) => (
-                                        <tr key={worker.name} className={`transition-colors group ${index % 2 === 1 ? 'bg-orange-50/[0.24]' : 'bg-white'} hover:bg-orange-50/[0.34]`}>
+                                        <tr key={worker.id} className={`transition-colors group ${index % 2 === 1 ? 'bg-orange-50/[0.24]' : 'bg-white'} hover:bg-orange-50/[0.34]`}>
                                             <td className="p-5">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-xs border border-slate-200 shadow-inner group-hover:bg-white transition-colors">

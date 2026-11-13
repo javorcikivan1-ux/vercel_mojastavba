@@ -12,6 +12,12 @@ export const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('sk-SK', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
+export const getMonthDateRange = (year: string, month: string) => {
+  const lastDay = new Date(Number(year), Number(month), 0).getDate();
+  const prefix = `${year}-${month.padStart(2, '0')}`;
+  return { start: `${prefix}-01`, end: `${prefix}-${String(lastDay).padStart(2, '0')}` };
+};
+
 export const formatDateTime = (dateStr: string) => {
   if(!dateStr) return '-';
   return new Date(dateStr).toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });

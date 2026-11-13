@@ -1,11 +1,22 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Button } from './UI';
-import { Bug, MessageSquare, X, Send, CheckCircle2, Mail, PhoneCall } from 'lucide-react';
+import { Bug, MessageSquare, X, Send, CheckCircle2, Mail, PhoneCall, HelpCircle } from 'lucide-react';
+
+import { HelpCenter } from './HelpCenter';
+
+const SupportHint = ({ id, children }: { id: string; children: React.ReactNode }) => (
+    <span id={id} role="tooltip" className="pointer-events-none invisible absolute right-full top-1/2 mr-3 w-max max-w-[220px] -translate-y-1/2 translate-x-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-lg transition-[opacity,transform,visibility] duration-200 ease-out group-hover:visible group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:visible group-focus-visible:translate-x-0 group-focus-visible:opacity-100 motion-reduce:transition-none motion-reduce:translate-x-0">
+        {children}
+        <span aria-hidden="true" className="absolute -right-1 top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 bg-slate-900" />
+    </span>
+);
 
 export const SupportWidget = ({ profile, organization }: { profile: UserProfile, organization: any }) => {
+    const hintId = useId();
     const [isOpen, setIsOpen] = useState(false);
+    const [helpOpen, setHelpOpen] = useState(false);
     const [requestType, setRequestType] = useState<'support' | 'feedback'>('support');
     const [message, setMessage] = useState("");
     const [contactEmail, setContactEmail] = useState(profile.email || "");
@@ -43,7 +54,7 @@ export const SupportWidget = ({ profile, organization }: { profile: UserProfile,
                     contactPhone: contactPhone.trim(),
                     requestType,
                     userName: profile.full_name,
-                    organizationName: organization.name,
+                    organizationName: organization?.name || '',
                     organizationId: profile.organization_id
                 })
             });
@@ -64,11 +75,19 @@ export const SupportWidget = ({ profile, organization }: { profile: UserProfile,
     };
 
     const openPanel = (type: 'support' | 'feedback') => {
+        setHelpOpen(false);
         setRequestType(type);
         setError(null);
         setSent(false);
         setIsOpen(true);
     };
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setIsOpen(false); };
+        window.addEventListener('keydown', escape);
+        return () => window.removeEventListener('keydown', escape);
+    }, [isOpen]);
 
     const isFeedback = requestType === 'feedback';
 
@@ -80,7 +99,7 @@ export const SupportWidget = ({ profile, organization }: { profile: UserProfile,
                     className="fixed inset-0 z-0 bg-slate-950/35 backdrop-blur-[1px] md:hidden pointer-events-auto animate-in fade-in duration-200"
                     onClick={() => setIsOpen(false)}
                 />
-                <div className="fixed left-4 right-4 bottom-24 z-10 max-h-[calc(100dvh-8rem)] md:absolute md:left-auto md:right-4 md:bottom-16 md:w-80 md:max-h-none bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 md:slide-in-from-right-4 duration-300 pointer-events-auto">
+                <div role="dialog" aria-label={isFeedback ? 'Nahlásiť chybu' : 'Kontaktujte nás'} className="fixed left-4 right-4 bottom-24 z-10 max-h-[calc(100dvh-8rem)] md:absolute md:left-auto md:right-4 md:bottom-16 md:w-80 md:max-h-none bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 md:slide-in-from-right-4 duration-300 pointer-events-auto">
                     <div className="p-5 flex justify-between items-start border-b border-slate-50 bg-slate-50/50">
                         <div>
                             <h3 className="font-black text-sm text-slate-800 tracking-tight flex items-center gap-2">
@@ -89,13 +108,13 @@ export const SupportWidget = ({ profile, organization }: { profile: UserProfile,
                                 ) : (
                                     <MessageSquare size={16} className="text-orange-500 fill-orange-50"/>
                                 )}
-                                {isFeedback ? 'Podnet na zlepšenie' : 'Napíšte nám'}
+                                {isFeedback ? 'Nahlásiť chybu' : 'Kontaktujte nás'}
                             </h3>
                             <p className="text-xs text-slate-500 font-medium mt-1 leading-snug">
                                 {isFeedback ? 'Napíšte, čo by sme mali opraviť alebo doplniť.' : 'Ozveme sa späť do 24 h.'}
                             </p>
                         </div>
-                        <button onClick={() => setIsOpen(false)} className="text-slate-300 hover:text-slate-600 transition p-1 hover:bg-white rounded-lg border border-transparent hover:border-slate-100"><X size={18}/></button>
+                        <button aria-label="Zavrieť kontaktný formulár" onClick={() => setIsOpen(false)} className="text-slate-300 hover:text-slate-600 transition p-1 hover:bg-white rounded-lg border border-transparent hover:border-slate-100"><X size={18}/></button>
                     </div>
                     
                     <div className="p-5 space-y-4 max-h-[calc(100dvh-14rem)] md:max-h-[70vh] overflow-y-auto custom-scrollbar">
@@ -162,30 +181,37 @@ export const SupportWidget = ({ profile, organization }: { profile: UserProfile,
                 </>
             )}
             
+            <nav aria-label="Pomoc a podpora">
             <button 
                 onClick={() => isOpen && requestType === 'support' ? setIsOpen(false) : openPanel('support')}
                 className={`fixed right-0 bottom-40 z-[110] h-10 w-8 md:h-12 md:w-10 flex items-center justify-start pl-1.5 md:pl-2 rounded-l-lg md:rounded-l-xl bg-white border-y border-l border-slate-200 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all duration-500 pointer-events-auto hover:w-9 md:hover:w-12 group ${isOpen ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}
-                title="Technická podpora"
+                type="button" aria-label="Kontaktujte nás" aria-describedby={`${hintId}-support`}
             >
                 <div className="relative">
                     <MessageSquare size={18} className="text-orange-500 group-hover:scale-110 transition-transform md:w-5 md:h-5" />
-                    {!isOpen && (
-                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 md:-top-1 md:-right-1 md:w-2 md:h-2 bg-orange-600 rounded-full border border-white animate-pulse"></span>
-                    )}
                 </div>
+            <SupportHint id={`${hintId}-support`}>Kontaktujte nás</SupportHint>
             </button>
             <button 
                 onClick={() => isOpen && requestType === 'feedback' ? setIsOpen(false) : openPanel('feedback')}
                 className={`fixed right-0 bottom-56 z-[110] h-10 w-8 md:h-12 md:w-10 flex items-center justify-start pl-1.5 md:pl-2 rounded-l-lg md:rounded-l-xl bg-white border-y border-l border-slate-200 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all duration-500 pointer-events-auto hover:w-9 md:hover:w-12 group ${isOpen ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}
-                title="Poslať podnet na zlepšenie"
+                type="button" aria-label="Nahlásiť chybu" aria-describedby={`${hintId}-feedback`}
             >
                 <div className="relative">
                     <Bug size={18} className="text-orange-500 group-hover:scale-110 transition-transform md:w-5 md:h-5" />
-                    {!isOpen && (
-                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 md:-top-1 md:-right-1 md:w-2 md:h-2 bg-orange-600 rounded-full border border-white animate-pulse"></span>
-                    )}
                 </div>
+            <SupportHint id={`${hintId}-feedback`}>Nahlásiť chybu</SupportHint>
             </button>
+            <button type="button" aria-label="Nápoveda" aria-describedby={`${hintId}-help`} aria-expanded={helpOpen}
+                onClick={() => { setIsOpen(false); setHelpOpen(true); }}
+                className={`fixed right-0 bottom-72 z-[110] h-10 w-8 md:h-12 md:w-10 flex items-center justify-start pl-1.5 md:pl-2 rounded-l-lg md:rounded-l-xl bg-white border-y border-l border-slate-200 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all duration-500 pointer-events-auto hover:w-9 md:hover:w-12 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${isOpen ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
+                <div className="relative">
+                    <HelpCircle size={18} className="text-orange-500 group-hover:scale-110 transition-transform md:w-5 md:h-5" />
+                </div>
+            <SupportHint id={`${hintId}-help`}>Nápoveda</SupportHint>
+            </button>
+            </nav>
+            {helpOpen && <HelpCenter role={profile.role === 'employee' ? 'employee' : 'admin'} onClose={() => setHelpOpen(false)} onContact={() => openPanel('support')} />}
         </div>
     );
 };

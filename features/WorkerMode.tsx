@@ -9,7 +9,7 @@ import {
   Activity, ChevronLeft, Mail, Pencil, Save, Coins, AlertCircle, History, ArrowRight, Camera, KeyRound, Shield, Briefcase, Filter, Search,
   ChevronDown, Banknote, ChevronUp, ArrowUp, Check, Globe, ShieldCheck, BookOpen, Package, ClipboardCheck, Hash, RefreshCw, ArrowUpCircle, AlertTriangle
 } from 'lucide-react';
-import { formatMoney, formatDate, formatDuration } from '../lib/utils';
+import { formatMoney, formatDate, formatDuration, getMonthDateRange } from '../lib/utils';
 import { calculateAttendanceMinutes, getDefaultAttendanceBreak } from '../lib/attendance';
 
 import { App as CapApp } from '@capacitor/app';
@@ -552,7 +552,8 @@ export const WorkerModeScreen: React.FC<WorkerModeProps> = ({ profile: initialPr
         if (historyYearFilter) {
             if (historyMonthFilter) {
                 // Filter by specific month
-                query = query.gte('date', `${historyYearFilter}-${historyMonthFilter}-01`).lte('date', `${historyYearFilter}-${historyMonthFilter}-31`);
+                const range = getMonthDateRange(historyYearFilter, historyMonthFilter);
+                query = query.gte('date', range.start).lte('date', range.end);
             } else {
                 // Filter by whole year
                 query = query.gte('date', `${historyYearFilter}-01-01`).lte('date', `${historyYearFilter}-12-31`);

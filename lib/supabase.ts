@@ -21,4 +21,8 @@ export type UserProfile = {
   default_break_end?: string | null;
   phone?: string;
   is_active?: boolean;
+  is_temporary?: boolean;
+  temporary_periods?: { start_date: string; end_date: string }[];
+  default_payment_type?: 'hourly' | 'fixed' | null;
+  default_fixed_amount?: number | null;
 };

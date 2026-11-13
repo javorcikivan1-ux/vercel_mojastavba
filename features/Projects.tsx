@@ -13,6 +13,9 @@ import { ProjectPHM } from './ProjectPHM';
 import { PLANS } from './Subscription';
 import { searchProjectLocations, type LocationResult } from '../lib/weather';
 import { calculateAttendanceMinutes, formatAttendanceRange, getDefaultAttendanceBreak } from '../lib/attendance';
+import { TemporaryWorkerForm } from '../components/TemporaryWorkerForm';
+import { loadAllProjectRows, summarizeProjectLabor } from '../lib/projectData';
+import { temporaryWorkerDefaults, temporaryWorkerHasEnded } from '../lib/temporaryWorkers';
 
 // Type declaration for window object
 declare global {
@@ -329,6 +332,10 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const listRequest = useRef(0);
+  const listScope = `${profile.organization_id}:${activeTab}:${searchQuery}`;
+  const currentListScope = useRef(listScope);
+  currentListScope.current = listScope;
   
   const [showModal, setShowModal] = useState(false);
   const [editingSite, setEditingSite] = useState<any>(null);
@@ -391,15 +398,14 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
   };
 
   useEffect(() => {
+    listRequest.current++;
+    setLoading(true);
+    setHasMore(false);
     const timer = setTimeout(() => {
         load(true);
     }, 200);
-    return () => clearTimeout(timer);
-  }, [activeTab, searchQuery]);
-
-  useEffect(() => {
-    if (page > 0) load(false);
-  }, [page]);
+    return () => { clearTimeout(timer); listRequest.current++; };
+  }, [activeTab, searchQuery, profile.organization_id]);
 
   useEffect(() => {
     if (!initialAction?.action) return;
@@ -416,6 +422,9 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
   }, [initialAction]);
 
   const load = async (reset = false) => {
+    const request = ++listRequest.current;
+    const scope = listScope;
+    const targetPage = reset ? 0 : page + 1;
     if (reset) {
         setLoading(true);
     } else {
@@ -437,13 +446,15 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
             query = query.or(`name.ilike.%${searchQuery}%,address.ilike.%${searchQuery}%,client_name.ilike.%${searchQuery}%`);
         }
 
-        const from = reset ? 0 : page * PAGE_SIZE;
+        const from = targetPage * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
         const { data: sitesData, error } = await query
             .order('created_at', { ascending: false })
+            .order('id', { ascending: true })
             .range(from, to);
 
+        if (request !== listRequest.current || scope !== currentListScope.current) return;
         if (error) throw error;
 
         if (sitesData) {
@@ -453,6 +464,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                 .select('*')
                 .in('site_id', siteIds);
 
+            if (request !== listRequest.current || scope !== currentListScope.current) return;
             const enriched = sitesData.map(site => {
                 const s = statsRes?.find(st => st.site_id === site.id);
                 const income = roundFin(Number(s?.total_income || 0));
@@ -473,12 +485,15 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
 
             setSites(prev => reset ? enriched : [...prev, ...enriched]);
             setHasMore(sitesData.length === PAGE_SIZE);
+            setPage(targetPage);
         }
     } catch (e: any) {
         console.error(e);
     } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        if (request === listRequest.current && scope === currentListScope.current) {
+            setLoading(false);
+            setLoadingMore(false);
+        }
     }
   };
 
@@ -951,7 +966,7 @@ const ProjectManager = ({ profile, onSelect, onSelectLead, organization, initial
                 
                 {hasMore && !loading && (
                     <div className="flex justify-center pt-8 pb-12">
-                        <Button variant="secondary" onClick={() => setPage(p => p + 1)} loading={loadingMore} className="bg-white min-w-[220px]">Načítať ďalšie zákazky...</Button>
+                        <Button variant="secondary" onClick={() => load(false)} loading={loadingMore} disabled={loading || loadingMore} className="bg-white min-w-[220px]">Načítať ďalšie zákazky...</Button>
                     </div>
                 )}
               </div>
@@ -2932,37 +2947,27 @@ const QuotesList = ({ quotes, sites, onCreate, profile, organization, refresh }:
 };
 
 const LaborSummary = ({ logs }: { logs: any[] }) => {
-    const summary = logs.reduce((acc: any, log: any) => {
-        const name = log.profiles?.full_name || 'Neznámy';
-        if (!acc[name]) acc[name] = { hours: 0, cost: 0, count: 0 };
-        acc[name].hours += Number(log.hours || 0);
-        const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
-        const entryCost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : (Number(log.hours || 0) * rate);
-        acc[name].cost = roundFin(acc[name].cost + entryCost);
-        acc[name].count += 1;
-        return acc;
-    }, {});
-
-    const totalHours = Object.values(summary).reduce<number>((acc, item: any) => acc + Number(item.hours), 0);
-    const totalCost = roundFin(Object.values(summary).reduce<number>((acc, item: any) => acc + Number(item.cost), 0));
+    const summary = summarizeProjectLabor(logs);
+    const totalHours = summary.reduce((sum, worker) => sum + worker.hours, 0);
+    const totalCost = roundFin(summary.reduce((sum, worker) => sum + worker.cost, 0));
 
     return (
         <div className="bg-orange-50/40 rounded-2xl border border-orange-100 overflow-hidden mb-6 shadow-sm">
             <div className="p-4 bg-orange-50 border-b border-orange-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                  <h3 className="font-bold text-orange-900 flex items-center gap-2 text-sm sm:text-base"><Euro size={18}/> Finančný súhrn prác</h3>
                  <span className="text-xs font-semibold text-orange-700 bg-white px-2.5 py-1 rounded-lg shadow-sm border border-orange-100 whitespace-nowrap">
-                    {Object.keys(summary).length} pracovníkov
+                    {summary.length} pracovníkov
                  </span>
             </div>
             <div className="sm:hidden">
                 <div className="divide-y divide-orange-100/70">
-                    {Object.entries(summary).map(([name, data]: any) => (
-                        <div key={name} className="bg-white/70 p-4">
+                    {summary.map(data => (
+                        <div key={data.id} className="bg-white/70 p-4">
                             <div className="mb-3 flex min-w-0 items-center gap-2">
                                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-700">
                                     <User size={15} />
                                 </span>
-                                <span className="min-w-0 truncate text-sm font-bold text-slate-900">{name}</span>
+                                <span className="min-w-0 truncate text-sm font-bold text-slate-900">{data.name}</span>
                             </div>
                             <div className="grid grid-cols-[86px_minmax(0,1fr)_48px] items-end gap-3">
                                 <div className="min-w-0">
@@ -3002,9 +3007,9 @@ const LaborSummary = ({ logs }: { logs: any[] }) => {
                         <tr><th className="p-4">Meno</th><th className="p-4 text-right">Odpracovaný čas</th><th className="p-4 text-right">Náklady na prácu</th><th className="p-4 text-right">Podiel</th></tr>
                     </thead>
                     <tbody className="divide-y divide-orange-100/50">
-                        {Object.entries(summary).map(([name, data]: any) => (
-                            <tr key={name} className="hover:bg-orange-100/20 transition">
-                                <td className="p-4 font-semibold text-slate-800">{name}</td>
+                        {summary.map(data => (
+                            <tr key={data.id} className="hover:bg-orange-100/20 transition">
+                                <td className="p-4 font-semibold text-slate-800">{data.name}</td>
                                 <td className="p-4 text-right font-semibold text-slate-700 tabular-nums">{formatDuration(Number(data.hours))}</td>
                                 <td className="p-4 text-right font-bold text-slate-900 tabular-nums">{formatMoney(Number(data.cost))}</td>
                                 <td className="p-4 text-right text-sm text-slate-600 font-semibold tabular-nums">{((data.cost / (totalCost || 1)) * 100).toFixed(0)} %</td>
@@ -3072,6 +3077,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
   const [site, setSite] = useState<any>(null);
   const [data, setData] = useState<any>({ tasks: [], transactions: [], materials: [], logs: [], fuel: [] });
+  const [showQuickWorker, setShowQuickWorker] = useState(false);
   const [employees, setEmployees] = useState<any[]>([]); 
   const [stats, setStats] = useState<any>({ paid: 0, totalCost: 0, profit: 0, laborHours: 0, materialCost: 0, laborCost: 0, fuelCost: 0 });
   const [modals, setModals] = useState({ log: false, transaction: false, export: false }); 
@@ -3087,52 +3093,42 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
   const printRef = useRef<HTMLDivElement>(null);
 
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState('');
+  const dataVersion = useRef(0);
   const loadData = async () => {
-    const [s, t, tr, m, l, emps, f] = await Promise.all([
-      supabase.from('sites').select('*').eq('id', siteId).single(),
-      supabase.from('tasks').select('*').eq('site_id', siteId).order('start_date', {ascending: true}),
-      supabase.from('transactions').select('*').eq('site_id', siteId).order('date', {ascending: false}),
-      supabase.from('materials').select('*').eq('site_id', siteId).order('purchase_date', {ascending: false}),
-      supabase.from('attendance_logs').select('*, profiles(full_name, hourly_rate)').eq('site_id', siteId).order('date', {ascending: false}), 
-      supabase.from('profiles').select('*').eq('organization_id', profile.organization_id).eq('is_active', true),
-      supabase.from('fuel_logs').select('*').eq('site_id', siteId).order('date', {ascending: false})
-    ]);
-
-    if(s.data) {
-      const expenses = roundFin(tr.data?.filter(x => x.type === 'expense').reduce((sum, x) => sum + Number(x.amount), 0) || 0);
-      const paid = roundFin(tr.data?.filter(x => x.type === 'invoice' && x.is_paid).reduce((sum, x) => sum + Number(x.amount), 0) || 0);
-      const matCost = roundFin(m.data?.reduce((sum, x) => sum + Number(x.total_price), 0) || 0);
-      const fuelCost = roundFin(
-        f.data?.reduce((sum, x) => sum + Number(x.amount), 0) ?? 0
-      );
-      
-      const laborCost = roundFin(l.data?.reduce((sum, log: any) => {
-        if (log.payment_type === 'fixed') {
-            return sum + Number(log.fixed_amount || 0);
-        }
-        const hours = Number(log.hours) || 0;
-        const rate = log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0;
-        return sum + (hours * rate);
-      }, 0) || 0);
-
-      const totalCost = roundFin(expenses + matCost + laborCost + fuelCost);
-
+    const request = ++dataVersion.current;
+    setDataLoading(true); setDataError('');
+    try {
+      const [s, tasks, transactions, materials, logs, employees, fuel] = await Promise.all([
+        supabase.from('sites').select('*').eq('id', siteId).eq('organization_id', profile.organization_id).single(),
+        loadAllProjectRows('tasks', '*', profile.organization_id, siteId, 'start_date', true),
+        loadAllProjectRows('transactions', '*', profile.organization_id, siteId, 'date'),
+        loadAllProjectRows('materials', '*', profile.organization_id, siteId, 'purchase_date'),
+        loadAllProjectRows('attendance_logs', '*, profiles(full_name, hourly_rate)', profile.organization_id, siteId, 'date'),
+        loadAllProjectRows('profiles', '*', profile.organization_id, undefined, 'full_name', true),
+        loadAllProjectRows('fuel_logs', '*', profile.organization_id, siteId, 'date')
+      ]);
+      if (request !== dataVersion.current) return;
+      if (s.error || !s.data) throw s.error || new Error('Zákazka sa nenašla.');
+      const expenses = roundFin(transactions.filter(x => x.type === 'expense').reduce((sum, x) => sum + Number(x.amount), 0));
+      const paid = roundFin(transactions.filter(x => x.type === 'invoice' && x.is_paid).reduce((sum, x) => sum + Number(x.amount), 0));
+      const materialCost = roundFin(materials.reduce((sum, x) => sum + Number(x.total_price), 0));
+      const fuelCost = roundFin(fuel.reduce((sum, x) => sum + Number(x.amount), 0));
+      const laborCost = roundFin(summarizeProjectLabor(logs).reduce((sum, worker) => sum + worker.cost, 0));
+      const totalCost = roundFin(expenses + materialCost + laborCost + fuelCost);
       setSite(s.data);
-      setData({ tasks: t.data, transactions: tr.data, materials: m.data, logs: l.data, fuel: f.data });
-      setEmployees(emps.data || []);
-      setStats({ 
-        paid, 
-        totalCost, 
-        profit: roundFin(paid - totalCost),
-        laborHours: l.data?.reduce((sum, x:any) => sum + Number(x.hours || 0), 0) || 0,
-        materialCost: matCost,
-        laborCost: laborCost,
-        fuelCost: fuelCost
-      });
+      setData({ tasks, transactions, materials, logs, fuel });
+      setEmployees(employees.filter(employee => employee.is_active));
+      setStats({ paid, totalCost, profit: roundFin(paid - totalCost), laborHours: logs.reduce((sum, log) => sum + Number(log.hours || 0), 0), materialCost, laborCost, fuelCost });
+    } catch (error: any) {
+      if (request === dataVersion.current) setDataError(error?.message || 'Údaje zákazky sa nepodarilo načítať.');
+    } finally {
+      if (request === dataVersion.current) setDataLoading(false);
     }
   };
 
-  useEffect(() => { loadData(); }, [siteId]);
+  useEffect(() => { setSite(null); loadData(); return () => { dataVersion.current++; }; }, [siteId, profile.organization_id]);
 
   const changeStatus = async (newStatus: string) => {
       await supabase.from('sites').update({ status: newStatus }).eq('id', siteId);
@@ -3141,6 +3137,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
   };
 
   const handleExportPDF = async () => {
+    if (dataLoading || dataError) return;
     setExporting(true);
     try {
         await new Promise(resolve => setTimeout(resolve, 250));
@@ -3312,7 +3309,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
       setModals({...modals, log: true});
   };
 
-  if(!site) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-orange-600"/></div>;
+  if (!site) return <div className="p-10">{dataError ? <div role="alert" className="space-y-3 text-sm text-red-700"><p>{dataError}</p><Button variant="secondary" onClick={loadData}>Skúsiť znova</Button></div> : <div className="flex justify-center"><Loader2 className="animate-spin text-orange-600" /></div>}</div>;
 
   const financeItems = [
       ...data.transactions.map((t: any) => ({...t, itemType: 'transaction'})),
@@ -3342,12 +3339,13 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
 
   return (
     <div className="space-y-6">
+      {dataError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{dataError} PDF export je zablokovaný, kým sa nepodarí načítať všetky údaje. <button type="button" className="font-semibold underline" onClick={loadData}>Skúsiť znova</button></div>}
       <div className="flex items-center justify-between gap-3">
         <button onClick={onBack} className="h-10 px-3 rounded-xl text-slate-600 hover:text-slate-950 hover:bg-white border border-transparent hover:border-slate-200 font-semibold text-sm flex items-center gap-2 transition group">
             <ArrowLeft size={17} className="group-hover:-translate-x-0.5 transition-transform"/> Späť
         </button>
         <div className="flex items-center gap-2">
-          <button onClick={() => setModals({...modals, export: true})} className="h-10 px-4 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-slate-950 hover:border-slate-300 shadow-sm font-semibold text-sm flex items-center gap-2 transition">
+          <button disabled={dataLoading || !!dataError} onClick={() => setModals({...modals, export: true})} className="h-10 px-4 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-slate-950 hover:border-slate-300 shadow-sm font-semibold text-sm flex items-center gap-2 transition">
             <FileDown size={16}/> Stiahnuť PDF
           </button>
         </div>
@@ -3745,13 +3743,14 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                 disabled={!!formState.id}
                 onChange={(e: any) => {
                     const emp = employees.find(ep => ep.id === e.target.value);
-                    setFormState({...formState, user_id: e.target.value, hourly_rate_snapshot: emp?.hourly_rate || 0, ...getDefaultAttendanceBreak(emp)});
+                    setFormState({...formState, user_id: e.target.value, ...temporaryWorkerDefaults(emp)});
                 }} 
                 required
             >
                 <option value="">-- Vyberte pracovníka --</option>
-                {employees.map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+                {employees.filter(employee => !temporaryWorkerHasEnded(employee, formState.date)).map(e => <option key={e.id} value={e.id}>{e.full_name}{e.is_temporary ? ` · ${e.job_title || 'Dočasný pracovník'}` : ''}</option>)}
             </Select>
+            {!formState.id && <button type="button" onClick={() => setShowQuickWorker(true)} className="mb-4 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-orange-700 hover:text-orange-800"><Plus size={14} /> Pridať brigádnika / pomocníka</button>}
 
             <div className="bg-slate-100 p-1 rounded-xl flex gap-1 mb-6 border border-slate-200">
                 <button type="button" onClick={() => setFormState({...formState, payment_type: 'hourly'})} className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${formState.payment_type === 'hourly' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-500'}`}><Clock size={14}/> Hodinovka</button>
@@ -3817,6 +3816,12 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
           </form>
         </Modal>
       )}
+
+      {showQuickWorker && <TemporaryWorkerForm quick initialDate={formState.date} onClose={() => setShowQuickWorker(false)} onSaved={(id, worker) => {
+        setEmployees(previous => [...previous.filter(item => item.id !== id), worker]);
+        setFormState((previous: any) => ({ ...previous, user_id: id, ...temporaryWorkerDefaults(worker) }));
+        setShowQuickWorker(false);
+      }} />}
 
       {modals.transaction && (
         <Modal title={formState.id ? "Upraviť záznam" : "Záznam o pohybe financií"} onClose={() => setModals({...modals, transaction: false})}>
@@ -3894,7 +3899,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                           >
                               <div>
                                   <div className="font-bold text-slate-900 flex items-center gap-2"><User size={16} className="text-blue-500"/> Pre klienta</div>
-                                  <div className="text-[10px] text-slate-500 font-medium">Prehľad prác a postupu (anonymný zoznam)</div>
+                                  <div className="text-[10px] text-slate-500 font-medium">Prehľad prác a postupu s menami pracovníkov</div>
                               </div>
                               {exportSettings.type === 'client' && <CheckCircle2 size={20} className="text-orange-500" />}
                           </button>
@@ -3929,7 +3934,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                   )}
 
                   <div className="pt-4 flex flex-col gap-2">
-                      <Button fullWidth size="lg" onClick={handleExportPDF} loading={exporting}>
+                      <Button fullWidth size="lg" onClick={handleExportPDF} loading={exporting} disabled={dataLoading || !!dataError}>
                           <Printer size={18}/> Generovať PDF
                       </Button>
                       <Button variant="outline" fullWidth onClick={() => setModals({...modals, export: false})}>Zrušiť</Button>
@@ -3986,11 +3991,11 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                   <div className="font-bold text-sm border-b border-slate-200 mb-3 pb-2 flex items-center gap-2 text-slate-900">
                       <ClipboardList size={14} className="text-orange-600"/> Denník realizovaných prác
                   </div>
-                  <table className="w-full text-xs border-collapse rounded-xl overflow-hidden">
+                  <table className="w-full table-fixed text-xs border-collapse rounded-xl overflow-hidden">
                       <thead>
                           <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
                               <th className="border-b border-slate-200 p-2.5 text-left w-[30mm]">Dátum</th>
-                              <th className="border-b border-slate-200 p-2.5 text-left">Popis činnosti</th>
+                              <th className="border-b border-slate-200 p-2.5 text-left">Pracovník / popis činnosti</th>
                               <th className="border-b border-slate-200 p-2.5 text-right w-[22mm]">Rozsah</th>
                           </tr>
                       </thead>
@@ -3998,7 +4003,8 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                           {data.logs.map((log: any, idx: number) => (
                               <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
                                   <td className="border-b border-slate-100 p-2.5 align-top font-semibold text-slate-700 tabular-nums">{formatDate(log.date)}</td>
-                                  <td className="border-b border-slate-100 p-2.5 align-top text-slate-600">
+                                  <td className="border-b border-slate-100 p-2.5 align-top text-slate-600" style={{ overflowWrap: 'anywhere' }}>
+                                      <div className="mb-1 font-semibold leading-snug text-slate-900">{log.profiles?.full_name?.trim() || 'Neznámy pracovník'}</div>
                                       {log.payment_type === 'fixed' && <span className="text-[9px] bg-orange-50 text-orange-700 border border-orange-100 px-1.5 py-0.5 rounded font-semibold mr-2 uppercase">Úkol</span>}
                                       {log.description || '(Bez popisu prác)'}
                                   </td>
@@ -4019,7 +4025,7 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                               <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
                                   <th className="border-b border-slate-200 p-2.5 text-left w-[30mm]">Dátum</th>
                                   <th className="border-b border-slate-200 p-2.5 text-left">Položka</th>
-                                  <th className="border-b border-slate-200 p-2.5 text-right w-[22mm]">Množstvo</th>
+                                  <th className="border-b border-slate-200 p-2.5 text-right w-[28mm] whitespace-nowrap">Množstvo</th>
                                   <th className="border-b border-slate-200 p-2.5 text-right w-[30mm]">Suma</th>
                               </tr>
                           </thead>
@@ -4048,29 +4054,20 @@ const ProjectDetail = ({ siteId, profile, onBack, organization }: any) => {
                       <div className="font-bold text-sm border-b border-slate-200 mb-3 pb-2 flex items-center gap-2 text-slate-900">
                           <HardHat size={14} className="text-orange-600"/> Detail mzdových nákladov
                       </div>
-                      <table className="w-full text-xs border-collapse rounded-xl overflow-hidden">
+                      <table className="w-full table-fixed text-xs border-collapse rounded-xl overflow-hidden">
                           <thead>
                               <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
                                   <th className="border-b border-slate-200 p-2.5 text-left">Pracovník</th>
-                                  <th className="border-b border-slate-200 p-2.5 text-right">Hodiny</th>
-                                  <th className="border-b border-slate-200 p-2.5 text-right">Mzda celkom</th>
+                                  <th className="border-b border-slate-200 p-2.5 text-right w-[32mm]">Hodiny</th>
+                                  <th className="border-b border-slate-200 p-2.5 text-right w-[32mm]">Mzda celkom</th>
                               </tr>
                           </thead>
                           <tbody>
-                              {Object.entries(data.logs.reduce((acc: any, log: any) => {
-                                  const name = log.profiles?.full_name || 'Neznámy';
-                                  if (!acc[name]) acc[name] = { h: 0, c: 0 };
-                                  acc[name].h += Number(log.hours || 0);
-                                  
-                                  const entryCost = log.payment_type === 'fixed' ? Number(log.fixed_amount || 0) : roundFin(Number(log.hours || 0) * (log.hourly_rate_snapshot || log.profiles?.hourly_rate || 0));
-                                  acc[name].c = roundFin(acc[name].c + entryCost);
-                                  
-                                  return acc;
-                              }, {})).map(([name, stats]: any, idx: number) => (
-                                  <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
-                                      <td className="border-b border-slate-100 p-2.5 align-top font-semibold text-slate-800">{name}</td>
-                                      <td className="border-b border-slate-100 p-2.5 align-top text-right text-slate-600 tabular-nums">{formatDuration(stats.h)}</td>
-                                      <td className="border-b border-slate-100 p-2.5 align-top text-right font-semibold text-slate-900 tabular-nums">{formatMoney(stats.c)}</td>
+                              {summarizeProjectLabor(data.logs).map((worker, idx) => (
+                                  <tr key={worker.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
+                                      <td className="border-b border-slate-100 p-2.5 align-top font-semibold text-slate-800" style={{ overflowWrap: 'anywhere' }}>{worker.name}</td>
+                                      <td className="border-b border-slate-100 p-2.5 align-top text-right text-slate-600 tabular-nums">{formatDuration(worker.hours)}</td>
+                                      <td className="border-b border-slate-100 p-2.5 align-top text-right font-semibold text-slate-900 tabular-nums">{formatMoney(worker.cost)}</td>
                                   </tr>
                               ))}
                           </tbody>
